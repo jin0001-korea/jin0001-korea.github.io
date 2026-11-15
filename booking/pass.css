@@ -12,3 +12,8 @@
  .lp-issue-form>footer>span{max-width:none;flex-basis:100%;font-size:11px}
  .lp-issue-form>footer>div{margin-left:auto;flex-wrap:wrap}
 }
+/* 2026-11-15 수강권 비율·참가자 */
+.lp-participants{margin:0 0 16px}
+.lp-participants .field-label{display:block;margin-bottom:8px}
+.lp-participants .bk-team-chips{display:flex;gap:6px;flex-wrap:wrap}
+.lp-participants .bk-person-chip{display:inline-flex;align-items:center;border:1px solid #d7e6df;background:#f7fbf9;border-radius:6px;padding:5px 9px;font-size:10px;color:#72958a}
