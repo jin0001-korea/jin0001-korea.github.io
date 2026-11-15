@@ -444,6 +444,24 @@ function renderTeamSchedule(draft,context,escape){
 
 function directoryCustomer(draft,context){return (context.customers||[]).find(customer=>customer.id===draft.customerId)||null;}
 // 고객 공통의 개인(1..n) 명부 관리 — 팀 참가자는 아래 팀 정보에서 클릭 선택한다.
+
+// 수강권 인라인 발급(2026-11-15 확정): 별도 페이지·드로어 없이 예약창 그대로.
+// 고객·명부·팀 입력을 쓰고, 날짜만 생략한 채 팀별 '몇 회'만 받아 발급한다.
+function renderPassIssueModal(settings,context,escape){
+  if(!settings.passIssueOpen)return '';
+  const deck=settings.teamDeck||{cards:[]};
+  const cards=(deck.cards||[]).filter(card=>!card.draft?.id);
+  const results=settings.passIssueResults||{};
+  const rows=cards.map((card,index)=>{
+    const draft=card.draft||{},raw=draft.raw||{};
+    const paid=numeric(raw.Y)||0;
+    const done=results[card.key];
+    return `<div class="bk-pass-team-row${done?' is-done':''}" data-bk-pass-team="${escape(card.key)}"><div class="bk-pass-team-info"><strong>${escape(raw.I||`팀 ${index+1}`)}</strong><small>${escape(raw.H||'고객')} · 인원 ${escape(raw.M||'1')}명 · 입금 ${money(paid)}원</small></div>${done?`<span class="bk-pass-done">발급 완료 · ${escape(String(done.totalSessions))}회</span>`:`<label class="bk-pass-count"><input data-bk-pass-sessions type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="회"><span>회</span></label>`}</div>`;
+  }).join('');
+  const totalPaid=cards.reduce((sum,card)=>sum+(numeric(card.draft?.raw?.Y)||0),0);
+  return `<div class="bk-passissue-backdrop" data-bk-passissue-backdrop><section class="bk-passissue" role="dialog" aria-modal="true" aria-label="수강권 발급"><header><div><span class="bk-eyebrow">LESSON PASS</span><h3>수강권으로 발급</h3><p>날짜만 미정일 뿐, 입력한 고객·명부·팀 정보가 그대로 담깁니다. 각 팀의 총 횟수만 적어 주세요.</p></div><button type="button" class="icon-btn" data-bk-passissue-close aria-label="닫기">×</button></header><div class="bk-passissue-body">${rows||'<p class="bk-field-note">발급할 팀 카드가 없습니다. 팀 정보를 먼저 입력해 주세요.</p>'}<p class="bk-form-error" data-bk-passissue-error role="alert" hidden></p></div><footer><div class="bk-passissue-total"><span>고객 총 입금액</span><strong>${money(totalPaid)}원</strong></div><div><button type="button" class="btn secondary" data-bk-passissue-close>닫기</button><button type="button" class="btn primary" data-bk-passissue-confirm ${cards.length?'':'disabled'}>수강권 발급</button></div></footer></section></div>`;
+}
+
 function renderPeopleManager(draft,context,escape){
   if(!draft.customerId)return '<p class="bk-field-note" data-bk-people-hint>개인 명부는 고객을 연결하면 열립니다. 연락처 4자리로 기존 고객을 찾아 선택하거나, 첫 저장 후 자동 연결됩니다.</p>';
   const people=customerPeopleOf(context,draft.customerId);
@@ -696,22 +714,34 @@ function sessionFinancialTarget(target){
   return {rowId:id==='primary'?null:id,name:String(target.name||'').slice(prefix.length)};
 }
 
-function updateGrandTotal(form){
-  // 모든 회차 금액 블록(X/Y/Z)을 합산해 입금액 대조용 전체 합계를 보여준다.
+function updateGrandTotal(form,deck=null){
+  // 총입금액 = 고객 전체(열린 모든 팀 카드 × 모든 회차)의 합 (2026-11-15 확정).
+  // 활성 카드는 화면 입력값, 나머지 카드는 보관된 초안으로 합산한다.
   const host=form.closest?.('form')||form;
   const target=host.querySelector?.('[data-bk-grand-total]');if(!target)return;
+  let requested=0,paid=0,unknown=false,sessions=0;
   const blocks=[...host.querySelectorAll('[data-bk-session-financial]')];
-  if(blocks.length<2){target.hidden=true;return;}
-  let requested=0,paid=0,unknown=false;
   for(const block of blocks){
-    const read=suffix=>{const input=[...block.querySelectorAll('input')].find(el=>(el.name||'').endsWith(suffix));const value=numeric(input?.value);return value;};
+    const read=suffix=>{const input=[...block.querySelectorAll('input')].find(el=>(el.name||'').endsWith(suffix));return numeric(input?.value);};
     const x=read('raw_X'),y=read('raw_Y');
     if(x===null)unknown=true;else requested+=x;
-    paid+=y??0;
+    paid+=y??0;sessions++;
   }
+  let teams=1;
+  const activeKey=deck?.activeKey;
+  for(const card of (deck?.cards||[])){
+    if(card.key===activeKey)continue;
+    teams++;
+    for(const row of bookingDateRows(card.draft||{})){
+      try{const summary=bookingFinancialSummary({...card.draft,raw:{...card.draft.raw,...row.raw},rentalPaymentStatus:row.financial?.rentalPaymentStatus??card.draft.rentalPaymentStatus,rentalHours:row.financial?.rentalHours??card.draft.rentalHours,rentalAmount:row.financial?.rentalAmount??card.draft.rentalAmount});
+        requested+=summary.requested;paid+=summary.paid;sessions++;
+      }catch{unknown=true;sessions++;}
+    }
+  }
+  if(sessions<2&&teams<2){target.hidden=true;return;}
   const balance=Math.max(requested-paid,0);
   target.hidden=false;
-  target.innerHTML=`<strong>전체 ${blocks.length}회차 합계</strong><span>받아야 할 금액 ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>받은 금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금 ${money(balance)}원</span>`;
+  target.innerHTML=`<strong>고객 전체 ${teams>1?`${teams}팀 · `:''}${sessions}회차 총합</strong><span>받아야 할 금액 ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>총 입금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금 ${money(balance)}원</span>`;
 }
 function updateFinancialFields(form,{initializeCorrection=false}={}) {
   const patch=form.elements.namedItem('patchEnabled'),group=form.querySelector('[data-bk-patch-inputs]');
@@ -1045,7 +1075,7 @@ function renderDrawer(settings,context,escape) {
   const draft=settings.draft;if(!draft)return '';
   const pane=settings.tab||'intake',active=activeDraftCard(settings.teamDeck),busy=settings.deckSaving||settings.reviewSaving||settings.deleteSaving||!!settings.deleteRequest||draftDeckSummary(settings.teamDeck).busy;
   const saved=context.reservations.find(row=>row.id===draft.id),deletable=!!saved&&!isCancelled(saved)&&active?.serverId===draft.id;
-  return `<div class="bk-drawer-backdrop" data-bk-backdrop><div class="bk-team-deck"><aside data-bk-active-card="${escape(settings.teamDeck?.activeKey||'')}" class="bk-drawer bk-deck-drawer bk-board-layout bk-compact-layout" data-bk-card-status="${escape(active?.status||'draft')}" role="dialog" aria-modal="true" aria-label="예약 접수와 강사 배정"><header><div><span>${draft.id?'예약 관리':'NEW RESERVATION'}${settings.demo?' · 체험':''}</span><h2 class="bk-active-title"><span data-bk-active-customer>${escape(describeBookingCard(active||{draft}).customer)}</span><small data-bk-active-team>${escape(describeBookingCard(active||{draft}).team)}</small></h2><p data-bk-active-summary>${escape(describeBookingCard(active||{draft}).when)}${describeBookingCard(active||{draft}).contact?` · ${escape(describeBookingCard(active||{draft}).contact)}`:''}</p></div><button type="button" class="btn ghost small bk-window-close" data-bk-close aria-label="입력창 닫기 — 저장하지 않은 내용 삭제" title="입력창 닫기 — 저장하지 않은 내용 삭제" ${busy?'disabled':''}>입력창 닫기 <b aria-hidden="true">×</b></button></header>${renderDeckRail(settings,escape)}<nav class="bk-drawer-tabs" aria-label="예약 입력 위치 바로가기">${[['intake','01 고객 공통'],['team','02 팀 정보'],['financial','03 일정·금액'],['assignment','강사 선택(선택)'],...(draft.id?[['history','변경 이력']]:[])].map(([key,label])=>`<button type="button" data-bk-tab="${key}" class="${pane===key?'active':''}">${label}</button>`).join('')}</nav><form class="bk-reservation-form" ${busy?'data-busy="1"':''} novalidate><div class="bk-drawer-body"><p class="bk-review-saving" data-bk-deck-saving role="status" ${busy?'':'hidden'}>${paymentGroupSaveLabel(settings)?'같은 입금의 모든 팀·회차를 함께 저장하고 있습니다.':'이 팀의 예약을 저장하고 있습니다.'}</p>${renderDeckSaveNotice(settings,escape)}${settings.deckNotice?`<p class="bk-deck-notice" role="status" tabindex="-1" data-bk-existing-draft-notice>${escape(settings.deckNotice)}</p>`:''}${renderCardError(settings,escape)}<div class="bk-onepage-layout">${rawIntake(draft,context,escape,settings)}</div></div><footer><span class="bk-save-scope" data-bk-save-scope title="${escape(bookingSaveScope(settings))}">${escape(bookingSaveScope(settings))}</span><div>${deletable?`<button type="button" class="btn ghost bk-delete-reservation" data-bk-delete-reservation ${busy?'disabled':''}>예약 삭제</button>`:''}<button type="button" class="btn secondary" data-bk-close ${busy?'disabled':''}>입력창 닫기</button><button type="submit" class="btn primary" ${busy||active?.status==='saved'?'disabled':''}>${draft.id?'변경 내용 검토':paymentGroupSaveLabel(settings)|| (bookingDateRows(draft).length>1?`${bookingDateRows(draft).length}회 한 번에 저장`:settings.demo?'체험 예약 저장':'예약 저장')}</button></div></footer></form>${renderCardCloseConfirm(settings,escape)}${renderReservationDelete(settings,escape)}</aside></div></div>`;
+  return `<div class="bk-drawer-backdrop" data-bk-backdrop><div class="bk-team-deck"><aside data-bk-active-card="${escape(settings.teamDeck?.activeKey||'')}" class="bk-drawer bk-deck-drawer bk-board-layout bk-compact-layout" data-bk-card-status="${escape(active?.status||'draft')}" role="dialog" aria-modal="true" aria-label="예약 접수와 강사 배정"><header><div><span>${draft.id?'예약 관리':'NEW RESERVATION'}${settings.demo?' · 체험':''}</span><h2 class="bk-active-title"><span data-bk-active-customer>${escape(describeBookingCard(active||{draft}).customer)}</span><small data-bk-active-team>${escape(describeBookingCard(active||{draft}).team)}</small></h2><p data-bk-active-summary>${escape(describeBookingCard(active||{draft}).when)}${describeBookingCard(active||{draft}).contact?` · ${escape(describeBookingCard(active||{draft}).contact)}`:''}</p></div><button type="button" class="btn ghost small bk-window-close" data-bk-close aria-label="입력창 닫기 — 저장하지 않은 내용 삭제" title="입력창 닫기 — 저장하지 않은 내용 삭제" ${busy?'disabled':''}>입력창 닫기 <b aria-hidden="true">×</b></button></header>${renderDeckRail(settings,escape)}<nav class="bk-drawer-tabs" aria-label="예약 입력 위치 바로가기">${[['intake','01 고객 공통'],['team','02 팀 정보'],['financial','03 일정·금액'],['assignment','강사 선택(선택)'],...(draft.id?[['history','변경 이력']]:[])].map(([key,label])=>`<button type="button" data-bk-tab="${key}" class="${pane===key?'active':''}">${label}</button>`).join('')}</nav><form class="bk-reservation-form" ${busy?'data-busy="1"':''} novalidate><div class="bk-drawer-body"><p class="bk-review-saving" data-bk-deck-saving role="status" ${busy?'':'hidden'}>${paymentGroupSaveLabel(settings)?'같은 입금의 모든 팀·회차를 함께 저장하고 있습니다.':'이 팀의 예약을 저장하고 있습니다.'}</p>${renderDeckSaveNotice(settings,escape)}${settings.deckNotice?`<p class="bk-deck-notice" role="status" tabindex="-1" data-bk-existing-draft-notice>${escape(settings.deckNotice)}</p>`:''}${renderCardError(settings,escape)}<div class="bk-onepage-layout">${rawIntake(draft,context,escape,settings)}</div></div><footer><span class="bk-save-scope" data-bk-save-scope title="${escape(bookingSaveScope(settings))}">${escape(bookingSaveScope(settings))}</span><div>${deletable?`<button type="button" class="btn ghost bk-delete-reservation" data-bk-delete-reservation ${busy?'disabled':''}>예약 삭제</button>`:''}<button type="button" class="btn secondary" data-bk-close ${busy?'disabled':''}>입력창 닫기</button><button type="submit" class="btn primary" ${busy||active?.status==='saved'?'disabled':''}>${draft.id?'변경 내용 검토':paymentGroupSaveLabel(settings)|| (bookingDateRows(draft).length>1?`${bookingDateRows(draft).length}회 한 번에 저장`:settings.demo?'체험 예약 저장':'예약 저장')}</button></div></footer></form>${renderPassIssueModal(settings,context,escape)}${renderCardCloseConfirm(settings,escape)}${renderReservationDelete(settings,escape)}</aside></div></div>`;
 }
 
 function renderSettingsDrawer(settings,context,escape) {
@@ -1278,7 +1308,7 @@ function bookingPayload(draft,context) {
 /** All mutations are passed to authenticated parent callbacks; demo writes remain in memory. */
 export {validationError as validateBookingIntake};
 
-export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onSaveCustomerPerson,onDeleteCustomerPerson,now=new Date()}={}) {
+export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,now=new Date()}={}) {
   bookingRailObservers.get(root)?.disconnect();bookingRailObservers.delete(root);
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return;
   const view=root.querySelector('.booking-page');if(!view)return;
@@ -1528,19 +1558,19 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     for(const [selector,markup]of [['[data-bk-customer-suggestions]',renderCustomerSuggestions(settings.draft,context,escape)],['[data-bk-directory-selection]',renderDirectorySelection(settings.draft,context,escape)||renderPeopleManager(settings.draft,context,escape)],['[data-bk-team-choices]',renderCustomerTeamChoices(settings.draft,context,escape)],['[data-bk-customer-history]',renderCustomerHistory(settings.draft,context,escape)]]){const node=form.querySelector(selector);if(node?.nodeType===1)node._bkStableMarkup=markup;}
     const refreshCustomer=()=>{preserveDraft();refreshCustomerPanels(form,settings.draft,context,escape);preserveDraft();};
     const invalidateCandidates=()=>{settings.candidateRequestToken=null;if(ui.booking)ui.booking.candidateRequestToken=null;};
-    updateGrandTotal(form); // 다회차면 열자마자 전체 합계 표시
+    updateGrandTotal(form,settings.teamDeck); // 열자마자 고객 전체 합계 표시
     form.addEventListener('input',event=>{
       const session=sessionFinancialTarget(event.target);
       if(session?.rowId){
         invalidateCandidates();const scoped=sessionFinancialForm(form,session.rowId);
-        if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(session.name))updateFinancialFields(scoped);updateGrandTotal(form);
+        if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(session.name))updateFinancialFields(scoped);updateGrandTotal(form,settings.teamDeck);
         preserveDraft();syncIndicators();return;
       }
       if(event.target.name==='raw_M'){preserveDraft();refreshParticipantFields(form,settings.draft,escape);const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
       if(/^participant_\d+_age$/.test(event.target.name||'')){preserveDraft();const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
       if(event.target.name==='cashReceiptNumber'){preserveDraft();return;}
       invalidateCandidates();
-      if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form);preserveDraft();}
+      if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form,settings.teamDeck);preserveDraft();}
       if(['raw_H','raw_L','raw_I','teamPhone'].includes(event.target.name))refreshCustomer();
       preserveDraft();
       if(['raw_A','raw_B','raw_C','raw_N'].includes(event.target.name)||String(event.target.name||'').startsWith('date_'))refreshLessonPlanFields(form,settings.draft,escape);
@@ -1743,7 +1773,37 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         if(button.dataset.candidateRequest===requestToken){delete button.dataset.candidateRequest;button.disabled=false;button.textContent='자동 배정안 만들기';}
       }
     });
-    view.querySelector('[data-bk-issue-pass]')?.addEventListener('click',()=>{if(busy())return;preserveDraft();if(typeof onIssuePass==='function')onIssuePass(clone(settings.draft));});
+    view.querySelector('[data-bk-issue-pass]')?.addEventListener('click',()=>{
+      if(busy())return;preserveDraft();
+      if(typeof onCreatePass==='function'){update({passIssueOpen:true,passIssueResults:settings.passIssueResults||{}});return;}
+      if(typeof onIssuePass==='function')onIssuePass(clone(settings.draft));
+    });
+    // 수강권 인라인 발급 모달
+    view.querySelectorAll('[data-bk-passissue-close]').forEach(button=>button.addEventListener('click',()=>update({passIssueOpen:false})));
+    view.querySelector('[data-bk-passissue-backdrop]')?.addEventListener('click',event=>{if(event.target===event.currentTarget)update({passIssueOpen:false});});
+    view.querySelector('[data-bk-passissue-confirm]')?.addEventListener('click',async event=>{
+      if(busy()||typeof onCreatePass!=='function')return;
+      const modal=event.target.closest('.bk-passissue'),errorBox=modal.querySelector('[data-bk-passissue-error]');
+      const pending=[...modal.querySelectorAll('[data-bk-pass-team]')].filter(row=>row.querySelector('[data-bk-pass-sessions]'));
+      const entries=pending.map(row=>({key:row.dataset.bkPassTeam,sessions:Number(row.querySelector('[data-bk-pass-sessions]').value||'')}));
+      const invalid=entries.find(entry=>!Number.isInteger(entry.sessions)||entry.sessions<1||entry.sessions>100);
+      if(invalid||!entries.length){errorBox.hidden=false;errorBox.textContent='각 팀의 총 횟수를 1~100회 정수로 입력해 주세요.';return;}
+      event.target.disabled=true;errorBox.hidden=true;
+      const results={...(settings.passIssueResults||{})};
+      try{
+        for(const entry of entries){
+          const card=(settings.teamDeck?.cards||[]).find(item=>item.key===entry.key);if(!card)continue;
+          const draft=card.draft||{},raw=draft.raw||{};
+          const roster=customerPeopleOf(context,draft.customerId);
+          const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:roster.map(person=>String(person.id));
+          const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
+          const headcount=numeric(raw.M)||participants.length||1;
+          const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:entry.sessions,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:String(raw.G||'').trim()});
+          results[entry.key]={totalSessions:entry.sessions,passId:saved?.id||null};
+        }
+        update({passIssueResults:results});
+      }catch(error){event.target.disabled=false;errorBox.hidden=false;errorBox.textContent=error?.message||'수강권을 발급하지 못했습니다.';return;}
+    });
     view.querySelector('[data-bk-clear-assignment]')?.addEventListener('click',()=>{preserveDraft();update({draft:{...settings.draft,raw:{...settings.draft.raw,F:''},instructorIds:[],suggestion:false}});});
     form.addEventListener('submit',event=>{event.preventDefault();if(busy())return;preserveDraft();if(activeDraftCard(settings.teamDeck)?.status==='saved'){showError(form,'변경된 항목이 없습니다.');return;}if(settings.deckMode!==(settings.demo?'demo':'operational')){showError(form,'체험과 운영 예약 카드를 함께 저장할 수 없습니다. 초안을 확인해 주세요.');return;}if(savePaymentGroup(form))return;const draft=settings.draft,ownIds=new Set(bookingDateRows(draft).map(row=>row.id).filter(Boolean)),validationContext=!draft.id&&bookingDateRows(draft).length>1?{...context,reservations:context.reservations.filter(row=>!ownIds.has(row.id)),schedules:(context.schedules||[]).filter(row=>!ownIds.has(row.id)),passBalances:[]}:context,error=validationError(draft,validationContext);if(error){showError(form,error);return;}
       const payload=bookingPayload(draft,context),card=activeDraftCard(settings.teamDeck),cachedBaseline=card?.serverId===payload.id&&card?.baseline?.id===payload.id&&card?.baseline?.expectedUpdatedAt?card.baseline:null,original=payload.id?(context.reservations.find(row=>row.id===payload.id)||cachedBaseline):null;

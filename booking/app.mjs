@@ -9,7 +9,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=72';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=73';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=70';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -142,6 +142,7 @@ function render(){
     onSaveCapabilities:value=>writeOperation(()=>api.saveCapabilities(value),'강사 배정 조건을 저장했습니다.'),
     onSavePolicy:value=>writeOperation(()=>api.savePolicy(value),'배정 기준을 저장했습니다.'),
     onAutoAssign:id=>openAutoAssign(id),onOpenLesson:openReservation,onIssuePass:issuePassFromBooking,
+    onCreatePass:async payload=>{mustBeOperator();const saved=await writeOperation(()=>api.createLessonPass(payload),'수강권을 발급했습니다.');return saved;},
     onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});
