@@ -960,9 +960,11 @@ function captureSingleTeamForm(form,edit){
 }
 function putReview(u,review){
   if(!review||typeof review.id!=='string'||!Number.isSafeInteger(review.version))throw Error('검토 저장 결과를 확인하지 못했습니다.');
-  const rows=list(u.detail?.reviews),index=rows.findIndex(row=>row.id===review.id);
+  // 같은 rowKey의 미저장 로컬 행이 서버 저장본으로 바뀌면 교체한다(탭 중복 방지).
+  const rows=list(u.detail?.reviews).filter(row=>row.id||!review.rowKey||row.rowKey!==review.rowKey);
+  const index=rows.findIndex(row=>row.id===review.id);
   if(index<0)rows.push(review);else rows[index]=review;
-  u.detail.reviews=rows;delete u.edits[review.id];u.activeKey=review.id;return editOf(u,review);
+  u.detail.reviews=rows;delete u.edits[review.id];if(review.rowKey)delete u.edits[`new:${review.rowKey}`];u.activeKey=review.id;return editOf(u,review);
 }
 export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},onChange,onRefresh,onAction,onOpenBooking,onLoadSavedReservations,onEditSavedReservation,isCurrent=()=>true,busy=false,upload=globalThis.fetch,crypto=globalThis.crypto,confirm=message=>globalThis.confirm?.(message)===true}={}){
   if(!canReviewPayments(profile,ui))return;
