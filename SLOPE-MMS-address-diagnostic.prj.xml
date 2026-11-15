@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TaskerData sr="" dvi="1" tv="6.6.18">
+<Project sr="proj0" ve="2"><cdate>1794391865377</cdate><mdate>1794391865377</mdate><name>SLOPE MMS 주소 진단</name><tids>1998000001</tids><Img sr="icon" ve="2"><nme>mw_action_info_outline</nme></Img></Project>
+<Task sr="task1998000001"><cdate>1794391865377</cdate><edate>1794391865377</edate><id>1998000001</id><nme>MMS 주소 진단 · 실행 후 결과 복사</nme><pri>6</pri>
+<Action sr="act0" ve="7"><code>474</code><se>false</se><Str sr="arg0" ve="3">// SLOPE MMS address diagnostic v1: manual, local, read-only.
+long crmDiagCollectFrom = 0L;
+
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.database.Cursor;
+import android.net.Uri;
+import java.util.*;
+import org.json.*;
+
+String crmDiagString(Cursor row,String column){int index=row.getColumnIndex(column);return index&lt;0||row.isNull(index)?&quot;&quot;:row.getString(index);}
+String crmDiagTrim(String raw){return raw==null?&quot;&quot;:raw.replaceAll(&quot;^[\\s\\p{Z}]+|[\\s\\p{Z}]+$&quot;,&quot;&quot;);}
+boolean crmDiagMissing(String raw){String text=crmDiagTrim(raw);return text.length()==0||text.equalsIgnoreCase(&quot;null&quot;)||text.equalsIgnoreCase(&quot;insert-address-token&quot;);}
+String crmDiagCompact(String raw){return raw.replaceAll(&quot;[\\s\\p{Z}]&quot;,&quot;&quot;).replaceFirst(&quot;(?i)/TYPE=PLMN$&quot;,&quot;&quot;);}
+String crmDiagPhone(String raw){
+  if(raw==null||raw.length()&gt;256)return &quot;&quot;;
+  String phone=crmDiagCompact(raw);
+  if(!phone.matches(&quot;[+0-9().-]+&quot;))return &quot;&quot;;
+  phone=phone.replaceAll(&quot;[().-]&quot;,&quot;&quot;);
+  if(phone.startsWith(&quot;+82&quot;)||phone.startsWith(&quot;0082&quot;)||phone.matches(&quot;82[0-9]{8,11}&quot;)){
+    phone=phone.replaceFirst(&quot;^(\\+82|0082|82)&quot;,&quot;&quot;);if(!phone.startsWith(&quot;0&quot;))phone=&quot;0&quot;+phone;
+  }else if(phone.startsWith(&quot;00&quot;))phone=&quot;+&quot;+phone.substring(2);
+  return phone.matches(&quot;([0-9]{3,15}|\\+[1-9][0-9]{7,14})&quot;)?phone:&quot;&quot;;
+}
+String crmDiagClass(int point){
+  if(point&gt;=48&amp;&amp;point&lt;=57)return &quot;D&quot;;
+  if(Character.isDigit(point))return &quot;ND&quot;;
+  if(Character.isLetter(point))return point&lt;128?&quot;L&quot;:&quot;UL&quot;;
+  if(Character.isWhitespace(point)||Character.isSpaceChar(point))return &quot;W&quot;;
+  int kind=Character.getType(point);
+  if(kind==Character.FORMAT)return &quot;F&quot;;
+  if(kind==Character.CONTROL)return &quot;C&quot;;
+  if(point==43)return &quot;PLUS&quot;;if(point==45)return &quot;DASH&quot;;if(point==46)return &quot;DOT&quot;;
+  if(point==40||point==41)return &quot;PAREN&quot;;if(point==47)return &quot;SLASH&quot;;if(point==61)return &quot;EQ&quot;;
+  return &quot;O&quot;;
+}
+String crmDiagShape(String raw){
+  StringBuffer result=new StringBuffer();String previous=&quot;&quot;;int run=0,limit=Math.min(raw.length(),256),groups=0;
+  for(int index=0;index&lt;limit;){
+    int point=Character.codePointAt(raw,index);index+=Character.charCount(point);String kind=crmDiagClass(point);
+    if(kind.equals(previous)){run++;continue;}
+    if(run&gt;0){if(groups++&gt;0)result.append(&quot;.&quot;);result.append(previous).append(run);if(groups&gt;=12){result.append(&quot;.MORE&quot;);return result.toString();}}
+    previous=kind;run=1;
+  }
+  if(run&gt;0){if(groups&gt;0)result.append(&quot;.&quot;);result.append(previous).append(run);}
+  if(raw.length()&gt;limit)result.append(&quot;.LONG&quot;);return result.length()==0?&quot;EMPTY&quot;:result.toString();
+}
+String crmDiagFirstInvalid(String raw){
+  if(crmDiagMissing(raw))return &quot;NONE&quot;;
+  String compact=crmDiagCompact(raw.substring(0,Math.min(raw.length(),256)));
+  for(int index=0;index&lt;compact.length();){
+    int point=Character.codePointAt(compact,index);index+=Character.charCount(point);
+    if(point&gt;=48&amp;&amp;point&lt;=57||point==43||point==45||point==46||point==40||point==41)continue;
+    // Never emit the value or codepoint of a letter/digit from an address.
+    if(Character.isDigit(point))return &quot;NON_ASCII_DIGIT&quot;;
+    if(Character.isLetter(point))return point&lt;128?&quot;ASCII_LETTER&quot;:&quot;UNICODE_LETTER&quot;;
+    String value=Integer.toHexString(point).toUpperCase(Locale.US);while(value.length()&lt;4)value=&quot;0&quot;+value;
+    return crmDiagClass(point)+&quot;_U+&quot;+value;
+  }
+  return raw.length()&gt;256?&quot;TOO_LONG&quot;:&quot;NONE&quot;;
+}
+void crmDiagAdd(Map buckets,JSONObject report,int box,String type,String typeFormat,String charset,String role,String raw,String reason){
+  String length=raw.length()&gt;256?&quot;256+&quot;:String.valueOf(raw.length());
+  int digits=0,nuls=0;for(int index=0;index&lt;Math.min(raw.length(),256);index++){char point=raw.charAt(index);if(point&gt;=48&amp;&amp;point&lt;=57)digits++;if(point==0)nuls++;}
+  JSONObject shape=new JSONObject().put(&quot;direction&quot;,box==1?&quot;IN&quot;:&quot;OUT&quot;).put(&quot;type&quot;,type).put(&quot;typeFormat&quot;,typeFormat).put(&quot;charset&quot;,charset).put(&quot;role&quot;,role).put(&quot;reason&quot;,reason).put(&quot;length&quot;,length).put(&quot;asciiDigits&quot;,digits).put(&quot;nulCount&quot;,nuls).put(&quot;shape&quot;,crmDiagShape(raw)).put(&quot;firstInvalid&quot;,crmDiagFirstInvalid(raw));
+  String key=shape.toString();JSONObject existing=(JSONObject)buckets.get(key);
+  if(existing!=null){existing.put(&quot;count&quot;,existing.getInt(&quot;count&quot;)+1);return;}
+  if(buckets.size()&gt;=30){report.put(&quot;shapeOverflow&quot;,report.getInt(&quot;shapeOverflow&quot;)+1);return;}
+  shape.put(&quot;count&quot;,1);buckets.put(key,shape);
+}
+JSONObject crmDiagRun(ContentResolver resolver,long collectFrom){
+  long now=System.currentTimeMillis(),floor=Math.max(collectFrom,now-604800000L),deadline=now+5000L;
+  JSONObject report=new JSONObject().put(&quot;format&quot;,&quot;slope-mms-address-diagnostic-v1&quot;).put(&quot;status&quot;,&quot;ok&quot;).put(&quot;scope&quot;,collectFrom&gt;0?&quot;last7days-and-source&quot;:&quot;last7days&quot;);
+  String[] counts=new String[]{&quot;messages&quot;,&quot;addressRows&quot;,&quot;completeMessages&quot;,&quot;peerOk&quot;,&quot;addressUnsupported&quot;,&quot;addressPending&quot;,&quot;groupUnsupported&quot;,&quot;otherRecords&quot;,&quot;providerErrors&quot;,&quot;shapeOverflow&quot;};
+  for(int i=0;i&lt;counts.length;i++)report.put(counts[i],0);
+  report.put(&quot;limited&quot;,false);Map buckets=new LinkedHashMap();Cursor messages=null;
+  try{
+    messages=resolver.query(Uri.parse(&quot;content://mms&quot;),new String[]{&quot;_id&quot;,&quot;msg_box&quot;,&quot;m_type&quot;},&quot;date &gt;= ? AND date &lt;= ? AND msg_box IN (1,2)&quot;,new String[]{String.valueOf(floor/1000L),String.valueOf(now/1000L)},&quot;date DESC, _id DESC&quot;);
+    if(messages==null){report.put(&quot;status&quot;,&quot;provider_unavailable&quot;);return report;}
+    while(messages.moveToNext()){
+      if(report.getInt(&quot;messages&quot;)&gt;=50||report.getInt(&quot;addressRows&quot;)&gt;=100||System.currentTimeMillis()&gt;=deadline){report.put(&quot;limited&quot;,true);break;}
+      report.put(&quot;messages&quot;,report.getInt(&quot;messages&quot;)+1);
+      String id=crmDiagString(messages,&quot;_id&quot;);int box=0,pdu=0;
+      try{box=Integer.parseInt(crmDiagString(messages,&quot;msg_box&quot;));pdu=Integer.parseInt(crmDiagString(messages,&quot;m_type&quot;));}catch(Exception invalid){}
+      if(!id.matches(&quot;[0-9]{1,20}&quot;)||box!=1&amp;&amp;box!=2||box==1&amp;&amp;pdu!=132||box==2&amp;&amp;pdu!=128){report.put(&quot;otherRecords&quot;,report.getInt(&quot;otherRecords&quot;)+1);continue;}
+      Cursor addresses=null;Set from=new HashSet();Set to=new HashSet();Set peers=new HashSet();boolean unsupported=false,incomplete=false;int others=0;
+      try{
+        addresses=resolver.query(Uri.parse(&quot;content://mms/&quot;+id+&quot;/addr&quot;),new String[]{&quot;address&quot;,&quot;type&quot;,&quot;charset&quot;},null,null,null);
+        if(addresses==null){report.put(&quot;addressPending&quot;,report.getInt(&quot;addressPending&quot;)+1);continue;}
+        while(addresses.moveToNext()){
+          if(report.getInt(&quot;addressRows&quot;)&gt;=100||System.currentTimeMillis()&gt;=deadline){incomplete=true;report.put(&quot;limited&quot;,true);break;}
+          report.put(&quot;addressRows&quot;,report.getInt(&quot;addressRows&quot;)+1);
+          String raw=crmDiagTrim(crmDiagString(addresses,&quot;address&quot;)),type=crmDiagString(addresses,&quot;type&quot;),kindLabel=&quot;INVALID&quot;;int kind=-1;
+          try{if(type.matches(&quot;[0-9]{1,3}&quot;)){kind=Integer.parseInt(type);if(kind&gt;255)kind=-1;}}catch(Exception ignored){}
+          if(kind&gt;=0)kindLabel=String.valueOf(kind);
+          String typeFormat=type.length()==0?&quot;MISSING&quot;:type.matches(&quot;[0-9]+&quot;)?&quot;INTEGER&quot;:type.matches(&quot;[0-9]+\\.[0-9]+&quot;)?&quot;DECIMAL&quot;:&quot;OTHER&quot;;
+          String charsetRaw=crmDiagString(addresses,&quot;charset&quot;),charset=&quot;MISSING&quot;;
+          if(charsetRaw.length()&gt;0){charset=&quot;INVALID&quot;;try{if(charsetRaw.matches(&quot;[0-9]{1,5}&quot;)&amp;&amp;Integer.parseInt(charsetRaw)&lt;=65535)charset=String.valueOf(Integer.parseInt(charsetRaw));}catch(Exception ignored){}}
+          boolean missing=crmDiagMissing(raw);String phone=missing?&quot;&quot;:crmDiagPhone(raw);
+          String role=kind==(box==1?137:151)?&quot;PEER&quot;:kind==(box==1?151:137)?&quot;SELF&quot;:kind==129||kind==130?&quot;CC_BCC&quot;:&quot;UNKNOWN&quot;;
+          String reason=kind!=137&amp;&amp;kind!=151&amp;&amp;kind!=129&amp;&amp;kind!=130?&quot;UNKNOWN_TYPE&quot;:missing?&quot;MISSING&quot;:phone.length()&gt;0?&quot;PHONE&quot;:&quot;NON_PHONE&quot;;
+          crmDiagAdd(buckets,report,box,kindLabel,typeFormat,charset,role,raw,reason);
+          if(kind==129||kind==130){others++;continue;}
+          if(kind!=137&amp;&amp;kind!=151){unsupported=true;continue;}
+          String identity=missing?&quot;missing&quot;:phone.length()&gt;0?&quot;phone:&quot;+phone:&quot;raw:&quot;+raw;
+          if(kind==137)from.add(identity);else to.add(identity);
+          if(role.equals(&quot;PEER&quot;)){if(phone.length()&gt;0)peers.add(phone);else if(!missing)unsupported=true;}
+        }
+        if(incomplete)continue;
+        report.put(&quot;completeMessages&quot;,report.getInt(&quot;completeMessages&quot;)+1);
+        String outcome=others&gt;0||from.size()&gt;1||to.size()&gt;1?&quot;groupUnsupported&quot;:unsupported?&quot;addressUnsupported&quot;:peers.size()!=1?&quot;addressPending&quot;:&quot;peerOk&quot;;
+        report.put(outcome,report.getInt(outcome)+1);
+      }catch(SecurityException denied){throw denied;}
+      catch(Exception unreadable){report.put(&quot;providerErrors&quot;,report.getInt(&quot;providerErrors&quot;)+1);}
+      finally{if(addresses!=null)addresses.close();}
+    }
+  }catch(SecurityException denied){report.put(&quot;status&quot;,&quot;permission_required&quot;);}
+  catch(Exception unreadable){report.put(&quot;status&quot;,&quot;provider_error&quot;);}
+  finally{if(messages!=null)messages.close();JSONArray shapes=new JSONArray();Iterator iterator=buckets.values().iterator();while(iterator.hasNext())shapes.put((JSONObject)iterator.next());report.put(&quot;shapes&quot;,shapes);}
+  return report;
+}
+JSONObject crmDiagReport=crmDiagRun(context.getContentResolver(),crmDiagCollectFrom);
+String crmDiagSummary=crmDiagReport.toString();boolean crmDiagCopied=false;
+try{ClipboardManager clipboard=(ClipboardManager)context.getSystemService(Context.CLIPBOARD_SERVICE);if(clipboard!=null){clipboard.setPrimaryClip(ClipData.newPlainText(&quot;SLOPE MMS 주소 진단&quot;,crmDiagSummary));crmDiagCopied=true;}}catch(Exception unavailable){}
+tasker.log(crmDiagSummary);
+tasker.showToast(crmDiagCopied?&quot;진단 완료 · 번호와 내용을 제외한 결과를 복사했습니다. 채팅에 붙여넣어 주세요.&quot;:&quot;진단 완료 · 복사하지 못했습니다. Tasker 실행 기록의 진단 결과를 확인해 주세요.&quot;);
+return crmDiagSummary;
+</Str><Str sr="arg1" ve="3">%crm_mms_address_diagnostic</Str><Int sr="arg2" val="1"/></Action>
+</Task></TaskerData>

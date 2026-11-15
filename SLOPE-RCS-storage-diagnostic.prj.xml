@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TaskerData sr="" dvi="1" tv="6.6.18">
+<Project sr="proj0" ve="2"><cdate>1794634270865</cdate><mdate>1794634270865</mdate><name>SLOPE 채팅+ 저장소 진단</name><tids>1998000002</tids><Img sr="icon" ve="2"><nme>mw_action_info_outline</nme></Img></Project>
+<Task sr="task1998000002"><cdate>1794634270865</cdate><edate>1794634270865</edate><id>1998000002</id><nme>채팅+ 저장소 진단 · 실행 후 결과 복사</nme><pri>6</pri>
+<Action sr="act0" ve="7"><code>474</code><se>false</se><Str sr="arg0" ve="3">// SLOPE RCS storage diagnostic v1: manual and read-only.
+long crmRcsCollectFrom = 0L;
+
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.pm.ProviderInfo;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteException;
+import android.net.Uri;
+import android.os.CancellationSignal;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.OperationCanceledException;
+import android.os.Build;
+import android.provider.Telephony;
+import java.util.*;
+import org.json.*;
+
+String crmRcsIdentifier(String value){return value!=null&amp;&amp;value.length()&lt;=200&amp;&amp;value.matches(&quot;[A-Za-z0-9_.]+&quot;)?value:&quot;&quot;;}
+JSONObject crmRcsMetadata(Context ctx,String authority){
+  JSONObject result=new JSONObject().put(&quot;status&quot;,&quot;metadata_unavailable&quot;);
+  try{
+    ProviderInfo info=ctx.getPackageManager().resolveContentProvider(authority,0);
+    if(info!=null){
+      String permission=crmRcsIdentifier(info.readPermission);
+      result.put(&quot;status&quot;,&quot;metadata_visible&quot;).put(&quot;package&quot;,crmRcsIdentifier(info.packageName)).put(&quot;exported&quot;,info.exported).put(&quot;declaredReadPermission&quot;,permission);
+      if(permission.length()&gt;0)result.put(&quot;declaredPermissionGranted&quot;,ctx.checkCallingOrSelfPermission(permission)==0);
+    }
+  }catch(Exception unavailable){}
+  // Package visibility can hide metadata. Query results are reported separately.
+  return result;
+}
+long crmRcsTimestamp(Cursor cursor,int index){
+  if(index&lt;0||cursor.isNull(index))return 0L;
+  try{
+    String raw=cursor.getString(index);if(raw==null||!raw.matches(&quot;[0-9]{1,16}&quot;))return 0L;
+    long value=Long.parseLong(raw);
+    if(value&gt;=1000000000000L&amp;&amp;value&lt;=9999999999999L)return value;
+    if(value&gt;=1000000000L&amp;&amp;value&lt;=9999999999L)return value*1000L;
+  }catch(Exception invalid){}
+  return 0L;
+}
+void crmRcsTypeCount(JSONObject report,Cursor cursor,String column){
+  int index=cursor.getColumnIndex(column);if(index&lt;0)return;
+  JSONObject histogram=report.optJSONObject(column+&quot;Values&quot;);
+  if(histogram==null){histogram=new JSONObject();report.put(column+&quot;Values&quot;,histogram);}
+  String bucket=&quot;unknown&quot;;
+  if(!cursor.isNull(index)){
+    String raw=cursor.getString(index);
+    if(raw!=null&amp;&amp;raw.matches(&quot;[0-9]{1,3}&quot;))try{int value=Integer.parseInt(raw);if(value&lt;=255)bucket=String.valueOf(value);}catch(Exception invalid){}
+  }
+  if(!histogram.has(bucket)&amp;&amp;histogram.length()&gt;=16)bucket=&quot;other&quot;;
+  histogram.put(bucket,histogram.optInt(bucket)+1);
+}
+JSONObject crmRcsProbe(ContentResolver resolver,String path,long floor,long now,long deadline){
+  JSONObject report=new JSONObject().put(&quot;path&quot;,path).put(&quot;status&quot;,&quot;not_checked&quot;).put(&quot;scanned&quot;,0).put(&quot;inWindow&quot;,0).put(&quot;beforeWindow&quot;,0).put(&quot;afterNow&quot;,0).put(&quot;unknownDate&quot;,0).put(&quot;chatMarked&quot;,0).put(&quot;limited&quot;,false);
+  long remaining=deadline-System.currentTimeMillis();
+  if(remaining&lt;=0)return report.put(&quot;status&quot;,&quot;time_limit&quot;).put(&quot;limited&quot;,true);
+  final CancellationSignal signal=new CancellationSignal();
+  Handler handler=new Handler(Looper.getMainLooper());
+  Runnable cancel=new Runnable(){public void run(){signal.cancel();}};
+  Cursor cursor=null;
+  handler.postDelayed(cancel,Math.min(3000L,remaining));
+  try{
+    // These observed providers expose date. Inspect recent records first without
+    // assuming a timestamp unit or trusting provider selection filtering.
+    report.put(&quot;ordering&quot;,&quot;date_desc&quot;);
+    try{cursor=resolver.query(Uri.parse(path),null,null,null,&quot;date DESC&quot;,signal);}
+    catch(IllegalArgumentException orderRejected){report.put(&quot;ordering&quot;,&quot;unspecified&quot;);cursor=resolver.query(Uri.parse(path),null,null,null,null,signal);}
+    catch(SQLiteException orderRejected){report.put(&quot;ordering&quot;,&quot;unspecified&quot;);cursor=resolver.query(Uri.parse(path),null,null,null,null,signal);}
+    if(cursor==null)report.put(&quot;status&quot;,&quot;provider_unavailable&quot;);
+    else{
+    String[] known=new String[]{&quot;_id&quot;,&quot;thread_id&quot;,&quot;address&quot;,&quot;date&quot;,&quot;date_sent&quot;,&quot;type&quot;,&quot;msg_box&quot;,&quot;m_type&quot;,&quot;s_chat&quot;,&quot;body&quot;,&quot;sub_id&quot;,&quot;content_type&quot;,&quot;direction&quot;,&quot;message_type&quot;,&quot;file_size&quot;,&quot;file_path&quot;,&quot;file_uri&quot;,&quot;remote_uri&quot;,&quot;sender_address&quot;,&quot;status&quot;,&quot;is_filetransfer&quot;,&quot;content_uri&quot;};
+    JSONArray columns=new JSONArray();
+    for(int index=0;index&lt;known.length;index++)if(cursor.getColumnIndex(known[index])&gt;=0)columns.put(known[index]);
+    report.put(&quot;knownColumns&quot;,columns).put(&quot;chatFlagColumn&quot;,cursor.getColumnIndex(&quot;s_chat&quot;)&gt;=0);
+    int dateIndex=cursor.getColumnIndex(&quot;date&quot;),sentIndex=cursor.getColumnIndex(&quot;date_sent&quot;),chatIndex=cursor.getColumnIndex(&quot;s_chat&quot;);
+    if(dateIndex&lt;0&amp;&amp;sentIndex&lt;0)report.put(&quot;status&quot;,&quot;schema_only&quot;);
+    else{
+    while(report.getInt(&quot;scanned&quot;)&lt;500&amp;&amp;System.currentTimeMillis()&lt;deadline&amp;&amp;!signal.isCanceled()&amp;&amp;cursor.moveToNext()){
+      report.put(&quot;scanned&quot;,report.getInt(&quot;scanned&quot;)+1);
+      long at=crmRcsTimestamp(cursor,dateIndex);if(at==0L)at=crmRcsTimestamp(cursor,sentIndex);
+      if(at==0L){report.put(&quot;unknownDate&quot;,report.getInt(&quot;unknownDate&quot;)+1);continue;}
+      if(at&lt;floor){report.put(&quot;beforeWindow&quot;,report.getInt(&quot;beforeWindow&quot;)+1);continue;}
+      if(at&gt;now){report.put(&quot;afterNow&quot;,report.getInt(&quot;afterNow&quot;)+1);continue;}
+      report.put(&quot;inWindow&quot;,report.getInt(&quot;inWindow&quot;)+1);
+      if(chatIndex&gt;=0&amp;&amp;!cursor.isNull(chatIndex)&amp;&amp;&quot;1&quot;.equals(cursor.getString(chatIndex)))report.put(&quot;chatMarked&quot;,report.getInt(&quot;chatMarked&quot;)+1);
+      crmRcsTypeCount(report,cursor,&quot;type&quot;);crmRcsTypeCount(report,cursor,&quot;direction&quot;);crmRcsTypeCount(report,cursor,&quot;msg_box&quot;);crmRcsTypeCount(report,cursor,&quot;m_type&quot;);
+    }
+    boolean limited=report.getInt(&quot;scanned&quot;)&gt;=500||System.currentTimeMillis()&gt;=deadline||signal.isCanceled();
+    report.put(&quot;limited&quot;,limited).put(&quot;status&quot;,signal.isCanceled()?&quot;query_timeout&quot;:report.getInt(&quot;scanned&quot;)==0?&quot;readable_empty&quot;:&quot;readable_sample&quot;);
+    }
+    }
+  }catch(SecurityException denied){report.put(&quot;status&quot;,&quot;permission_required&quot;);}
+  catch(OperationCanceledException cancelled){report.put(&quot;status&quot;,&quot;query_timeout&quot;).put(&quot;limited&quot;,true);}
+  catch(IllegalArgumentException rejected){report.put(&quot;status&quot;,&quot;query_rejected&quot;);}
+  catch(Exception unreadable){report.put(&quot;status&quot;,&quot;provider_error&quot;);}
+  finally{handler.removeCallbacks(cancel);if(cursor!=null)try{cursor.close();}catch(Exception ignored){}}
+  return report;
+}
+JSONObject crmRcsRun(Context ctx,long collectFrom){
+  long now=System.currentTimeMillis(),floor=Math.max(collectFrom,now-604800000L),deadline=now+15000L;
+  JSONObject report=new JSONObject().put(&quot;format&quot;,&quot;slope-rcs-storage-diagnostic-v1&quot;).put(&quot;status&quot;,&quot;diagnostic_only&quot;).put(&quot;scope&quot;,&quot;bounded_visible_sample_last7days&quot;).put(&quot;collectionVerified&quot;,false).put(&quot;androidSdk&quot;,Build.VERSION.SDK_INT);
+  String defaultApp=&quot;&quot;;try{defaultApp=crmRcsIdentifier(Telephony.Sms.getDefaultSmsPackage(ctx));}catch(Exception unavailable){}
+  report.put(&quot;defaultSmsPackage&quot;,defaultApp).put(&quot;callerPackage&quot;,crmRcsIdentifier(ctx.getPackageName()));
+  JSONObject metadata=new JSONObject();String[] authorities=new String[]{&quot;sms&quot;,&quot;mms&quot;,&quot;im&quot;};
+  for(int index=0;index&lt;authorities.length;index++)metadata.put(authorities[index],crmRcsMetadata(ctx,authorities[index]));
+  report.put(&quot;providerMetadata&quot;,metadata);
+  String[] paths=new String[]{&quot;content://sms&quot;,&quot;content://mms&quot;,&quot;content://im/chat&quot;,&quot;content://im/ft&quot;,&quot;content://im/rcs_read_im&quot;};
+  JSONArray probes=new JSONArray();ContentResolver resolver=ctx.getContentResolver();
+  for(int index=0;index&lt;paths.length;index++)probes.put(crmRcsProbe(resolver,paths[index],floor,now,deadline));
+  return report.put(&quot;probes&quot;,probes);
+}
+JSONObject crmRcsReport=crmRcsRun(context,crmRcsCollectFrom);
+String crmRcsSummary=crmRcsReport.toString();boolean crmRcsCopied=false;
+try{ClipboardManager clipboard=(ClipboardManager)context.getSystemService(Context.CLIPBOARD_SERVICE);if(clipboard!=null){clipboard.setPrimaryClip(ClipData.newPlainText(&quot;SLOPE 채팅+ 저장소 진단&quot;,crmRcsSummary));crmRcsCopied=true;}}catch(Exception unavailable){}
+tasker.log(crmRcsSummary);
+tasker.showToast(crmRcsCopied?&quot;저장소 진단 완료 · 내용과 번호를 제외한 결과를 복사했습니다. 채팅에 붙여넣어 주세요.&quot;:&quot;저장소 진단 완료 · Tasker 실행 기록에서 결과를 확인해 주세요.&quot;);
+return crmRcsSummary;
+</Str><Str sr="arg1" ve="3">%crm_rcs_storage_diagnostic</Str><Int sr="arg2" val="1"/></Action>
+</Task></TaskerData>

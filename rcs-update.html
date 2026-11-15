@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>SLOPE · 채팅+ 수집 수정</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f8;color:#17243b;font:16px/1.6 system-ui,sans-serif}main{max-width:980px;margin:28px auto;padding:0 18px 32px}h1{font-size:27px;margin:6px 0 10px}h2{font-size:19px;margin:0 0 12px}p{margin:10px 0}.eyebrow,.note{color:#58677e;font-size:14px}.intro{max-width:740px;margin-bottom:22px}.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.card{min-width:0;background:#fff;border:1px solid #dce3ee;border-radius:14px;padding:22px}.tag{display:inline-block;color:#1849aa;background:#eaf1ff;border-radius:6px;font-size:13px;padding:3px 8px}.file{display:block;border:1px dashed #96aac6;border-radius:10px;background:#f8faff;padding:18px;margin:16px 0}.file strong{display:block;margin-bottom:12px}input{max-width:100%;font:inherit;font-size:14px}input::file-selector-button{font:inherit;background:white;border:1px solid #b1bed1;border-radius:7px;padding:10px;margin-right:8px}button{width:100%;padding:13px 16px;border:0;border-radius:9px;background:#1649c5;color:white;font:700 16px system-ui;cursor:pointer}button:disabled{background:#b2bfd3;cursor:default}button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #edb230;outline-offset:3px}.status{min-height:26px;font-size:14px;color:#3d526d;overflow-wrap:anywhere}.result{background:#edf5ef;border-radius:9px;padding:12px;margin:12px 0;font-size:14px}.result strong{display:block;overflow-wrap:anywhere}ol{padding-left:22px;margin:0}li{padding-left:3px;margin:12px 0}details{margin-top:16px;font-size:14px}summary{cursor:pointer;font-weight:600}.keep{border-left:3px solid #5982c0;padding-left:12px;font-size:14px}@media(max-width:700px){main{margin-top:18px;padding:0 14px 24px}.grid{grid-template-columns:1fr;gap:14px}.card{padding:18px}h1{font-size:24px}.intro{margin-bottom:16px}}
+</style>
+<main data-rcs-updater>
+<div class="intro"><span class="eyebrow">SLOPE · 기존 연결을 유지하는 수정판</span><h1>채팅+ 수집 수정 v11</h1><p>기존 연결파일에서 채팅+ 수집 작업을 수정합니다. 발신 사진의 실제 파일 크기와 대화 상대 번호를 확인하는 방식을 보완합니다.</p><p class="keep">기존 연결키와 수집 시작 시각을 유지합니다. 과거 문자 재업로드나 연결키 재발급은 필요하지 않습니다.</p></div>
+<div class="grid">
+<section class="card"><span class="tag">1 · 파일 준비</span><h2>기존 연결파일 선택</h2><p class="note">이 휴대폰에 설치한 SLOPE 전체 <strong>.prj.xml</strong> 파일을 선택하세요. 문자 백업 XML이나 진단 파일은 사용할 수 없습니다.</p>
+<label class="file"><strong>휴대폰의 기존 v10 연결파일</strong><input data-rcs-file type="file" accept=".xml,application/xml,text/xml" aria-label="기존 SLOPE 전체 프로젝트 파일"></label>
+<p data-rcs-status class="status" role="status" aria-live="polite"></p>
+<div data-rcs-result class="result" hidden>수정할 프로젝트<strong data-rcs-project-name></strong>수정 후 실행할 작업<strong data-rcs-task-name></strong></div>
+<button data-rcs-download disabled>수정한 연결파일 내려받기</button>
+<details><summary>기존 파일이 없으면</summary><p>Tasker 하단의 해당 <strong>SLOPE 수신</strong> 프로젝트 탭을 길게 눌러 <strong>Export / 내보내기 → XML to Storage / 저장소에 XML</strong>로 저장한 뒤 선택하세요. 채팅+ 작업 하나가 아닌 전체 프로젝트를 내보냅니다.</p></details>
+<p class="note">선택한 파일은 이 브라우저 안에서만 처리합니다. 연결키나 파일을 서버로 보내지 않습니다.</p></section>
+<section class="card"><span class="tag">2 · 휴대폰에 적용</span><h2>해당 프로젝트 교체</h2><ol><li>수정 파일을 내려받은 뒤 Tasker 하단에서 위에 표시된 <strong>같은 SLOPE 수신 프로젝트</strong>를 길게 누릅니다.</li><li><strong>Delete Contents / 내용까지 삭제</strong>로 해당 프로젝트의 작업·프로필을 함께 삭제합니다. 다른 프로젝트는 유지하세요.</li><li>하단 프로젝트 탭의 <strong>Import Project / 가져오기</strong>로 새 <strong>SLOPE-RCS-v11-….prj.xml</strong>을 추가합니다.</li><li><strong>채팅+ 동기화 v11</strong> 작업을 한 번 실행합니다. 이후 2분 간격으로 이어서 처리합니다. 밀린 사진은 여러 차례에 나눠 가져옵니다.</li></ol><p class="keep">휴대폰의 문자·사진과 사이트 저장 내역은 유지됩니다. Tasker 앱 데이터 자체를 삭제하거나 초기화하지 마세요.</p><p class="note">이미 있는 프로젝트라는 메시지가 뜨면 이전 프로젝트의 작업·프로필까지 삭제했는지 확인하세요. 이름만 바꿔 추가하면 자동 수집이 중복 실행될 수 있습니다.</p></section>
+</div>
+</main>
+<script type="module" src="./rcs-tasker-update.mjs?v=1"></script>
+</html>

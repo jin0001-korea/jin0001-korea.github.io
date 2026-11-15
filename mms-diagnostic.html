@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SLOPE · MMS 오류 진단</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px 16px;background:#f3f5f8;color:#17243b;font:16px/1.6 system-ui,sans-serif}main{max-width:560px;margin:24px auto;padding:24px;background:white;border:1px solid #dce3ee;border-radius:16px}h1{font-size:24px;margin:4px 0 12px}p{margin:12px 0}ol{padding-left:24px}li{margin:12px 0}.button{display:block;padding:14px 18px;background:#1649c5;color:white;text-align:center;text-decoration:none;font-weight:700;border-radius:10px;margin:20px 0}.note{font-size:14px;color:#58677e}a:focus-visible{outline:3px solid #f4a900;outline-offset:3px}
+</style>
+<main>
+<span class="note">SLOPE · 일회성 진단</span>
+<h1>MMS 주소 오류 확인</h1>
+<p>오류가 난 휴대폰에서 실행하세요. <strong>기존 v8 프로젝트와 연결키는 그대로 둡니다.</strong></p>
+<p class="note">이 진단은 v8의 주소 판정 기준으로 원인을 확인하는 도구입니다. 듀얼넘버의 번호 끝 # 처리는 v9 연결파일에 반영됩니다. v9 적용 후 저장 여부는 문자 화면의 실제 동기화 결과로 확인하세요.</p>
+<a class="button" href="./SLOPE-MMS-address-diagnostic.prj.xml" download="SLOPE-MMS-address-diagnostic.prj.xml">진단 파일 다운로드</a>
+<ol>
+<li>Tasker 하단 프로젝트 탭을 길게 누르고 <strong>가져오기 / Import Project</strong>에서 받은 파일을 선택합니다.</li>
+<li>새로 추가된 <strong>SLOPE MMS 주소 진단</strong>의 <strong>MMS 주소 진단 · 실행 후 결과 복사</strong> 작업을 엽니다.</li>
+<li><strong>▶ 실행</strong>을 한 번 누르고 완료 안내가 뜨면, 이 ChatGPT 대화에 <strong>붙여넣기</strong> 해주세요.</li>
+</ol>
+<p class="note">최근 7일 중 최대 50개 MMS의 주소 형식만 읽습니다. 전화번호·문자 본문·사진·고객명은 결과에 포함하지 않습니다. 진단 결과는 휴대폰 클립보드와 Tasker 실행 기록에 남으며 자동으로 서버에 전송하지 않습니다. 기존 문자·연결 설정·동기화 기록을 수정하지 않습니다.</p>
+</main>
+</html>

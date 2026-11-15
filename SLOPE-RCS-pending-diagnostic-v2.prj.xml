@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TaskerData sr="" dvi="1" tv="6.6.18">
+<Project sr="proj0" ve="2"><cdate>1794644567494</cdate><mdate>1794644567494</mdate><name>SLOPE 채팅+ 상세 진단 v2</name><tids>1998000004</tids><Img sr="icon" ve="2"><nme>mw_action_info_outline</nme></Img></Project>
+<Task sr="task1998000004"><cdate>1794644567494</cdate><edate>1794644567494</edate><id>1998000004</id><nme>채팅+ 상세 진단 v2 · 실행 후 결과 복사</nme><pri>6</pri>
+<Action sr="act0" ve="7"><code>474</code><se>false</se><Str sr="arg0" ve="3">
+import android.content.Context;
+import android.content.ContentResolver;
+import android.content.SharedPreferences;
+import android.content.ClipboardManager;
+import android.content.ClipData;
+import android.content.res.AssetFileDescriptor;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.CancellationSignal;
+import android.os.Handler;
+import android.os.Looper;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.util.*;
+import org.json.*;
+// Pure validation copied from collector v10; no transmission or checkpoint code.
+String pdString(Cursor cursor, String key) {
+  int at=cursor.getColumnIndex(key); return at&lt;0||cursor.isNull(at)?&quot;&quot;:cursor.getString(at);
+}
+String pdPhone(String raw) {
+  if(raw==null)return &quot;&quot;;
+  // Spaces and Unicode space separators are visual formatting, not address
+  // content. Keep other characters (including hidden format characters) invalid.
+  String p=raw.replaceAll(&quot;[\\s\\p{Z}]&quot;, &quot;&quot;).replaceFirst(&quot;(?i)/TYPE=PLMN$&quot;, &quot;&quot;);
+  // The enrolled dual-number phone stores a terminal ASCII # on customer
+  // addresses. Only one suffix on an otherwise valid full number is supported.
+  boolean dualSuffix=p.endsWith(&quot;#&quot;);if(dualSuffix)p=p.substring(0,p.length()-1);
+  if(!p.matches(&quot;[+0-9().-]+&quot;))return &quot;&quot;;
+  p=p.replaceAll(&quot;[().-]&quot;, &quot;&quot;);
+  if(p.startsWith(&quot;+82&quot;)||p.startsWith(&quot;0082&quot;)||p.matches(&quot;82[0-9]{8,11}&quot;)) {
+    p=p.replaceFirst(&quot;^(\\+82|0082|82)&quot;, &quot;&quot;); if(!p.startsWith(&quot;0&quot;))p=&quot;0&quot;+p;
+  } else if(p.startsWith(&quot;00&quot;))p=&quot;+&quot;+p.substring(2);
+  if(dualSuffix&amp;&amp;p.replace(&quot;+&quot;, &quot;&quot;).length()&lt;8)return &quot;&quot;;
+  return p.matches(&quot;([0-9]{3,15}|\\+[1-9][0-9]{7,14})&quot;)?p:&quot;&quot;;
+}
+
+String pdMime(String raw) {
+  String m=raw==null?&quot;&quot;:raw.split(&quot;;&quot;,2)[0].trim().toLowerCase(Locale.US);
+  if(m.equals(&quot;image/jpg&quot;)||m.equals(&quot;image/pjpeg&quot;))return &quot;image/jpeg&quot;;
+  if(m.equals(&quot;image/x-ms-bmp&quot;))return &quot;image/bmp&quot;;
+  if(m.equals(&quot;audio/x-wav&quot;)||m.equals(&quot;audio/wave&quot;))return &quot;audio/wav&quot;;
+  if(m.equals(&quot;audio/mp3&quot;)||m.equals(&quot;audio/mpeg3&quot;))return &quot;audio/mpeg&quot;;
+  if(m.equals(&quot;video/3gp&quot;))return &quot;video/3gpp&quot;;
+  return m;
+}
+String pdAscii(byte[] b,int offset,int length) {
+  if(offset+length&gt;b.length)return &quot;&quot;;
+  return new String(b,offset,length,&quot;US-ASCII&quot;);
+}
+String pdSniff(byte[] b) {
+  int n=b.length;
+  if(n&gt;=4&amp;&amp;(b[0]&amp;255)==255&amp;&amp;(b[1]&amp;255)==216&amp;&amp;(b[2]&amp;255)==255)return &quot;image/jpeg&quot;;
+  if(n&gt;=24&amp;&amp;(b[0]&amp;255)==137&amp;&amp;pdAscii(b,1,3).equals(&quot;PNG&quot;)&amp;&amp;b[4]==13&amp;&amp;b[5]==10&amp;&amp;b[6]==26&amp;&amp;b[7]==10&amp;&amp;pdAscii(b,12,4).equals(&quot;IHDR&quot;))return &quot;image/png&quot;;
+  if(n&gt;=10&amp;&amp;(pdAscii(b,0,6).equals(&quot;GIF87a&quot;)||pdAscii(b,0,6).equals(&quot;GIF89a&quot;)))return &quot;image/gif&quot;;
+  if(n&gt;=16&amp;&amp;pdAscii(b,0,4).equals(&quot;RIFF&quot;)&amp;&amp;pdAscii(b,8,4).equals(&quot;WEBP&quot;))return &quot;image/webp&quot;;
+  if(n&gt;=26&amp;&amp;pdAscii(b,0,2).equals(&quot;BM&quot;))return &quot;image/bmp&quot;;
+  if(n&gt;=12&amp;&amp;pdAscii(b,0,4).equals(&quot;RIFF&quot;)&amp;&amp;pdAscii(b,8,4).equals(&quot;WAVE&quot;))return &quot;audio/wav&quot;;
+  if(n&gt;=6&amp;&amp;pdAscii(b,0,6).equals(&quot;#!AMR\n&quot;)||n&gt;=9&amp;&amp;pdAscii(b,0,9).equals(&quot;#!AMR-WB\n&quot;))return &quot;audio/amr&quot;;
+  if(n&gt;=10&amp;&amp;pdAscii(b,0,3).equals(&quot;ID3&quot;))return &quot;audio/mpeg&quot;;
+  if(n&gt;=4&amp;&amp;(b[0]&amp;255)==255&amp;&amp;(b[1]&amp;224)==224&amp;&amp;(b[1]&amp;24)!=8&amp;&amp;(b[1]&amp;6)!=0&amp;&amp;(b[2]&amp;240)!=0&amp;&amp;(b[2]&amp;240)!=240&amp;&amp;(b[2]&amp;12)!=12)return &quot;audio/mpeg&quot;;
+  if(n&gt;=16&amp;&amp;pdAscii(b,4,4).equals(&quot;ftyp&quot;)) {
+    int size=ByteBuffer.wrap(b,0,4).getInt();
+    if(size&lt;16||size&gt;n||size&gt;4096)return &quot;&quot;;
+    String brands=pdAscii(b,8,4);
+    for(int at=16;at+4&lt;=size;at+=4)brands=brands+&quot; &quot;+pdAscii(b,at,4);
+    if(brands.matches(&quot;.*(avif|avis).*&quot;))return &quot;&quot;;
+    if(brands.matches(&quot;.*(heic|heix|hevc|hevx|heis|heim).*&quot;))return &quot;image/heic&quot;;
+    if(brands.matches(&quot;.*(mif1|msf1).*&quot;))return &quot;image/heif&quot;;
+    if(brands.matches(&quot;.*(3gp.|3g2.).*&quot;))return &quot;video/3gpp&quot;;
+    if(brands.matches(&quot;.*(isom|iso2|mp41|mp42|avc1|M4V |MSNV).*&quot;))return &quot;video/mp4&quot;;
+  }
+  return &quot;&quot;;
+}
+
+String pdPeerPhone(String raw) {
+  if(raw==null||raw.length()&gt;256)return &quot;&quot;;
+  String value=raw.trim();
+  if(value.regionMatches(true,0,&quot;tel:&quot;,0,4))value=value.substring(4);
+  else if(value.regionMatches(true,0,&quot;sip:&quot;,0,4)) {
+    value=value.substring(4);
+    int at=value.indexOf(&apos;@&apos;);
+    if(at&gt;=0){
+      String host=value.substring(at+1);
+      if(!host.matches(&quot;(?i)[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?;user=phone&quot;))return &quot;&quot;;
+      value=value.substring(0,at);
+    }
+  }
+  if(value.indexOf(&apos;;&apos;)&gt;=0||value.indexOf(&apos;@&apos;)&gt;=0||value.indexOf(&apos;:&apos;)&gt;=0||value.indexOf(&apos;,&apos;)&gt;=0)return &quot;&quot;;
+  String phone=pdPhone(value);
+  return phone.replace(&quot;+&quot;,&quot;&quot;).length()&gt;=8?phone:&quot;&quot;;
+}
+long pdTimestamp(String raw) {
+  if(raw==null||!raw.matches(&quot;[0-9]{10,13}&quot;))return 0L;
+  try{long value=Long.parseLong(raw);if(value&gt;=1000000000000L&amp;&amp;value&lt;=9999999999999L)return value;if(value&gt;=1000000000L&amp;&amp;value&lt;=9999999999L)return value*1000L;}catch(Exception invalid){}
+  return 0L;
+}
+String pdTextBody(String body,String mime) {
+  if(body==null||body.length()==0)throw new Exception(&quot;RCS_TEXT_PENDING&quot;);
+  if(!&quot;text/plain&quot;.equals(pdMime(mime)))throw new Exception(&quot;RCS_CONTENT_UNSUPPORTED&quot;);
+  if(body.length()&gt;20000)throw new Exception(&quot;RCS_TEXT_TOO_LARGE&quot;);
+  for(int i=0;i&lt;body.length();i++){char c=body.charAt(i);if(c&lt;32&amp;&amp;c!=&apos;\t&apos;&amp;&amp;c!=&apos;\r&apos;&amp;&amp;c!=&apos;\n&apos;||c==127)throw new Exception(&quot;RCS_CONTENT_UNSUPPORTED&quot;);}
+  return body;
+}
+void pdPeerFail(JSONObject report,String reason,String code) {
+  pdIncrement(report.getJSONObject(&quot;peerFailureReasons&quot;),reason);throw new Exception(code);
+}
+String pdPeer(ContentResolver resolver,Cursor row,Map verifiedThreads,CancellationSignal signal,JSONObject report) {
+  String[] flags=new String[]{&quot;is_group_chat&quot;,&quot;is_group&quot;,&quot;group_chat&quot;};
+  for(int i=0;i&lt;flags.length;i++){String flag=pdString(row,flags[i]);if(flag.length()&gt;0&amp;&amp;!&quot;0&quot;.equals(flag)&amp;&amp;!&quot;false&quot;.equalsIgnoreCase(flag))pdPeerFail(report,&quot;explicitGroupFlag&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);}
+  String phone=pdPeerPhone(pdString(row,&quot;address&quot;));
+  if(phone.length()==0)pdPeerFail(report,&quot;rowAddressInvalid&quot;,&quot;RCS_ADDRESS_UNSUPPORTED&quot;);
+  String remote=pdString(row,&quot;remote_uri&quot;),remotePhone=pdPeerPhone(remote);
+  if(remotePhone.length()&gt;0&amp;&amp;!remotePhone.equals(phone))pdPeerFail(report,&quot;remoteAddressMismatch&quot;,&quot;RCS_ADDRESS_CONFLICT&quot;);
+  String thread=pdString(row,&quot;thread_id&quot;);
+  if(!thread.matches(&quot;[0-9]{1,20}&quot;))pdPeerFail(report,&quot;threadIdInvalid&quot;,&quot;RCS_THREAD_PENDING&quot;);
+  String cached=(String)verifiedThreads.get(thread);
+  if(cached!=null){if(!cached.equals(phone))pdPeerFail(report,&quot;cachedPeerMismatch&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);return phone;}
+  Cursor conversation=null,canonical=null;
+  try{
+    // Same collector validation; each branch emits only a fixed reason label.
+    conversation=resolver.query(Uri.parse(&quot;content://mms-sms/im-threads&quot;),null,&quot;normal_thread_id = ?&quot;,new String[]{thread},null,signal);
+    if(conversation==null||!conversation.moveToNext())pdPeerFail(report,&quot;threadMissing&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    if(!thread.equals(pdString(conversation,&quot;normal_thread_id&quot;)))pdPeerFail(report,&quot;threadIdMismatch&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    String conversationType=pdString(conversation,&quot;conversation_type&quot;);
+    pdIncrement(report.getJSONObject(&quot;threadTypes&quot;),conversationType.length()==0?&quot;MISSING&quot;:conversationType.matches(&quot;[0-6]&quot;)?&quot;TYPE_&quot;+conversationType:&quot;OTHER&quot;);
+    if(conversationType.length()==0)pdPeerFail(report,&quot;threadTypeMissing&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    if(!&quot;1&quot;.equals(conversationType))pdPeerFail(report,&quot;threadTypeNotOneToOne&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);
+    String recipient=pdString(conversation,&quot;recipient_ids&quot;).trim();
+    if(!recipient.matches(&quot;[0-9]{1,20}&quot;))pdPeerFail(report,recipient.matches(&quot;[0-9]{1,20}( +[0-9]{1,20})+&quot;)?&quot;multipleRecipientIds&quot;:&quot;recipientIdsInvalid&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);
+    if(conversation.moveToNext())pdPeerFail(report,&quot;threadAmbiguous&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    canonical=resolver.query(Uri.parse(&quot;content://mms-sms/canonical-addresses/&quot;),new String[]{&quot;_id&quot;,&quot;address&quot;},&quot;_id = ?&quot;,new String[]{recipient},null,signal);
+    if(canonical==null||!canonical.moveToNext())pdPeerFail(report,&quot;canonicalMissing&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    if(!recipient.equals(pdString(canonical,&quot;_id&quot;)))pdPeerFail(report,&quot;canonicalIdMismatch&quot;,&quot;RCS_THREAD_PENDING&quot;);
+    String other=pdPeerPhone(pdString(canonical,&quot;address&quot;));
+    if(other.length()==0)pdPeerFail(report,&quot;canonicalAddressInvalid&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);
+    if(!phone.equals(other))pdPeerFail(report,&quot;canonicalPeerMismatch&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);
+    if(canonical.moveToNext())pdPeerFail(report,&quot;canonicalAmbiguous&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;);
+    verifiedThreads.put(thread,phone);
+  }finally{if(conversation!=null)conversation.close();if(canonical!=null)canonical.close();}
+  return phone;
+}
+
+
+void pdIncrement(JSONObject counts,String name) { counts.put(name,counts.optInt(name)+1); }
+JSONObject pdZero(String[] names) { JSONObject value=new JSONObject();for(int i=0;i&lt;names.length;i++)value.put(names[i],0);return value; }
+String pdException(Throwable failure) {
+  if(failure instanceof SecurityException)return &quot;SECURITY&quot;;
+  if(failure instanceof FileNotFoundException)return &quot;FILE_NOT_FOUND&quot;;
+  if(failure instanceof InterruptedIOException)return &quot;INTERRUPTED_IO&quot;;
+  if(failure instanceof IOException)return &quot;IO&quot;;
+  if(&quot;android.os.OperationCanceledException&quot;.equals(failure.getClass().getName()))return &quot;CANCELLED&quot;;
+  return &quot;OTHER&quot;;
+}
+String pdFailure(Throwable failure) {
+  String message=failure.getMessage();
+  String[] known=new String[]{&quot;RCS_TEXT_PENDING&quot;,&quot;RCS_TEXT_TOO_LARGE&quot;,&quot;RCS_CONTENT_UNSUPPORTED&quot;,&quot;RCS_GROUP_UNSUPPORTED&quot;,&quot;RCS_THREAD_PENDING&quot;,&quot;RCS_ADDRESS_UNSUPPORTED&quot;,&quot;RCS_ADDRESS_CONFLICT&quot;,&quot;RCS_MEDIA_PENDING&quot;,&quot;RCS_MEDIA_TOO_LARGE&quot;,&quot;RCS_MEDIA_UNSUPPORTED&quot;,&quot;RCS_PROVIDER_UNAVAILABLE&quot;,&quot;RCS_SCHEMA_UNSUPPORTED&quot;,&quot;DIAGNOSTIC_DEADLINE&quot;};
+  for(int i=0;i&lt;known.length;i++)if(known[i].equals(message))return known[i];
+  return pdException(failure);
+}
+String pdMimeLabel(String value) {
+  String mime=pdMime(value);
+  String[] known=new String[]{&quot;text/plain&quot;,&quot;image/jpeg&quot;,&quot;image/png&quot;,&quot;image/gif&quot;,&quot;image/webp&quot;,&quot;image/bmp&quot;,&quot;image/heic&quot;,&quot;image/heif&quot;,&quot;video/mp4&quot;,&quot;video/3gpp&quot;,&quot;audio/mpeg&quot;,&quot;audio/wav&quot;,&quot;audio/amr&quot;,&quot;application/octet-stream&quot;};
+  for(int i=0;i&lt;known.length;i++)if(known[i].equals(mime))return known[i];
+  return mime.length()==0?&quot;EMPTY&quot;:&quot;OTHER&quot;;
+}
+void pdFailed(JSONObject report,String stage,Throwable failure) {
+  pdIncrement(report.getJSONObject(&quot;stages&quot;),stage);
+  pdIncrement(report.getJSONObject(&quot;errors&quot;),pdFailure(failure));
+  pdIncrement(report.getJSONObject(&quot;exceptions&quot;),pdException(failure));
+}
+void pdDeadline(long deadline) { if(System.currentTimeMillis()&gt;=deadline)throw new Exception(&quot;DIAGNOSTIC_DEADLINE&quot;); }
+
+String pdLengthBucket(long actual,long expected) { return actual&lt;0L?&quot;unknown&quot;:actual==0L?&quot;empty&quot;:actual&lt;expected?&quot;shorter&quot;:actual==expected?&quot;equal&quot;:&quot;longer&quot;; }
+long[] pdDescriptor(ContentResolver resolver,String id,long expected,long deadline,JSONObject report,CancellationSignal signal) {
+  long[] sizes=new long[]{-1L,-1L};AssetFileDescriptor descriptor=null;
+  JSONObject observation=report.getJSONObject(&quot;descriptor&quot;);pdIncrement(observation,&quot;attempted&quot;);
+  try{
+    pdDeadline(deadline);descriptor=resolver.openAssetFileDescriptor(Uri.parse(&quot;content://im/ft_original/&quot;+id),&quot;r&quot;,signal);
+    if(descriptor==null){pdIncrement(observation,&quot;unavailable&quot;);return sizes;}
+    pdIncrement(observation,&quot;opened&quot;);
+    sizes[0]=descriptor.getLength();sizes[1]=descriptor.getParcelFileDescriptor().getStatSize();
+    pdIncrement(report.getJSONObject(&quot;descriptorDeclaredVsMetadata&quot;),pdLengthBucket(descriptor.getDeclaredLength(),expected));
+    pdIncrement(report.getJSONObject(&quot;descriptorLengthVsMetadata&quot;),pdLengthBucket(sizes[0],expected));
+    pdIncrement(report.getJSONObject(&quot;descriptorStatVsMetadata&quot;),pdLengthBucket(sizes[1],expected));
+    pdIncrement(observation,descriptor.getStartOffset()==0L?&quot;zeroOffset&quot;:&quot;nonzeroOffset&quot;);
+  }catch(Exception failure){pdIncrement(observation,&quot;unavailable&quot;);pdIncrement(report.getJSONObject(&quot;descriptorErrors&quot;),pdException(failure));}
+  finally{if(descriptor!=null)try{descriptor.close();}catch(Exception ignored){}}
+  return sizes;
+}
+
+void pdInspect(ContentResolver resolver,String provider,String id,long floor,long deadline,JSONObject report,Map verifiedThreads,CancellationSignal signal,Handler handler) {
+  JSONObject outcome=report.getJSONObject(&quot;results&quot;).getJSONObject(provider);pdIncrement(outcome,&quot;inspected&quot;);
+  String stage=&quot;query&quot;,direction=&quot;&quot;;Cursor row=null;InputStream input=null;Runnable closeStream=null;
+  try{
+    pdDeadline(deadline);
+    row=resolver.query(Uri.parse(&quot;content://im/&quot;+provider),null,&quot;_id = ?&quot;,new String[]{id},null,signal);
+    if(row==null)throw new Exception(&quot;RCS_PROVIDER_UNAVAILABLE&quot;);
+    if(!row.moveToNext()){pdIncrement(outcome,&quot;missing&quot;);return;}
+    if(!id.equals(pdString(row,&quot;_id&quot;)))throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);
+    String[] required=provider.equals(&quot;chat&quot;)?new String[]{&quot;_id&quot;,&quot;thread_id&quot;,&quot;address&quot;,&quot;date&quot;,&quot;type&quot;,&quot;body&quot;,&quot;content_type&quot;}:new String[]{&quot;_id&quot;,&quot;thread_id&quot;,&quot;address&quot;,&quot;date&quot;,&quot;type&quot;,&quot;content_type&quot;,&quot;file_size&quot;};
+    for(int i=0;i&lt;required.length;i++)if(row.getColumnIndex(required[i])&lt;0)throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);
+    long occurredAt=pdTimestamp(pdString(row,&quot;date&quot;));direction=pdString(row,&quot;type&quot;);
+    if(occurredAt==0L||!&quot;1&quot;.equals(direction)&amp;&amp;!&quot;2&quot;.equals(direction))throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);
+    if(occurredAt&lt;floor||occurredAt&gt;System.currentTimeMillis()){pdIncrement(outcome,&quot;stale&quot;);return;}
+    pdIncrement(outcome,&quot;1&quot;.equals(direction)?&quot;incoming&quot;:&quot;outgoing&quot;);
+    stage=&quot;peer&quot;;pdDeadline(deadline);pdPeer(resolver,row,verifiedThreads,signal,report);
+    String declared=pdMime(pdString(row,&quot;content_type&quot;));pdIncrement(report.getJSONObject(&quot;declaredMime&quot;),pdMimeLabel(declared));
+    if(provider.equals(&quot;chat&quot;)){
+      stage=&quot;text&quot;;pdTextBody(pdString(row,&quot;body&quot;),declared);
+    }else{
+      stage=&quot;size&quot;;String rawSize=pdString(row,&quot;file_size&quot;);
+      if(!rawSize.matches(&quot;[0-9]{1,9}&quot;))throw new Exception(&quot;RCS_MEDIA_PENDING&quot;);
+      long expected=Long.parseLong(rawSize);if(expected&lt;1L)throw new Exception(&quot;RCS_MEDIA_PENDING&quot;);if(expected&gt;8388608L)throw new Exception(&quot;RCS_MEDIA_TOO_LARGE&quot;);
+      stage=&quot;open&quot;;pdDeadline(deadline);input=resolver.openInputStream(Uri.parse(&quot;content://im/ft_original/&quot;+id));
+      if(input==null)throw new Exception(&quot;RCS_MEDIA_PENDING&quot;);
+      final InputStream activeStream=input;closeStream=new Runnable(){public void run(){try{activeStream.close();}catch(Exception ignored){}}};handler.postDelayed(closeStream,Math.max(1L,deadline-System.currentTimeMillis()));
+      stage=&quot;read&quot;;ByteArrayOutputStream header=new ByteArrayOutputStream();MessageDigest digest=MessageDigest.getInstance(&quot;SHA-256&quot;);long size=0L;byte[] buffer=new byte[32768];int read,lastByte=-1,penultimateByte=-1;
+      while(true){pdDeadline(deadline);read=input.read(buffer);if(read&lt;0)break;if(read==0)continue;if(size+read&gt;8388608L)throw new Exception(&quot;RCS_MEDIA_TOO_LARGE&quot;);if(header.size()&lt;4096)header.write(buffer,0,Math.min(read,4096-header.size()));digest.update(buffer,0,read);penultimateByte=read==1?lastByte:buffer[read-2]&amp;255;lastByte=buffer[read-1]&amp;255;size+=read;}
+      byte[] sha256=digest.digest();if(sha256.length!=32)throw new Exception(&quot;RCS_MEDIA_PENDING&quot;);
+      String detected=pdSniff(header.toByteArray());header.close();pdIncrement(report.getJSONObject(&quot;observedMime&quot;),pdMimeLabel(detected));
+      // Last two bytes only; neither presence nor absence proves JPEG integrity.
+      if(&quot;image/jpeg&quot;.equals(declared)||&quot;image/jpeg&quot;.equals(detected))pdIncrement(report.getJSONObject(&quot;jpegTailMarker&quot;),size==0L?&quot;empty&quot;:penultimateByte==255&amp;&amp;lastByte==217?&quot;present&quot;:&quot;missing&quot;);
+      pdIncrement(report.getJSONObject(&quot;streamLengthVsMetadata&quot;),pdLengthBucket(size,expected));
+      pdIncrement(report.getJSONObject(&quot;streamLengthByDirection&quot;).getJSONObject(&quot;1&quot;.equals(direction)?&quot;incoming&quot;:&quot;outgoing&quot;),pdLengthBucket(size,expected));
+      // Observe the original stream fully before any optional second open.
+      // Samsung openInputStream uses a vendor wrapper: do not substitute the
+      // descriptor&apos;s generic createInputStream for the collector&apos;s actual path.
+      long[] descriptorSizes=pdDescriptor(resolver,id,expected,deadline,report,signal);
+      if(descriptorSizes[0]&gt;=0L)pdIncrement(report.getJSONObject(&quot;streamLengthVsDescriptor&quot;),pdLengthBucket(size,descriptorSizes[0]));
+      else pdIncrement(report.getJSONObject(&quot;streamLengthVsDescriptor&quot;),&quot;unknownDescriptor&quot;);
+      if(descriptorSizes[1]&gt;=0L)pdIncrement(report.getJSONObject(&quot;streamLengthVsStat&quot;),pdLengthBucket(size,descriptorSizes[1]));
+      else pdIncrement(report.getJSONObject(&quot;streamLengthVsStat&quot;),&quot;unknownDescriptor&quot;);
+      stage=&quot;length&quot;;if(size==0L||size!=expected)throw new Exception(&quot;RCS_MEDIA_PENDING&quot;);pdIncrement(report.getJSONObject(&quot;media&quot;),&quot;exactLength&quot;);
+      stage=&quot;mime&quot;;
+      boolean heif=(declared.equals(&quot;image/heic&quot;)||declared.equals(&quot;image/heif&quot;))&amp;&amp;(detected.equals(&quot;image/heic&quot;)||detected.equals(&quot;image/heif&quot;));
+      if(detected.length()==0||!detected.equals(declared)&amp;&amp;!declared.equals(&quot;application/octet-stream&quot;)&amp;&amp;!heif)throw new Exception(&quot;RCS_MEDIA_UNSUPPORTED&quot;);
+      pdIncrement(report.getJSONObject(&quot;media&quot;),&quot;validatedBytes&quot;);
+    }
+    stage=&quot;query&quot;;if(row.moveToNext())throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);
+    pdIncrement(outcome,&quot;valid&quot;);
+  }catch(Exception failure){pdIncrement(outcome,&quot;failed&quot;);if(&quot;1&quot;.equals(direction))pdIncrement(outcome,&quot;incomingFailed&quot;);if(&quot;2&quot;.equals(direction))pdIncrement(outcome,&quot;outgoingFailed&quot;);pdFailed(report,stage,failure);}
+  finally{if(closeStream!=null)handler.removeCallbacks(closeStream);if(input!=null)try{input.close();}catch(Exception ignored){}if(row!=null)try{row.close();}catch(Exception ignored){}}
+}
+
+JSONObject pdRun(Context ctx) {
+  long now=System.currentTimeMillis(),deadline=now+25000L;
+  JSONObject report=new JSONObject().put(&quot;format&quot;,&quot;slope-rcs-pending-diagnostic-v2&quot;).put(&quot;status&quot;,&quot;diagnostic_only&quot;).put(&quot;scope&quot;,&quot;known_unacked_v10_last7days&quot;).put(&quot;collectionVerified&quot;,false);
+  report.put(&quot;states&quot;,pdZero(new String[]{&quot;found&quot;,&quot;inspected&quot;,&quot;valid&quot;,&quot;invalid&quot;,&quot;oversize&quot;}));
+  report.put(&quot;pending&quot;,pdZero(new String[]{&quot;known&quot;,&quot;inspected&quot;,&quot;chat&quot;,&quot;ft&quot;,&quot;expired&quot;,&quot;invalidKeys&quot;,&quot;duplicateKeys&quot;,&quot;deferredRetry&quot;}));
+  JSONObject results=new JSONObject();String[] providers=new String[]{&quot;chat&quot;,&quot;ft&quot;};for(int i=0;i&lt;providers.length;i++)results.put(providers[i],pdZero(new String[]{&quot;inspected&quot;,&quot;valid&quot;,&quot;failed&quot;,&quot;missing&quot;,&quot;stale&quot;,&quot;incoming&quot;,&quot;outgoing&quot;,&quot;incomingFailed&quot;,&quot;outgoingFailed&quot;}));report.put(&quot;results&quot;,results);
+  report.put(&quot;stages&quot;,pdZero(new String[]{&quot;state&quot;,&quot;query&quot;,&quot;peer&quot;,&quot;text&quot;,&quot;size&quot;,&quot;open&quot;,&quot;read&quot;,&quot;length&quot;,&quot;mime&quot;}));
+  report.put(&quot;errors&quot;,new JSONObject()).put(&quot;exceptions&quot;,new JSONObject()).put(&quot;declaredMime&quot;,new JSONObject()).put(&quot;observedMime&quot;,new JSONObject()).put(&quot;media&quot;,pdZero(new String[]{&quot;exactLength&quot;,&quot;validatedBytes&quot;}));
+  report.put(&quot;peerFailureReasons&quot;,new JSONObject()).put(&quot;threadTypes&quot;,new JSONObject());
+  report.put(&quot;descriptor&quot;,pdZero(new String[]{&quot;attempted&quot;,&quot;opened&quot;,&quot;unavailable&quot;,&quot;zeroOffset&quot;,&quot;nonzeroOffset&quot;})).put(&quot;descriptorErrors&quot;,new JSONObject());
+  report.put(&quot;descriptorDeclaredVsMetadata&quot;,new JSONObject()).put(&quot;jpegTailMarker&quot;,new JSONObject());
+  report.put(&quot;descriptorLengthVsMetadata&quot;,new JSONObject()).put(&quot;descriptorStatVsMetadata&quot;,new JSONObject()).put(&quot;streamLengthVsMetadata&quot;,new JSONObject()).put(&quot;streamLengthVsDescriptor&quot;,new JSONObject()).put(&quot;streamLengthVsStat&quot;,new JSONObject());
+  report.put(&quot;streamLengthByDirection&quot;,new JSONObject().put(&quot;incoming&quot;,new JSONObject()).put(&quot;outgoing&quot;,new JSONObject()));
+  report.put(&quot;limits&quot;,new JSONObject().put(&quot;rowCap&quot;,64).put(&quot;timeBudgetMs&quot;,25000).put(&quot;rowCapReached&quot;,false).put(&quot;timeLimitReached&quot;,false).put(&quot;stateCapReached&quot;,false).put(&quot;entryCapReached&quot;,false));
+  final CancellationSignal signal=new CancellationSignal();Handler handler=new Handler(Looper.getMainLooper());Runnable cancel=new Runnable(){public void run(){signal.cancel();}};handler.postDelayed(cancel,25000L);
+  try{
+    SharedPreferences prefs=ctx.getSharedPreferences(&quot;slope_rcs_v10&quot;,0);Map all=prefs.getAll();List candidates=new ArrayList();Set seen=new HashSet();int scanned=0,statesRead=0;Iterator states=all.keySet().iterator();
+    while(states.hasNext()){
+      Object keyObject=states.next();if(!(keyObject instanceof String)||!((String)keyObject).startsWith(&quot;state_&quot;))continue;pdIncrement(report.getJSONObject(&quot;states&quot;),&quot;found&quot;);
+      if(statesRead&gt;=8){report.getJSONObject(&quot;limits&quot;).put(&quot;stateCapReached&quot;,true);continue;}pdDeadline(deadline);statesRead++;pdIncrement(report.getJSONObject(&quot;states&quot;),&quot;inspected&quot;);
+      try{
+        Object value=all.get(keyObject);if(!(value instanceof String))throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);String raw=(String)value;
+        if(raw.length()&gt;4194304){pdIncrement(report.getJSONObject(&quot;states&quot;),&quot;oversize&quot;);continue;}
+        JSONObject state=new JSONObject(raw);if(state.optInt(&quot;version&quot;)!=10||state.optLong(&quot;collectFrom&quot;)&lt;=0L)throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);
+        JSONObject entries=state.optJSONObject(&quot;entries&quot;);if(entries==null)throw new Exception(&quot;RCS_SCHEMA_UNSUPPORTED&quot;);pdIncrement(report.getJSONObject(&quot;states&quot;),&quot;valid&quot;);
+        long floor=Math.max(state.getLong(&quot;collectFrom&quot;),now-604800000L);Iterator keys=entries.keys();
+        while(keys.hasNext()){
+          pdDeadline(deadline);if(scanned&gt;=24000){report.getJSONObject(&quot;limits&quot;).put(&quot;entryCapReached&quot;,true);break;}scanned++;
+          String key=(String)keys.next();JSONObject entry=entries.optJSONObject(key);if(entry==null){pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;invalidKeys&quot;);continue;}if(entry.optBoolean(&quot;acked&quot;))continue;
+          if(!key.matches(&quot;(chat|ft):[0-9]{1,20}&quot;)){pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;invalidKeys&quot;);continue;}
+          long at=entry.optLong(&quot;at&quot;);if(at&lt;floor||at&gt;now){pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;expired&quot;);continue;}
+          if(seen.contains(key)){pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;duplicateKeys&quot;);continue;}seen.add(key);
+          String provider=key.substring(0,key.indexOf(&apos;:&apos;)),id=key.substring(key.indexOf(&apos;:&apos;)+1);pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;known&quot;);pdIncrement(report.getJSONObject(&quot;pending&quot;),provider);if(entry.optLong(&quot;retryAt&quot;)&gt;now)pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;deferredRetry&quot;);
+          candidates.add(new JSONObject().put(&quot;provider&quot;,provider).put(&quot;id&quot;,id).put(&quot;at&quot;,at).put(&quot;floor&quot;,floor));
+        }
+      }catch(Exception failure){pdIncrement(report.getJSONObject(&quot;states&quot;),&quot;invalid&quot;);pdFailed(report,&quot;state&quot;,failure);}
+    }
+    // Newest pending records first; candidate IDs never enter the report.
+    Collections.sort(candidates,new Comparator(){public int compare(Object a,Object b){long x=((JSONObject)a).getLong(&quot;at&quot;),y=((JSONObject)b).getLong(&quot;at&quot;);return x==y?0:x&lt;y?1:-1;}});
+    ContentResolver resolver=ctx.getContentResolver();Map verifiedThreads=new HashMap();
+    for(int i=0;i&lt;candidates.size();i++){
+      if(i&gt;=64){report.getJSONObject(&quot;limits&quot;).put(&quot;rowCapReached&quot;,true);break;}
+      if(System.currentTimeMillis()&gt;=deadline||signal.isCanceled()){report.getJSONObject(&quot;limits&quot;).put(&quot;timeLimitReached&quot;,true);break;}
+      JSONObject candidate=(JSONObject)candidates.get(i);pdIncrement(report.getJSONObject(&quot;pending&quot;),&quot;inspected&quot;);
+      pdInspect(resolver,candidate.getString(&quot;provider&quot;),candidate.getString(&quot;id&quot;),candidate.getLong(&quot;floor&quot;),deadline,report,verifiedThreads,signal,handler);
+    }
+  }catch(Exception failure){pdFailed(report,&quot;state&quot;,failure);}
+  finally{handler.removeCallbacks(cancel);if(System.currentTimeMillis()&gt;=deadline)report.getJSONObject(&quot;limits&quot;).put(&quot;timeLimitReached&quot;,true);}
+  return report;
+}
+JSONObject pdReport=pdRun(context);String pdSummary=pdReport.toString();boolean pdCopied=false;
+try{ClipboardManager clipboard=(ClipboardManager)context.getSystemService(Context.CLIPBOARD_SERVICE);if(clipboard!=null){clipboard.setPrimaryClip(ClipData.newPlainText(&quot;SLOPE 채팅+ 상세 진단 v2&quot;,pdSummary));pdCopied=true;}}catch(Exception unavailable){}
+tasker.log(pdSummary);
+tasker.showToast(pdCopied?&quot;미완료 진단 결과를 복사했습니다. 내용·번호·사진은 포함하지 않습니다.&quot;:&quot;미완료 진단이 끝났습니다. Tasker 실행 기록에서 결과를 확인해 주세요.&quot;);
+return pdSummary;
+</Str><Str sr="arg1" ve="3">%crm_rcs_pending_diagnostic_v2</Str><Int sr="arg2" val="1"/></Action>
+</Task></TaskerData>
