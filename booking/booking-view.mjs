@@ -439,6 +439,22 @@ function renderSessionJumps(draft,escape){
 }
 function renderTeamSchedule(draft,context,escape){
   const raw=draft.raw,rows=bookingDateRows(draft),extra=rows.slice(1);
+  // 날짜 미정 수강권(2026-11-16 확정): 팝업이 아니라 이 날짜지정 블록 자체가 발급 모드로 바뀐다.
+  // 날짜·시간만 생략하고 몇 시간권·총 횟수·강습료·장비 결제상태·받아야 할/받은/미수금을 그대로 받는다.
+  if(!draft.id&&draft.passIssueMode){
+    const done=draft.passIssueDone;
+    return `<section class="bk-team-schedule bk-pass-mode" data-bk-team-schedule data-bk-pane="financial"><div class="bk-section-label"><span>03</span><h3>수강권으로 발급</h3><small>날짜·시간 미정</small></div>
+    <p class="bk-session-caption">날짜·시간 지정만 생략합니다. 몇 시간권 · 몇 회인지와 금액을 확인하고 발급하세요. <button type="button" class="btn ghost small" data-bk-pass-mode-off>← 날짜 지정으로 돌아가기</button></p>
+    <div class="bk-form-grid bk-pass-terms">
+      <label class="field"><span class="field-label">몇 시간권 <b>*</b></span><select name="raw_N" required><option value="">선택해 주세요</option><option value="2시간" ${String(raw.N||'').trim()==='2시간'?'selected':''}>2시간권</option><option value="4시간" ${String(raw.N||'').trim()==='4시간'?'selected':''}>4시간권</option></select></label>
+      <label class="field"><span class="field-label">총 횟수 <b>*</b></span><span class="bk-suffixed"><input name="passTotalSessions" type="number" min="1" max="100" step="1" required inputmode="numeric" value="${escape(draft.passTotalSessions??'')}" placeholder="회"><span>회</span></span></label>
+    </div>
+    ${rawFinancial(draft,escape,{}).replace('이 회차의 금액','수강권 금액 · 강습료와 장비는 회당 기준')}
+    <p class="bk-field-note">받아야 할 금액(자동) = (회당 강습료 + 장비 결제완료 금액) × 총 횟수. 받은 금액과의 차액이 미수금입니다.</p>
+    ${done?`<p class="bk-pass-inline-done" role="status">수강권 발급 완료 · ${escape(String(done.totalSessions))}회${done.passId?` · 번호 끝자리 ${escape(String(done.passId).slice(-6))}`:''} — 수강권 탭에서 일정 등록·고객 링크를 이어갈 수 있습니다.</p>`:''}
+    <p class="bk-form-error" data-bk-pass-inline-error role="alert" hidden></p>
+    <div class="bk-pass-inline-actions"><button type="submit" class="btn primary" data-bk-pass-inline-issue ${done?'disabled':''}>${done?'발급 완료':'이 팀 수강권 발급'}</button></div></section>`;
+  }
   return `<section class="bk-team-schedule" data-bk-team-schedule data-bk-pane="financial"><div class="bk-section-label"><span>03</span><h3>회차별 일정·금액</h3><small>${draft.id?'예약된 1회차':`${rows.length}회 접수`}</small></div><p class="bk-session-caption">빠른 날짜부터 왼쪽 → 오른쪽 · 입금액도 해당 회차에 기록합니다.</p>${!draft.id?`<div class="bk-session-toolbar"><div class="bk-schedule-actions"><button type="button" class="btn secondary small" data-bk-calendar-toggle aria-expanded="${!!draft.datePickerOpen}">달력에서 여러 날짜 선택</button><button type="button" class="btn secondary small" data-bk-issue-pass title="날짜를 정하지 않은 구매는 수강권으로 발급합니다">날짜 미정 · 수강권으로 발급 →</button></div>${extra.length?`<div class="bk-bulk-apply"><h4>첫 회차 기준으로 빠르게 입력</h4><p>총 ${rows.length}회차에 적용 · 이후 개별 수정 가능</p><div class="bk-bulk-buttons"><button type="button" class="bk-bulk-button" data-bk-common-dates><span aria-hidden="true">◷</span><span><strong>시간·휴식 같게 적용</strong><small>시작시간 · 강습시간 · 중간 휴식</small></span></button><button type="button" class="bk-bulk-button" data-bk-common-fees><span aria-hidden="true">₩</span><span><strong>${draft.paymentReviewId?'강습료·장비요금 같게 적용':'강습료·장비요금·입금액 같게 적용'}</strong><small>${draft.paymentReviewId?'입금 배분액은 복사하지 않습니다':'1회차 금액을 각 회차에 복사'}</small></span></button></div><div data-bk-bulk-feedback role="status" aria-live="polite"></div></div>`:''}</div>`:''}<div class="bk-session-workspace ${draft.datePickerOpen&&!draft.id?'calendar-open':''}">${renderDateCalendar(draft,escape)}<div class="bk-session-branches">${renderSessionJumps(draft,escape)}<div class="bk-session-list bk-session-board" data-bk-session-list><article class="bk-date-row bk-primary-date" data-bk-date-row="${escape(rows[0].id)}"><div class="bk-date-row-title"><strong>1회차</strong><span data-bk-session-date>${escape(dateText(raw.A))}</span>${!draft.id&&extra.length?`<button type="button" class="btn ghost small" data-bk-date-remove="${escape(rows[0].id)}" aria-label="1회 일정 삭제" title="이 회차 빼기">×</button>`:''}</div><div class="bk-session-body"><div class="bk-session-timing"><div class="bk-form-grid bk-first-date">${inputField('A','날짜',parseKstDate(raw.A)||'',escape,'type="date" required')}${startTimeField('raw_B',raw.B,escape,'required')}</div>${renderLessonPlanFields(draft,escape)}</div>${rawFinancial(draft,escape,{history:context.paymentCorrectionHistories?.[draft.id]})}</div></article>${extra.map((row,index)=>renderExtraDateRow(row,index,escape,context,draft)).join('')}</div><div class="bk-grand-total" data-bk-grand-total hidden aria-live="polite"></div></div></div>${draft.savedBatchRows?.length?`<div class="bk-saved-batch" data-bk-saved-batch><strong>함께 저장한 ${draft.savedBatchRows.length}회</strong>${draft.savedBatchRows.map(row=>`<button type="button" class="btn ghost small" data-bk-open-saved-date="${escape(row.id)}">${escape(dateText(row.raw?.A))} · ${escape(row.raw?.B)}–${escape(row.raw?.C)} <span>예약 변경 →</span></button>`).join('')}</div>`:''}</section>`;
 }
 
@@ -457,7 +473,9 @@ export function passIssueCarryLines(draft){
     const label=rentalStatusLabel(draft.rentalPaymentStatus)||draft.rentalPaymentStatus;
     lines.push(`장비: ${label}${[4,6].includes(draft.rentalHours)?` · ${draft.rentalHours}시간`:''}${Number.isInteger(draft.rentalAmount)?` · ${money(draft.rentalAmount)}원`:''}`);
   }
-  if(numeric(raw.Y))lines.push(`입금: ${money(numeric(raw.Y))}원`);
+  if(numeric(raw.X)!==null)lines.push(`받아야 할 금액: ${money(numeric(raw.X))}원 (총액)`);
+  if(numeric(raw.Y))lines.push(`받은 금액: ${money(numeric(raw.Y))}원`);
+  if(numeric(raw.Z)!==null&&numeric(raw.Z)>0)lines.push(`미수금: ${money(numeric(raw.Z))}원`);
   return lines;
 }
 function renderPassIssueModal(settings,context,escape){
@@ -1214,6 +1232,7 @@ function draftFromForm(form,draft) {
   try{next.raw=applyFinancialV3(next);}catch{/* Keep invalid entered values available for correction. */}
 
   if(data.has('preferredInstructorId'))next.preferredInstructorId=String(data.get('preferredInstructorId')||'')||null;
+  if(data.has('passTotalSessions'))next.passTotalSessions=String(data.get('passTotalSessions')||'').trim();
   if(next.historyInstructorSelection&&next.historyInstructorSelection.identity!==customerIdentitySignature(next)){next.preferredInstructorId=null;delete next.historyInstructorSelection;}
   if(data.has('seasonId'))next.seasonId=String(data.get('seasonId')||'')||null;
   if(data.has('seasonTotal'))next.seasonTotal=numeric(data.get('seasonTotal'));if(data.has('sessionNumber'))next.sessionNumber=numeric(data.get('sessionNumber'));
@@ -1331,7 +1350,7 @@ function validationError(draft,context) {
 
 function bookingPayload(draft,context) {
   const payload=prepareCustomerIdentity(draft);
-  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds','pendingPeople'])delete payload[key];
+  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds','pendingPeople','passIssueMode','passTotalSessions','passIssueDone'])delete payload[key];
   // 횟수(J) 입력 폐지(2026-11-15) — 비어 있으면 회차 수로 자동 확정.
   // 검토 분석이 제안한 횟수(raw.J)는 보존한다(검토 화면 lessonCount와 공유 필드).
   if(!String(payload.raw?.J||'').trim())payload.raw={...payload.raw,J:String(bookingDateRows(payload).length)+'회'};
@@ -1633,6 +1652,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       preserveDraft();
       if(['raw_A','raw_B','raw_C','raw_N'].includes(event.target.name)||String(event.target.name||'').startsWith('date_'))refreshLessonPlanFields(form,settings.draft,escape);
       refreshLearnerFields(form,settings.draft);syncIndicators();
+      if(settings.draft.passIssueMode)syncPassFinancial(form);
     });
     form.addEventListener('focusout',event=>{if(['raw_L','teamPhone'].includes(event.target.name)){const before=customerIdentitySignature(settings.draft);if(canonicalTelephone(event.target.value))event.target.value=formatTelephone(event.target.value);preserveDraft();if(before===customerIdentitySignature(settings.draft))refreshPhoneFeedback(form,settings.draft,context);else refreshCustomerPanels(form,settings.draft,context,escape);}});
     const selectDirectoryCustomer=(customerId,teamId=null)=>{
@@ -1875,11 +1895,54 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         if(button.dataset.candidateRequest===requestToken){delete button.dataset.candidateRequest;button.disabled=false;button.textContent='자동 배정안 만들기';}
       }
     });
+    // 수강권 발급 모드(2026-11-16): 날짜지정 블록이 그 자리에서 발급 패널로 바뀐다.
+    const syncPassFinancial=form=>{
+      if(!settings.draft.passIssueMode)return;
+      const read=name=>form.elements.namedItem(name);
+      const n=Number(String(read('passTotalSessions')?.value||'').trim());
+      const t=numeric(read('raw_T')?.value);
+      const status=read('rentalPaymentStatus')?.value||settings.draft.rentalPaymentStatus||'';
+      const rental=status==='paid'?numeric(read('rentalAmount')?.value??String(settings.draft.rentalAmount??'')):status?0:null;
+      const x=Number.isInteger(n)&&n>=1&&n<=100&&t!==null&&rental!==null?(t+rental)*n:null;
+      const y=numeric(read('raw_Y')?.value)??0;
+      const X=read('raw_X'),Z=read('raw_Z');
+      if(X)X.value=x===null?'':String(x);
+      if(Z)Z.value=x===null?'':String(Math.max(x-y,0));
+    };
+    const issueInlinePass=async form=>{
+      if(busy())return;preserveDraft();syncPassFinancial(form);preserveDraft();
+      const draft=settings.draft,raw=draft.raw;
+      const errorBox=form.querySelector('[data-bk-pass-inline-error]');
+      const fail=message=>{if(errorBox){errorBox.textContent=message;errorBox.hidden=false;errorBox.scrollIntoView?.({block:'nearest'});}};
+      const n=Number(String(form.elements.namedItem('passTotalSessions')?.value||'').trim());
+      if(!Number.isInteger(n)||n<1||n>100)return fail('총 횟수를 1~100회 정수로 입력해 주세요.');
+      if(!['2시간','4시간'].includes(String(raw.N||'').trim()))return fail('몇 시간권인지(2시간·4시간) 선택해 주세요.');
+      if(numeric(raw.T)===null)return fail('회당 강습료를 입력해 주세요. 무료면 0.');
+      if(!draft.rentalPaymentStatus)return fail('장비 결제 상태를 선택해 주세요.');
+      if(draft.rentalPaymentStatus==='paid'&&numeric(String(draft.rentalAmount??''))===null)return fail('장비 결제완료 금액을 확인해 주세요.');
+      if(!String(raw.H||'').trim())return fail('고객명(입금자)을 먼저 입력해 주세요.');
+      if(typeof onCreatePass!=='function')return fail('수강권 발급 연결을 확인해 주세요.');
+      const roster=bookingRosterPeople(draft,context);
+      const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:roster.map(person=>String(person.id));
+      const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
+      const headcount=numeric(raw.M)||participants.length||1;
+      if(errorBox)errorBox.hidden=true;
+      const submitButton=form.querySelector('[data-bk-pass-inline-issue]');if(submitButton)submitButton.disabled=true;
+      try{
+        const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:[`총 횟수: ${n}회`,...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
+        update({draft:{...settings.draft,passTotalSessions:String(n),passIssueDone:{totalSessions:n,passId:saved?.id||null}}});
+      }catch(error){if(submitButton)submitButton.disabled=false;fail(error?.message||'수강권을 발급하지 못했습니다. 다시 시도해 주세요.');}
+    };
     view.querySelector('[data-bk-issue-pass]')?.addEventListener('click',()=>{
       if(busy())return;preserveDraft();
-      if(typeof onCreatePass==='function'){update({passIssueOpen:true,passIssueResults:settings.passIssueResults||{}});return;}
+      if(typeof onCreatePass==='function'){update({draft:{...settings.draft,passIssueMode:true}});return;}
       if(typeof onIssuePass==='function')onIssuePass(clone(settings.draft));
     });
+    view.querySelector('[data-bk-pass-mode-off]')?.addEventListener('click',()=>{
+      if(busy())return;preserveDraft();
+      update({draft:{...settings.draft,passIssueMode:false}});
+    });
+    if(settings.draft.passIssueMode)syncPassFinancial(form);
     // 수강권 인라인 발급 모달
     view.querySelectorAll('[data-bk-passissue-close]').forEach(button=>button.addEventListener('click',()=>update({passIssueOpen:false})));
     view.querySelector('[data-bk-passissue-backdrop]')?.addEventListener('click',event=>{if(event.target===event.currentTarget)update({passIssueOpen:false});});
@@ -1907,7 +1970,9 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       }catch(error){event.target.disabled=false;errorBox.hidden=false;errorBox.textContent=error?.message||'수강권을 발급하지 못했습니다.';return;}
     });
     view.querySelector('[data-bk-clear-assignment]')?.addEventListener('click',()=>{preserveDraft();update({draft:{...settings.draft,raw:{...settings.draft.raw,F:''},instructorIds:[],suggestion:false}});});
-    form.addEventListener('submit',event=>{event.preventDefault();if(busy())return;preserveDraft();if(activeDraftCard(settings.teamDeck)?.status==='saved'){showError(form,'변경된 항목이 없습니다.');return;}if(settings.deckMode!==(settings.demo?'demo':'operational')){showError(form,'체험과 운영 예약 카드를 함께 저장할 수 없습니다. 초안을 확인해 주세요.');return;}if(savePaymentGroup(form))return;const draft=settings.draft,ownIds=new Set(bookingDateRows(draft).map(row=>row.id).filter(Boolean)),validationContext=!draft.id&&bookingDateRows(draft).length>1?{...context,reservations:context.reservations.filter(row=>!ownIds.has(row.id)),schedules:(context.schedules||[]).filter(row=>!ownIds.has(row.id)),passBalances:[]}:context,error=validationError(draft,validationContext);if(error){showError(form,error);return;}
+    form.addEventListener('submit',event=>{event.preventDefault();if(busy())return;preserveDraft();
+      if(!settings.draft.id&&settings.draft.passIssueMode){void issueInlinePass(form);return;}
+      if(activeDraftCard(settings.teamDeck)?.status==='saved'){showError(form,'변경된 항목이 없습니다.');return;}if(settings.deckMode!==(settings.demo?'demo':'operational')){showError(form,'체험과 운영 예약 카드를 함께 저장할 수 없습니다. 초안을 확인해 주세요.');return;}if(savePaymentGroup(form))return;const draft=settings.draft,ownIds=new Set(bookingDateRows(draft).map(row=>row.id).filter(Boolean)),validationContext=!draft.id&&bookingDateRows(draft).length>1?{...context,reservations:context.reservations.filter(row=>!ownIds.has(row.id)),schedules:(context.schedules||[]).filter(row=>!ownIds.has(row.id)),passBalances:[]}:context,error=validationError(draft,validationContext);if(error){showError(form,error);return;}
       const payload=bookingPayload(draft,context),card=activeDraftCard(settings.teamDeck),cachedBaseline=card?.serverId===payload.id&&card?.baseline?.id===payload.id&&card?.baseline?.expectedUpdatedAt?card.baseline:null,original=payload.id?(context.reservations.find(row=>row.id===payload.id)||cachedBaseline):null;
       if(original){
         if(!bookingChangeItems(original,payload,context).length){showError(form,'변경된 항목이 없습니다.');return;}

@@ -1,6 +1,6 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=3';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=76';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=77';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=7';
 import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=71';
 import {BOOKING_COMPANIES} from './company-options.mjs?v=31';
