@@ -53,15 +53,14 @@ const aliased = (row,camel,snake) => Object.prototype.hasOwnProperty.call(row,ca
 const skillColumns=[{key:'parallelLongTurn',label:'패러렐 롱턴',sport:'스키',metadata:true},{key:'snowboardNoviceTurn',label:'S자 너비스턴',sport:'보드',metadata:true}];
 const rentalColumns=[{key:'rentalPaymentStatus',label:'장비렌탈 결제상태',metadata:'rental'},{key:'rentalHours',label:'장비렌탈 이용시간',metadata:'rental'},{key:'rentalAmount',label:'장비렌탈 금액',metadata:'rental'}];
 const hiddenRawColumns=new Set(['S','V','W']);
-// 2026-11-15 열 통일: 사이트 기준 순서(일정→고객→수업→강사→메모→결제)를 앞에,
-// 엑셀 전용 열(환산값·정산·원본 AD~AF)은 맨 오른쪽에 둔다.
-const SITE_COLUMN_ORDER=['A','B','C','D','E','H','I','L','M','N','J','K','O','F','G','P','Q','R','T','U','X','Y','Z'];
-const EXCEL_ONLY_KEYS=['AA','AB','AC','AD','AE','AF'];
+// 2026-11-15 열 통일(사용자 확정): **구글 스프레드시트(미러 시트) 열 순서 기준**.
+// 날짜·시간→종목·업체→담당강사→고객·연락처·팀→인원→종목기술→강습시간→횟수→
+// 관계·수준·특이사항→영수증·결제소스→강습료→장비렌탈→요청·입금·미수→패치→정산·원본.
+const SHEET_COLUMN_ORDER=['A','B','C','D','E','F','H','L','I','M','parallelLongTurn','snowboardNoviceTurn','N','J','K','O','G','P','Q','T','rentalPaymentStatus','rentalHours','rentalAmount','X','Y','Z','R','U','AA','AB','AC','AD','AE','AF'];
 const tableColumns=(()=>{
   const base=RAW_COLUMNS.filter(column=>!hiddenRawColumns.has(column.key)).map(column=>column.key==='U'?{...column,label:'패치요금(합계 제외)'}:column);
-  const byKey=new Map(base.map(column=>[column.key,column]));
-  const ordered=[...SITE_COLUMN_ORDER,...EXCEL_ONLY_KEYS].map(key=>byKey.get(key)).filter(Boolean);
-  return ordered.flatMap(column=>column.key==='I'?[column,...skillColumns]:column.key==='R'?[column,...rentalColumns]:[column]);
+  const byKey=new Map([...base,...skillColumns,...rentalColumns].map(column=>[column.key,column]));
+  return SHEET_COLUMN_ORDER.map(key=>byKey.get(key)).filter(Boolean);
 })();
 const passIdOf = row => row?.lessonPassId??row?.lesson_pass_id??null;
 const isCancelled = row => ['cancelled','canceled'].includes(row?.status)||!!(row?.cancelled_at||row?.cancelledAt);
@@ -286,11 +285,19 @@ export function sortBookingTableRows(rows,settings={},context={}){
       return cmp*dir||a.index-b.index;
     }).map(item=>item.row);
 }
-export function filterBookingTableRows(rows,settings={},context={}){
-  const column=tableColumns.find(item=>item.key===settings.colFilterKey);
-  const value=String(settings.colFilterValue||'').trim();
-  if(!column||!value)return rows;
-  return rows.filter(row=>columnCellText(row,column,context).trim()===value);
+/** 엑셀식 다중 열 필터: settings.colFilters = {열키:[선택값...]} — 모든 조건 AND. */
+export function filterBookingTableRows(rows,settings={},context={},{skipKey=null}={}){
+  const filters=settings.colFilters&&typeof settings.colFilters==='object'?settings.colFilters:{};
+  let result=rows;
+  for(const [key,values] of Object.entries(filters)){
+    if(key===skipKey)continue;
+    const column=tableColumns.find(item=>item.key===key);
+    if(!column||!Array.isArray(values))continue;
+    if(!values.length){result=[];continue;}
+    const allowed=new Set(values.map(String));
+    result=result.filter(row=>allowed.has(columnCellText(row,column,context).trim()||'(비어 있음)'));
+  }
+  return result;
 }
 export function bookingRowColorClasses(row){
   const company=String(row?.raw?.E||'');
@@ -321,12 +328,28 @@ function renderCell(row,column,context,escape) {
   return escape(value===''||value===null?'—':value);
 }
 
-function renderTable(rows,context,settings,escape) {
+/** 엑셀식 열 필터 팝오버: 다른 열 필터를 적용한 뒤 남는 값 목록(체크박스·건수). */
+function filterPopoverValues(settings,allRows,context,key){
+  const column=tableColumns.find(item=>item.key===key);if(!column)return null;
+  const scoped=filterBookingTableRows(allRows,settings,context,{skipKey:key});
+  const counts=new Map();
+  for(const row of scoped){const value=columnCellText(row,column,context).trim()||'(비어 있음)';counts.set(value,(counts.get(value)||0)+1);}
+  const values=[...counts.keys()].sort((a,b)=>a.localeCompare(b,'ko-KR',{numeric:true})).slice(0,300);
+  return {column,values,counts};
+}
+function renderFilterPopover(settings,allRows,context,escape){
+  const key=settings.filterOpenKey;if(!key)return '';
+  const info=filterPopoverValues(settings,allRows,context,key);if(!info)return '';
+  const active=settings.colFilters?.[key];
+  const selected=Array.isArray(active)?new Set(active.map(String)):null; // null = 전체 선택
+  return `<div class="bk-filter-pop" data-bk-filter-pop role="dialog" aria-label="${escape(info.column.label||key)} 열 필터"><header><strong>${escape(info.column.label||key)} 필터</strong><button type="button" class="icon-btn" data-bk-filter-close aria-label="필터 닫기">×</button></header><input type="search" data-bk-filter-search placeholder="값 검색" autocomplete="off"><div class="bk-filter-actions"><button type="button" data-bk-filter-all>전체 선택</button><button type="button" data-bk-filter-none>전체 해제</button></div><div class="bk-filter-list">${info.values.map(value=>`<label data-bk-filter-row><input type="checkbox" data-bk-filter-value="${escape(value)}" ${!selected||selected.has(value)?'checked':''}> <span>${escape(value)}</span><small>${info.counts.get(value)}</small></label>`).join('')||'<p class="bk-field-note">표시할 값이 없습니다.</p>'}</div><footer><button type="button" class="btn ghost small" data-bk-filter-clear>이 열 필터 지우기</button><button type="button" class="btn secondary small" data-bk-filter-close>닫기</button></footer></div>`;
+}
+function renderTable(rows,context,settings,escape,allRows=rows) {
   const sorted=sortBookingTableRows(rows,settings,context);
   const shown=sorted.slice(0,settings.limit);
   const sortMark=key=>settings.sortKey===key?(settings.sortDir==='desc'?' ▼':' ▲'):'';
   const ariaSort=key=>settings.sortKey===key?(settings.sortDir==='desc'?'descending':'ascending'):'none';
-  return `<section class="panel bk-table-panel"><div class="bk-table-title"><div><h2>전체 예약·배정표 <span>${rows.length}<small>건</small></span></h2><p>한 행에 한 강습 · 원본 열 순서 유지</p></div><span class="bk-scroll-note">모든 항목을 좌우로 확인하세요 ↔</span></div><div class="bk-table-scroll" tabindex="0" role="region" aria-label="전체 예약 원본 항목과 강사 배정표"><table class="bk-table"><caption class="bk-sr-only">기존 시트 열 순서를 유지한 예약 ${rows.length}건</caption><thead><tr>${tableColumns.map(column=>`<th scope="col" class="bk-col-${column.key}${settings.sortKey===column.key?' bk-sorted':''}" data-bk-sort="${column.key}" aria-sort="${ariaSort(column.key)}" title="클릭하여 정렬"><span class="bk-column-letter">${escape(column.metadata==='rental'?'장비렌탈':column.metadata?column.sport:column.key)}</span>${escape(column.label||`원본 ${column.key}`)}<span class="bk-sort-mark">${sortMark(column.key)}</span></th>`).join('')}<th class="bk-table-action" scope="col">예약 관리</th></tr></thead><tbody>${shown.map(row=>`<tr data-booking-row="${escape(row.id)}" class="${[settings.draft?.id===row.id?'selected':'',bookingRowColorClasses(row)].filter(Boolean).join(' ')}">${tableColumns.map(column=>`<td class="bk-col-${column.key}">${renderCell(row,column,context,escape)}</td>`).join('')}<td class="bk-table-action"><button type="button" class="btn secondary small" data-bk-open="${escape(row.id)}">예약 변경</button><button type="button" class="btn ghost small" data-bk-detail="${escape(row.id)}">전체보기</button><button type="button" class="btn ghost small bk-add-team-btn" data-bk-add-team="${escape(row.id)}" title="같은 고객 다른 팀 추가" aria-label="같은 고객 다른 팀 추가">다른 팀 추가</button>${!row.instructorIds.length?`<button type="button" class="btn ghost small bk-row-auto" data-bk-auto="${escape(row.id)}">자동배정</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${tableColumns.length+1}" class="bk-table-empty"><strong>조건에 맞는 예약이 없습니다.</strong><p>조회 조건을 바꾸거나 새 예약을 등록해 주세요.</p></td></tr>`}</tbody></table></div><div class="bk-table-bottom"><span>${settings.demo?'체험 데이터 · 서버와 구글시트에 저장하지 않습니다.':'웹에서 저장한 예약 · 자동 기록 상태는 Google Sheets 표시에서 확인하세요.'}</span>${shown.length<rows.length?`<button type="button" class="btn ghost small" data-bk-more>150건 더 보기 (${shown.length}/${rows.length})</button>`:'<span>원본 형식 유지 · 중복 항목 숨김</span>'}</div></section>`;
+  return `<section class="panel bk-table-panel${settings.tableFullscreen?' bk-table-panel--full':''}"><div class="bk-table-title"><div><h2>전체 예약·배정표 <span>${rows.length}<small>건</small></span></h2><p>한 행에 한 강습 · 행의 예약 변경을 누르면 모든 항목을 수정할 수 있습니다</p></div><div class="bk-table-title-actions"><button type="button" class="btn ${settings.tableFullscreen?'primary':'secondary'} small" data-bk-fullscreen aria-pressed="${settings.tableFullscreen?'true':'false'}">${settings.tableFullscreen?'✕ 전체화면 닫기 (Esc)':'⛶ 표 전체화면'}</button><span class="bk-scroll-note">모든 항목을 좌우로 확인하세요 ↔</span></div></div><div class="bk-table-scroll" tabindex="0" role="region" aria-label="전체 예약 원본 항목과 강사 배정표"><table class="bk-table"><caption class="bk-sr-only">기존 시트 열 순서를 유지한 예약 ${rows.length}건</caption><thead><tr>${tableColumns.map(column=>`<th scope="col" class="bk-col-${column.key}${settings.sortKey===column.key?' bk-sorted':''}" data-bk-sort="${column.key}" aria-sort="${ariaSort(column.key)}" title="클릭하여 정렬"><span class="bk-column-letter">${escape(column.metadata==='rental'?'장비렌탈':column.metadata?column.sport:column.key)}</span>${escape(column.label||`원본 ${column.key}`)}<span class="bk-sort-mark">${sortMark(column.key)}</span><button type="button" class="bk-filter-btn${Array.isArray(settings.colFilters?.[column.key])?' is-active':''}" data-bk-colfilter="${column.key}" aria-label="${escape(column.label||column.key)} 열 필터" title="엑셀식 필터">▾</button></th>`).join('')}<th class="bk-table-action" scope="col">예약 관리</th></tr></thead><tbody>${shown.map(row=>`<tr data-booking-row="${escape(row.id)}" class="${[settings.draft?.id===row.id?'selected':'',bookingRowColorClasses(row)].filter(Boolean).join(' ')}">${tableColumns.map(column=>`<td class="bk-col-${column.key}">${renderCell(row,column,context,escape)}</td>`).join('')}<td class="bk-table-action"><button type="button" class="btn secondary small" data-bk-open="${escape(row.id)}">예약 변경</button><button type="button" class="btn ghost small" data-bk-detail="${escape(row.id)}">전체보기</button><button type="button" class="btn ghost small bk-add-team-btn" data-bk-add-team="${escape(row.id)}" title="같은 고객 다른 팀 추가" aria-label="같은 고객 다른 팀 추가">다른 팀 추가</button>${!row.instructorIds.length?`<button type="button" class="btn ghost small bk-row-auto" data-bk-auto="${escape(row.id)}">자동배정</button>`:''}</td></tr>`).join('')||`<tr><td colspan="${tableColumns.length+1}" class="bk-table-empty"><strong>조건에 맞는 예약이 없습니다.</strong><p>조회 조건을 바꾸거나 새 예약을 등록해 주세요.</p></td></tr>`}</tbody></table></div>${renderFilterPopover(settings,allRows,context,escape)}<div class="bk-table-bottom"><span>${settings.demo?'체험 데이터 · 서버와 구글시트에 저장하지 않습니다.':'웹에서 저장한 예약 · 자동 기록 상태는 Google Sheets 표시에서 확인하세요.'}</span>${shown.length<rows.length?`<button type="button" class="btn ghost small" data-bk-more>150건 더 보기 (${shown.length}/${rows.length})</button>`:'<span>원본 형식 유지 · 중복 항목 숨김</span>'}</div></section>`;
 }
 
 function renderTimeSummary(rows,context,escape) {
@@ -1044,13 +1067,11 @@ function renderRowDetail(settings,context,escape){
 export function renderBookingPage({state={},ui={},escapeHTML=fallbackEscape,icon=()=>'',now=new Date()}={}) {
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return '<section class="panel"><div class="empty-state"><strong>예약 관리 권한이 필요합니다.</strong></div></section>';
   const escape=escapeHTML,settings=bookingState(state,ui,now),context=contextFor(state,settings,now),allRows=selectBookingRows(context,settings);
-  const filterColumn=tableColumns.find(column=>column.key===settings.colFilterKey);
-  const colFilterValues=filterColumn?unique(allRows.map(row=>columnCellText(row,filterColumn,context).trim()).filter(Boolean)).sort((a,b)=>a.localeCompare(b,'ko-KR',{numeric:true})).slice(0,200):[];
   const rows=filterBookingTableRows(allRows,settings,context);
   const total=context.reservations.filter(row=>!isCancelled(row)).length,people=rows.reduce((sum,row)=>sum+(numeric(row.raw.M)||0),0),unassigned=rows.filter(row=>!row.instructorIds.length).length,expert=rows.filter(row=>expertRequirement(row,context.settings).required).length;
   settings.canManagePolicy=role==='admin';if(!settings.canManagePolicy&&settings.drawer==='settings')settings.drawer=null;
   const companies=unique(context.reservations.map(row=>row.raw.E));
-  return `<section class="booking-page" aria-label="예약 접수와 강사 배정"><div class="bk-page-heading"><div><span class="bk-eyebrow">RESERVATION DESK</span><h1>예약·강사 배정</h1><p>전체 예약을 세로로 확인하고, 접수부터 강사 배정까지 이어서 처리하세요.</p></div><div class="bk-heading-actions">${settings.canManagePolicy?`<button type="button" class="btn secondary" data-bk-settings>${icon('settings')}강사 조건 설정</button>`:''}<button type="button" class="btn primary" data-bk-new>${icon('plus')}예약 등록</button></div></div><div class="bk-mode-bar"><div>${badge(settings.demo?'체험 예약표':'운영 예약표',settings.demo?'amber':'teal',escape)}<span>${settings.demo?'예시로 접수·리오더·시즌 배정을 직접 해보세요. 실제 기록은 바뀌지 않습니다.':'서버에 저장된 예약을 관리합니다.'}</span></div><button type="button" class="bk-mode-toggle" data-bk-demo>${settings.demo?'운영 예약표로 전환':'체험 데이터 보기'} →</button></div><div class="bk-stats"><article><span>조회된 강습</span><strong>${rows.length}<small>건</small></strong><p>전체 ${total}건 중</p></article><article><span>강습생 인원</span><strong>${people}<small>명</small></strong><p>현재 조회된 인원 합계</p></article><article class="bk-stat-highlight"><span>미배정</span><strong>${unassigned}<small>건</small></strong><p>담당 강사 배정 필요</p></article><article><span>경력강사 필요</span><strong>${expert}<small>건</small></strong><p>나이·경험·종목별 기술 응답 기준</p></article></div><section class="panel bk-filters"><form class="bk-filter-form"><label><span>강습일</span><input type="date" name="date" value="${escape(settings.date)}"></label><label><span>강습업체·지점</span><select name="company">${option('all','전체 업체',settings.company,escape)}${companies.map(company=>option(company,company,settings.company,escape)).join('')}</select></label><label><span>종목</span><select name="sport">${[['all','전체'],['스키','스키'],['보드','보드']].map(([key,label])=>option(key,label,settings.sport,escape)).join('')}</select></label><label><span>예약 구분</span><select name="kind">${option('all','전체',settings.kind,escape)}${Object.entries(kinds).map(([key,label])=>option(key,label,settings.kind,escape)).join('')}</select></label><label class="bk-search"><span>검색</span><input type="search" name="query" value="${escape(settings.query)}" placeholder="강습생 · 입금자 · 특이사항"></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-bk-reset>초기화</button></form><div class="bk-quick-filters">${[['all','전체'],['unassigned','미배정'],['assigned','배정 완료'],['unpaid','추가입금 필요']].map(([key,label])=>`<button type="button" data-bk-assignment="${key}" class="${settings.assignment===key?'active':''}" aria-pressed="${settings.assignment===key}">${label}</button>`).join('')}<span class="bk-col-filter"><select data-bk-colfilter-key aria-label="열 값 필터 — 열 선택"><option value="">열 필터 (엑셀식)</option>${tableColumns.map(column=>`<option value="${escape(column.key)}" ${settings.colFilterKey===column.key?'selected':''}>${escape(column.label||column.key)}</option>`).join('')}</select><select data-bk-colfilter-value aria-label="열 값 필터 — 값 선택" ${filterColumn?'':'disabled'}><option value="">${filterColumn?'전체 값':'열을 먼저 선택'}</option>${colFilterValues.map(value=>`<option value="${escape(value)}" ${settings.colFilterValue===value?'selected':''}>${escape(value)}</option>`).join('')}</select></span><span class="bk-color-legend"><i class="bk-legend-due"></i>입금요청 필요 <i class="bk-legend-catch"></i>캐치 <i class="bk-legend-risen"></i>라이즌</span><a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">기존 구글시트 ↗</a></div></section>${renderTimeSummary(rows,context,escape)}${renderTable(rows,context,settings,escape)}<p class="bk-source-status">${badge(settings.demo?'체험 데이터':'웹 예약 기록','neutral',escape)} ${settings.demo?'예시 예약은 실제 구글시트에 반영되지 않습니다.':'원본 형식의 입력값을 보존합니다. 자동 기록 결과는 Google Sheets 상태 표시에서 확인하세요.'}</p>${renderRowDetail(settings,context,escape)}${renderDrawer(settings,context,escape)}</section>`;
+  return `<section class="booking-page" aria-label="예약 접수와 강사 배정"><div class="bk-page-heading"><div><span class="bk-eyebrow">RESERVATION DESK</span><h1>예약·강사 배정</h1><p>전체 예약을 세로로 확인하고, 접수부터 강사 배정까지 이어서 처리하세요.</p></div><div class="bk-heading-actions">${settings.canManagePolicy?`<button type="button" class="btn secondary" data-bk-settings>${icon('settings')}강사 조건 설정</button>`:''}<button type="button" class="btn primary" data-bk-new>${icon('plus')}예약 등록</button></div></div><div class="bk-mode-bar"><div>${badge(settings.demo?'체험 예약표':'운영 예약표',settings.demo?'amber':'teal',escape)}<span>${settings.demo?'예시로 접수·리오더·시즌 배정을 직접 해보세요. 실제 기록은 바뀌지 않습니다.':'서버에 저장된 예약을 관리합니다.'}</span></div><button type="button" class="bk-mode-toggle" data-bk-demo>${settings.demo?'운영 예약표로 전환':'체험 데이터 보기'} →</button></div><div class="bk-stats"><article><span>조회된 강습</span><strong>${rows.length}<small>건</small></strong><p>전체 ${total}건 중</p></article><article><span>강습생 인원</span><strong>${people}<small>명</small></strong><p>현재 조회된 인원 합계</p></article><article class="bk-stat-highlight"><span>미배정</span><strong>${unassigned}<small>건</small></strong><p>담당 강사 배정 필요</p></article><article><span>경력강사 필요</span><strong>${expert}<small>건</small></strong><p>나이·경험·종목별 기술 응답 기준</p></article></div><section class="panel bk-filters"><form class="bk-filter-form"><label><span>강습일</span><input type="date" name="date" value="${escape(settings.date)}"></label><label><span>강습업체·지점</span><select name="company">${option('all','전체 업체',settings.company,escape)}${companies.map(company=>option(company,company,settings.company,escape)).join('')}</select></label><label><span>종목</span><select name="sport">${[['all','전체'],['스키','스키'],['보드','보드']].map(([key,label])=>option(key,label,settings.sport,escape)).join('')}</select></label><label><span>예약 구분</span><select name="kind">${option('all','전체',settings.kind,escape)}${Object.entries(kinds).map(([key,label])=>option(key,label,settings.kind,escape)).join('')}</select></label><label class="bk-search"><span>검색</span><input type="search" name="query" value="${escape(settings.query)}" placeholder="강습생 · 입금자 · 특이사항"></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-bk-reset>초기화</button></form><div class="bk-quick-filters">${[['all','전체'],['unassigned','미배정'],['assigned','배정 완료'],['unpaid','추가입금 필요']].map(([key,label])=>`<button type="button" data-bk-assignment="${key}" class="${settings.assignment===key?'active':''}" aria-pressed="${settings.assignment===key}">${label}</button>`).join('')}${Object.values(settings.colFilters||{}).filter(Array.isArray).length?`<button type="button" class="bk-filters-clear" data-bk-filters-clear>열 필터 ${Object.values(settings.colFilters||{}).filter(Array.isArray).length}개 지우기 ✕</button>`:''}<span class="bk-color-legend"><i class="bk-legend-due"></i>입금요청 필요 <i class="bk-legend-catch"></i>캐치 <i class="bk-legend-risen"></i>라이즌</span><a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">기존 구글시트 ↗</a></div></section>${renderTimeSummary(rows,context,escape)}${renderTable(rows,context,settings,escape,allRows)}<p class="bk-source-status">${badge(settings.demo?'체험 데이터':'웹 예약 기록','neutral',escape)} ${settings.demo?'예시 예약은 실제 구글시트에 반영되지 않습니다.':'원본 형식의 입력값을 보존합니다. 자동 기록 결과는 Google Sheets 상태 표시에서 확인하세요.'}</p>${renderRowDetail(settings,context,escape)}${renderDrawer(settings,context,escape)}</section>`;
 }
 
 function draftFromForm(form,draft) {
@@ -1175,9 +1196,15 @@ function validationError(draft,context) {
   const interval=parseLessonInterval(draft);if(interval.error)return interval.error;
   if(![null,'free','paid','onsite_unpaid'].includes(draft.rentalPaymentStatus))return '장비렌탈 결제상태를 확인해 주세요.';
   if(draft.rentalPaymentStatus==='free'&&draft.rentalAmount!==0)return '무료 장비렌탈은 금액을 0원으로 기록해 주세요.';
-  if(['paid','onsite_unpaid'].includes(draft.rentalPaymentStatus)){
+  if(draft.rentalPaymentStatus==='paid'){
     if(![4,6].includes(draft.rentalHours))return '장비렌탈 이용시간을 4시간 또는 6시간으로 선택해 주세요.';
     if(!Number.isSafeInteger(draft.rentalAmount)||draft.rentalAmount<0)return '장비렌탈 금액을 0원 이상의 정수로 입력해 주세요.';
+  }
+  // 2026-11-15 운영 결정: 미결제는 시간·금액 미정 그대로 저장 — 당일 코코넛렌탈샵
+  // 실사용 시간·금액으로 확정한다. 적어 두는 값이 있으면 형식만 검증한다.
+  if(draft.rentalPaymentStatus==='onsite_unpaid'){
+    if(draft.rentalHours!==null&&draft.rentalHours!==undefined&&![4,6].includes(draft.rentalHours))return '장비렌탈 이용시간은 4시간·6시간만 선택할 수 있습니다. 미정이면 비워 두세요.';
+    if(draft.rentalAmount!==null&&draft.rentalAmount!==undefined&&(!Number.isSafeInteger(draft.rentalAmount)||draft.rentalAmount<0))return '장비렌탈 금액을 0원 이상의 정수로 입력하거나 비워 두세요.';
   }
 
   if(draft.paymentNeedsBreakConfirmation&&draft.lessonMinutes===240)return '4시간 강습의 중간 휴식을 확인해 주세요.';
@@ -1352,15 +1379,53 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     }catch(error){if(ui.booking?.deleteRequest?.requestId===request.requestId)updatePreservingScroll({deleteSaving:false,deleteRequest:{...request,error:error.message||'예약을 삭제하지 못했습니다. 다시 시도해 주세요.'}});}
   });
   view.querySelector('.bk-filter-form')?.addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.currentTarget);update({date:String(form.get('date')||''),company:String(form.get('company')||'all'),sport:String(form.get('sport')||'all'),kind:String(form.get('kind')||'all'),query:String(form.get('query')||'').trim(),limit:150});});
-  view.querySelector('[data-bk-reset]')?.addEventListener('click',()=>update({date:'',company:'all',sport:'all',kind:'all',assignment:'all',query:'',limit:150,sortKey:null,sortDir:null,colFilterKey:null,colFilterValue:''}));
-  view.querySelectorAll('th[data-bk-sort]').forEach(th=>th.addEventListener('click',()=>{
+  view.querySelector('[data-bk-reset]')?.addEventListener('click',()=>update({date:'',company:'all',sport:'all',kind:'all',assignment:'all',query:'',limit:150,sortKey:null,sortDir:null,colFilters:{},filterOpenKey:null}));
+  view.querySelectorAll('th[data-bk-sort]').forEach(th=>th.addEventListener('click',event=>{
+    if(event.target.closest?.('[data-bk-colfilter]'))return;
     const key=th.dataset.bkSort;
     const dir=settings.sortKey===key?(settings.sortDir==='asc'?'desc':settings.sortDir==='desc'?null:'asc'):'asc';
     update(dir?{sortKey:key,sortDir:dir}:{sortKey:null,sortDir:null});
   }));
-  view.querySelector('[data-bk-colfilter-key]')?.addEventListener('change',event=>update({colFilterKey:event.target.value||null,colFilterValue:''}));
-  view.querySelector('[data-bk-colfilter-value]')?.addEventListener('change',event=>update({colFilterValue:event.target.value||''}));
+  // 엑셀식 열 필터 (#12 보완): 머리글 ▾ → 값 체크리스트.
+  view.querySelectorAll('[data-bk-colfilter]').forEach(button=>button.addEventListener('click',event=>{
+    event.stopPropagation();
+    const key=button.dataset.bkColfilter;
+    update({filterOpenKey:settings.filterOpenKey===key?null:key});
+  }));
+  view.querySelector('[data-bk-filters-clear]')?.addEventListener('click',()=>update({colFilters:{},filterOpenKey:null}));
+  {
+    const pop=view.querySelector('[data-bk-filter-pop]');
+    if(pop){
+      const key=settings.filterOpenKey;
+      const info=filterPopoverValues(settings,selectBookingRows(context,settings),context,key);
+      const closeFilter=()=>update({filterOpenKey:null});
+      pop.querySelectorAll('[data-bk-filter-close]').forEach(button=>button.addEventListener('click',closeFilter));
+      pop.querySelector('[data-bk-filter-search]')?.addEventListener('input',event=>{
+        const query=String(event.target.value||'').toLocaleLowerCase('ko-KR');
+        pop.querySelectorAll('[data-bk-filter-row]').forEach(row=>{row.hidden=!!query&&!row.textContent.toLocaleLowerCase('ko-KR').includes(query);});
+      });
+      const applySelection=set=>{
+        const next={...(settings.colFilters||{})};
+        if(info&&set.size>=info.values.length)delete next[key];else next[key]=[...set];
+        update({colFilters:next});
+      };
+      pop.querySelectorAll('[data-bk-filter-value]').forEach(box=>box.addEventListener('change',()=>{
+        const current=Array.isArray(settings.colFilters?.[key])?new Set(settings.colFilters[key].map(String)):new Set(info?info.values:[]);
+        if(box.checked)current.add(box.dataset.bkFilterValue);else current.delete(box.dataset.bkFilterValue);
+        applySelection(current);
+      }));
+      pop.querySelector('[data-bk-filter-all]')?.addEventListener('click',()=>{const next={...(settings.colFilters||{})};delete next[key];update({colFilters:next});});
+      pop.querySelector('[data-bk-filter-none]')?.addEventListener('click',()=>applySelection(new Set()));
+      pop.querySelector('[data-bk-filter-clear]')?.addEventListener('click',()=>{const next={...(settings.colFilters||{})};delete next[key];update({colFilters:next,filterOpenKey:null});});
+    }
+  }
   view.querySelectorAll('[data-bk-detail]').forEach(button=>button.addEventListener('click',()=>update({detailId:button.dataset.bkDetail})));
+  // 표 전체화면(#12 보완): 표 패널을 화면 전체로 펼친다. 행의 예약 변경 창은 그 위에 뜬다.
+  view.querySelector('[data-bk-fullscreen]')?.addEventListener('click',()=>update({tableFullscreen:!settings.tableFullscreen}));
+  if(settings.tableFullscreen){
+    const escClose=event=>{if(event.key==='Escape'&&!settings.drawer&&!settings.detailId){document.removeEventListener?.('keydown',escClose);update({tableFullscreen:false});}};
+    document.addEventListener?.('keydown',escClose);
+  }
   // 개인 명부 추가폼: 미성년을 고르면 나이 입력이 열린다 (성인은 나이 저장 안 함).
   view.querySelectorAll('[data-bk-person-type]').forEach(select=>select.addEventListener('change',()=>{
     const age=select.closest('[data-bk-people-manager]')?.querySelector('[data-bk-person-age]');

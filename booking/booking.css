@@ -743,3 +743,49 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 .bk-person-add .btn{min-height:36px;white-space:nowrap}
 .bk-people-picker{margin:0 0 13px;padding:11px 12px;border:1px dashed #cfe0d8;border-radius:7px;background:#fbfdfc}
 [data-bk-person-feedback]:empty{display:none}
+/* 2026-11-15 #12 보완: 표 전체화면 + 셀 여백 추가 축소 */
+.bk-table-title-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.bk-table-title-actions .btn{white-space:nowrap}
+.bk-table-panel--full{position:fixed;inset:0;z-index:60;margin:0;border-radius:0;display:flex;flex-direction:column;background:#fff}
+.bk-table-panel--full .bk-table-title{padding:10px 16px;border-bottom:1px solid #e9eff1}
+.bk-table-panel--full .bk-table-scroll{max-height:none;flex:1}
+.bk-table-panel--full .bk-table-bottom{padding:8px 16px}
+/* 셀 여백: 가로·세로 모두 최소화 */
+.bk-table th,.bk-table td{padding:4px 6px;line-height:1.4;font-size:10.5px}
+.bk-table th{padding-top:5px;padding-bottom:6px}
+.bk-table td small{margin-top:2px;line-height:1.35}
+.bk-table .bk-badge{padding:2px 5px}
+.bk-table-action .btn{min-height:26px;padding:4px 7px;font-size:9.5px}
+.bk-table-action .bk-add-team-btn{min-height:22px;margin-top:3px;padding:3px 3px}
+.bk-table th,.bk-table td{width:78px;min-width:78px}
+.bk-table .bk-col-A{width:92px;min-width:92px}
+.bk-table .bk-col-B,.bk-table .bk-col-C{width:56px;min-width:56px}.bk-table .bk-col-B{left:92px}.bk-table .bk-col-C{left:148px}
+.bk-table .bk-col-D{width:48px;min-width:48px}.bk-table .bk-col-E{width:100px;min-width:100px}
+.bk-table .bk-col-F{width:106px;min-width:106px}.bk-table .bk-col-G{width:170px;min-width:170px}
+.bk-table .bk-col-I{width:140px;min-width:140px}.bk-table .bk-col-L{width:100px;min-width:100px}
+.bk-table .bk-col-M,.bk-table .bk-col-J{width:52px;min-width:52px}
+.bk-table .bk-col-O,.bk-table .bk-col-P{width:118px;min-width:118px}
+.bk-table .bk-col-parallelLongTurn,.bk-table .bk-col-snowboardNoviceTurn{width:86px;min-width:86px}
+.bk-table .bk-col-rentalPaymentStatus{width:122px;min-width:122px}
+.bk-table .bk-col-rentalHours{width:70px;min-width:70px}.bk-table .bk-col-rentalAmount{width:88px;min-width:88px}
+.bk-table .bk-table-action{width:104px;min-width:104px}
+.bk-table{min-width:2900px}
+/* 엑셀식 열 필터 */
+.bk-filter-btn{border:0;background:none;color:#9cb2b8;font-size:9px;padding:1px 3px;margin-left:2px;cursor:pointer;border-radius:3px;vertical-align:middle}
+.bk-filter-btn:hover{background:#dcebe9;color:#2c8d87}
+.bk-filter-btn.is-active{background:#2c8d87;color:#fff}
+.bk-filters-clear{border:1px solid #d9b8b8;background:#fdf1f1;color:#a66;border-radius:5px;padding:6px 10px;font-size:10px;margin-left:10px;cursor:pointer}
+.bk-filter-pop{position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:75;width:min(340px,92vw);max-height:min(62vh,540px);background:#fff;border:1px solid #d7e3e3;border-radius:10px;box-shadow:0 16px 48px #173d4530;display:flex;flex-direction:column}
+.bk-filter-pop>header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #ebf0f1}
+.bk-filter-pop>header strong{font-size:12px;color:#345e68}
+.bk-filter-pop>header .icon-btn{border:0;background:none;font-size:19px;color:#87a3ac;cursor:pointer}
+.bk-filter-pop [data-bk-filter-search]{margin:10px 14px 6px;border:1px solid #dfe9eb;border-radius:6px;min-height:34px;padding:7px 10px;font-size:11px}
+.bk-filter-actions{display:flex;gap:6px;padding:0 14px 8px}
+.bk-filter-actions button{border:1px solid #d7e6df;background:#fff;border-radius:5px;padding:5px 8px;font-size:10px;color:#72958a;cursor:pointer}
+.bk-filter-list{overflow-y:auto;flex:1;padding:2px 8px;border-top:1px solid #f0f4f4}
+.bk-filter-list label{display:flex;align-items:center;gap:8px;padding:6px;font-size:11px;color:#55788a;border-radius:5px;cursor:pointer}
+.bk-filter-list label:hover{background:#f3f8f7}
+.bk-filter-list label span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk-filter-list label small{color:#a0b2b8;font-size:9px}
+.bk-filter-list input{accent-color:#2b887f}
+.bk-filter-pop>footer{display:flex;justify-content:space-between;padding:10px 12px;border-top:1px solid #ebf0f1}
