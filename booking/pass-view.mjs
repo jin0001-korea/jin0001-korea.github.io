@@ -49,7 +49,27 @@ export function selectPassBalances(context={}){
 
 function configuration(ui={}){
   const current=ui.passes||{};
-  return {query:'',sport:'all',issuing:false,draft:null,error:'',...current};
+  return {query:'',sport:'all',issuing:false,draft:null,error:'',deleteRequest:null,...current};
+}
+// 발급 취소(삭제) 확인 상태. 서버가 연결 기록을 재검증하므로 여기 요약은 안내용이다.
+export function passDeletionPayload(pass){
+  return {id:text(pass?.id),expectedUpdatedAt:text(first(pass||{},'updated_at','updatedAt')),requestId:globalThis.crypto.randomUUID(),reason:''};
+}
+export function passDeletionBlockers(pass,context={}){
+  const id=text(pass?.id);if(!id)return [];
+  const linked=[...list(context.reservations),...list(context.schedules)].filter(row=>passIdOf(row)===id);
+  const active=new Map(linked.filter(row=>!cancelled(row)).map(row=>[reservationIdOf(row)||Math.random(),row])).size;
+  const removed=new Map(linked.filter(row=>cancelled(row)).map(row=>[reservationIdOf(row)||Math.random(),row])).size;
+  const blockers=[];
+  if(active+removed>0)blockers.push(`연결된 예약 ${active+removed}건${removed?` (삭제된 예약 ${removed}건 포함)`:''} — 예약이 수강권 사용 기록을 보존해 삭제할 수 없습니다.`);
+  return blockers;
+}
+function renderDeleteConfirm(settings,context,escape){
+  const request=settings.deleteRequest;if(!request)return '';
+  const pass=selectPassBalances(context).find(row=>row.id===request.id);
+  if(!pass)return '';
+  const blockers=passDeletionBlockers(pass,context);
+  return `<div class="lp-delete-layer" data-pass-delete-backdrop><section class="lp-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="lp-delete-title"><h3 id="lp-delete-title">이 수강권을 삭제할까요?</h3><dl><div><dt>고객 · 강습생</dt><dd data-pass-delete-customer>${escape(pass.customerName||'고객 확인')} · ${escape(pass.learnerName||'강습생 확인')}</dd></div><div><dt>종목 · 총 횟수</dt><dd>${escape(pass.sport||'종목')} · ${pass.total===null?'—':`${pass.total}회`}</dd></div><div><dt>발급일</dt><dd>${escape(dateLabel(pass.created_at||pass.createdAt))}</dd></div></dl>${blockers.length?`<p class="lp-delete-blocked" role="alert">${blockers.map(escape).join('<br>')}</p>`:'<p class="lp-delete-note">예약·입금 배분·고객 일정 신청이 연결되지 않은 수강권만 삭제됩니다. 삭제하면 되돌릴 수 없습니다.</p>'}<label class="field"><span class="field-label">삭제 사유 <small>선택 · 기록용</small></span><textarea data-pass-delete-reason maxlength="1000" rows="2" placeholder="예: 잘못 발급">${escape(request.reason||'')}</textarea></label><p class="lp-form-error" data-pass-delete-error role="alert" ${request.error?'':'hidden'}>${escape(request.error||'')}</p><footer><button type="button" class="btn secondary" data-pass-delete-cancel>수강권 유지</button><button type="button" class="btn primary lp-danger" data-pass-delete-confirm ${blockers.length?'disabled':''}>이 수강권 삭제</button></footer></section></div>`;
 }
 const options=(values,selected,escape)=>values.map(([value,label])=>`<option value="${escape(value)}" ${String(value)===String(selected)?'selected':''}>${escape(label)}</option>`).join('');
 
@@ -75,8 +95,8 @@ export function renderPasses({state={},ui={},escapeHTML=escapeFallback,icon=()=>
   const purchased=rows.reduce((sum,pass)=>sum+(pass.total||0),0),completed=rows.reduce((sum,pass)=>sum+pass.completed,0),pending=rows.reduce((sum,pass)=>sum+pass.pending,0),available=rows.reduce((sum,pass)=>sum+(pass.available||0),0);
   const unverified=!preview&&rows.some(pass=>!pass.completionVerified);
   const stats=[['총 발급 횟수',purchased,`조회된 수강권 ${rows.length}개 / 전체 ${all.length}개`, ''],['강습완료',completed,unverified?'완료 집계 확인 필요':'종료 인증이 확인된 강습', 'completed'],['예약·진행중',pending,'일정 등록 후 완료 확인 전', 'pending'],['미예약 잔여',available,'아직 날짜·시간을 정하지 않은 횟수', 'available']];
-  const rowHTML=pass=>`<tr data-pass-row="${escape(pass.id)}"><th scope="row"><strong>${escape(pass.learnerName||'강습생 확인 필요')}</strong><span>${escape(pass.customerName||'고객 확인 필요')}</span>${pass.phone?`<small>${escape(pass.phone)}</small>`:''}</th><td data-pass-company>${escape(normalizeBookingCompany(pass.company)||'센터 미등록')}</td><td><span class="lp-sport ${pass.sport==='보드'?'board':''}">${escape(pass.sport||'종목 확인')}</span></td><td data-pass-total>${pass.total===null?'—':`${pass.total}회`}</td><td data-pass-completed class="lp-completed">${pass.completed}회${!preview&&!pass.completionVerified?'<small class="lp-count-unverified">집계 확인 필요</small>':''}</td><td data-pass-pending data-pass-scheduled="${pass.scheduled}">${pass.pending}회<small>일정 등록 ${pass.scheduled}회 중</small></td><td data-pass-available class="lp-available ${pass.available===0?'used':''}">${pass.available===null?'—':`${pass.available}회`}${pass.scheduled===0?'<small>전체 날짜 미정</small>':''}${pass.overbooked?'<small class="lp-overbooked">연결 내역 확인 필요</small>':''}</td><td><strong>${escape(pass.instructorName)}</strong><small>${pass.fixedInstructorId?'전 회차 동일 강사':'첫 강습 배정 시 담당 확정'}</small></td><td class="lp-note-cell"><span>${escape(dateLabel(pass.created_at||pass.createdAt))}</span>${pass.notes?`<small>${escape(pass.notes)}</small>`:''}</td><td class="lp-actions-cell"><div class="lp-pass-actions"><button type="button" class="btn secondary small" data-pass-schedule="${escape(pass.id)}" ${!pass.id||pass.available===null||pass.available<1||pass.status!=='active'?'disabled':''}>일정 등록 →</button><button type="button" class="btn ghost small lp-customer-link" data-pass-customer-link="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 고객용 상태 링크" ${pass.id?'':'disabled'}>고객용 상태 링크</button></div></td></tr>`;
-  return `<section class="pass-page" aria-label="수강권 관리"><div class="lp-heading"><div><span class="lp-eyebrow">LESSON PASSES</span><h1>수강권</h1><p>날짜 미정 수강권부터 강습 완료까지, 횟수와 고객용 상태 링크를 관리하세요.</p></div><button type="button" class="btn primary" data-pass-new>${icon('plus')}수강권 발급</button></div><div class="lp-mode-note"><span class="lp-mode ${preview?'preview':'operational'}">${preview?'체험 수강권':'운영 수강권'}</span><span>${preview?'가상 데이터로 발급과 일정 연결을 체험합니다.':'발급한 수강권과 연결된 예약의 진행 상태를 확인합니다.'}</span></div><div class="lp-summary">${stats.map(([label,value,note,style])=>`<article class="${style}"><span>${label}</span><strong>${value}<small>회</small></strong><p>${note}</p></article>`).join('')}</div><section class="panel lp-filter-panel"><form class="lp-filter-form"><label><span>고객·강습생 검색</span><input name="query" type="search" value="${escape(settings.query)}" placeholder="고객명 · 강습생 · 연락처"></label><label><span>종목</span><select name="sport">${options([['all','전체 종목'],['스키','스키'],['보드','보드']],settings.sport,escape)}</select></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-pass-reset>초기화</button></form></section><p class="lp-action-status" data-pass-action-status role="status" aria-live="polite" hidden></p><section class="panel lp-table-panel"><div class="lp-table-heading"><div><h2>발급 수강권 <span>${rows.length}개</span></h2><p>총 횟수 = 강습완료 + 예약·진행중 + 미예약 잔여입니다. 고객용 링크에서도 같은 상태를 확인합니다.</p></div></div><div class="lp-table-scroll" tabindex="0" role="region" aria-label="수강권별 완료·예약·미예약 횟수 및 고객용 상태 링크"><table class="lp-table"><caption class="lp-sr-only">수강권 총 횟수, 강습완료, 예약·진행중과 미예약 잔여</caption><thead><tr><th scope="col">고객 · 강습생</th><th scope="col">강습센터</th><th scope="col">종목</th><th scope="col">총 횟수</th><th scope="col">강습완료</th><th scope="col">예약·진행중</th><th scope="col">미예약 잔여</th><th scope="col">담당 강사</th><th scope="col">발급일 · 메모</th><th scope="col">예약 · 고객 안내</th></tr></thead><tbody>${rows.map(rowHTML).join('')||`<tr><td colspan="10" class="lp-empty"><strong>${all.length?'조회 조건에 맞는 수강권이 없습니다.':'아직 발급한 수강권이 없습니다.'}</strong><p>${all.length?'고객명이나 종목을 바꾸어 조회해 주세요.':'날짜와 시간 없이 먼저 발급할 수 있습니다. 횟수는 자유 입력입니다.'}</p>${all.length?'':'<button type="button" class="btn secondary" data-pass-new>첫 수강권 발급</button>'}</td></tr>`}</tbody></table></div></section><p class="lp-footer-note">강습완료는 종료 인증이 확인된 횟수입니다. 확인 전 일정은 예약·진행중에 포함됩니다. 미예약 잔여는 아직 예약에 연결하지 않은 횟수입니다. 일정 등록 횟수는 강습 완료 횟수를 뜻하지 않습니다.</p>${renderIssue(settings,state,escape,preview)}</section>`;
+  const rowHTML=pass=>`<tr data-pass-row="${escape(pass.id)}"><th scope="row"><strong>${escape(pass.learnerName||'강습생 확인 필요')}</strong><span>${escape(pass.customerName||'고객 확인 필요')}</span>${pass.phone?`<small>${escape(pass.phone)}</small>`:''}</th><td data-pass-company>${escape(normalizeBookingCompany(pass.company)||'센터 미등록')}</td><td><span class="lp-sport ${pass.sport==='보드'?'board':''}">${escape(pass.sport||'종목 확인')}</span></td><td data-pass-total>${pass.total===null?'—':`${pass.total}회`}</td><td data-pass-completed class="lp-completed">${pass.completed}회${!preview&&!pass.completionVerified?'<small class="lp-count-unverified">집계 확인 필요</small>':''}</td><td data-pass-pending data-pass-scheduled="${pass.scheduled}">${pass.pending}회<small>일정 등록 ${pass.scheduled}회 중</small></td><td data-pass-available class="lp-available ${pass.available===0?'used':''}">${pass.available===null?'—':`${pass.available}회`}${pass.scheduled===0?'<small>전체 날짜 미정</small>':''}${pass.overbooked?'<small class="lp-overbooked">연결 내역 확인 필요</small>':''}</td><td><strong>${escape(pass.instructorName)}</strong><small>${pass.fixedInstructorId?'전 회차 동일 강사':'첫 강습 배정 시 담당 확정'}</small></td><td class="lp-note-cell"><span>${escape(dateLabel(pass.created_at||pass.createdAt))}</span>${pass.notes?`<small>${escape(pass.notes)}</small>`:''}</td><td class="lp-actions-cell"><div class="lp-pass-actions"><button type="button" class="btn secondary small" data-pass-schedule="${escape(pass.id)}" ${!pass.id||pass.available===null||pass.available<1||pass.status!=='active'?'disabled':''}>일정 등록 →</button><button type="button" class="btn ghost small lp-customer-link" data-pass-customer-link="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 고객용 상태 링크" ${pass.id?'':'disabled'}>고객용 상태 링크</button><button type="button" class="btn ghost small lp-delete" data-pass-delete="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 수강권 삭제" ${pass.id?'':'disabled'}>삭제</button></div></td></tr>`;
+  return `<section class="pass-page" aria-label="수강권 관리"><div class="lp-heading"><div><span class="lp-eyebrow">LESSON PASSES</span><h1>수강권</h1><p>날짜 미정 수강권부터 강습 완료까지, 횟수와 고객용 상태 링크를 관리하세요.</p></div><button type="button" class="btn primary" data-pass-new>${icon('plus')}수강권 발급</button></div><div class="lp-mode-note"><span class="lp-mode ${preview?'preview':'operational'}">${preview?'체험 수강권':'운영 수강권'}</span><span>${preview?'가상 데이터로 발급과 일정 연결을 체험합니다.':'발급한 수강권과 연결된 예약의 진행 상태를 확인합니다.'}</span></div><div class="lp-summary">${stats.map(([label,value,note,style])=>`<article class="${style}"><span>${label}</span><strong>${value}<small>회</small></strong><p>${note}</p></article>`).join('')}</div><section class="panel lp-filter-panel"><form class="lp-filter-form"><label><span>고객·강습생 검색</span><input name="query" type="search" value="${escape(settings.query)}" placeholder="고객명 · 강습생 · 연락처"></label><label><span>종목</span><select name="sport">${options([['all','전체 종목'],['스키','스키'],['보드','보드']],settings.sport,escape)}</select></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-pass-reset>초기화</button></form></section><p class="lp-action-status" data-pass-action-status role="status" aria-live="polite" hidden></p><section class="panel lp-table-panel"><div class="lp-table-heading"><div><h2>발급 수강권 <span>${rows.length}개</span></h2><p>총 횟수 = 강습완료 + 예약·진행중 + 미예약 잔여입니다. 고객용 링크에서도 같은 상태를 확인합니다.</p></div></div><div class="lp-table-scroll" tabindex="0" role="region" aria-label="수강권별 완료·예약·미예약 횟수 및 고객용 상태 링크"><table class="lp-table"><caption class="lp-sr-only">수강권 총 횟수, 강습완료, 예약·진행중과 미예약 잔여</caption><thead><tr><th scope="col">고객 · 강습생</th><th scope="col">강습센터</th><th scope="col">종목</th><th scope="col">총 횟수</th><th scope="col">강습완료</th><th scope="col">예약·진행중</th><th scope="col">미예약 잔여</th><th scope="col">담당 강사</th><th scope="col">발급일 · 메모</th><th scope="col">예약 · 고객 안내</th></tr></thead><tbody>${rows.map(rowHTML).join('')||`<tr><td colspan="10" class="lp-empty"><strong>${all.length?'조회 조건에 맞는 수강권이 없습니다.':'아직 발급한 수강권이 없습니다.'}</strong><p>${all.length?'고객명이나 종목을 바꾸어 조회해 주세요.':'날짜와 시간 없이 먼저 발급할 수 있습니다. 횟수는 자유 입력입니다.'}</p>${all.length?'':'<button type="button" class="btn secondary" data-pass-new>첫 수강권 발급</button>'}</td></tr>`}</tbody></table></div></section><p class="lp-footer-note">강습완료는 종료 인증이 확인된 횟수입니다. 확인 전 일정은 예약·진행중에 포함됩니다. 미예약 잔여는 아직 예약에 연결하지 않은 횟수입니다. 일정 등록 횟수는 강습 완료 횟수를 뜻하지 않습니다.</p>${renderIssue(settings,state,escape,preview)}${renderDeleteConfirm(settings,state,escape)}</section>`;
 }
 
 function draftFromForm(form,previous={}){
@@ -97,10 +117,10 @@ function validateDraft(draft){
   return '';
 }
 
-export function bindPasses(root,{state={},ui={},onChange,onCreate,onSchedule,onCustomerLink}={}){
+export function bindPasses(root,{state={},ui={},onChange,onCreate,onSchedule,onCustomerLink,onDelete}={}){
   const view=root.querySelector('.pass-page');if(!view)return;
-  const form=view.querySelector('.lp-issue-form');let linking=false;
-  const busy=()=>linking||!!form?.dataset.saving;
+  const form=view.querySelector('.lp-issue-form');let linking=false;let deleting=false;
+  const busy=()=>linking||deleting||!!form?.dataset.saving;
   const lockButtons=()=>{const saved=[...new Set([...view.querySelectorAll('button'),...(form?[...form.querySelectorAll('button')]:[])])].map(button=>({button,disabled:button.disabled}));saved.forEach(({button})=>button.disabled=true);return ()=>saved.forEach(({button,disabled})=>button.disabled=disabled);};
   const linkStatus=(message,error=false)=>{const box=view.querySelector('[data-pass-action-status]');if(box&&view.isConnected!==false){box.textContent=message;box.hidden=!message;box.classList?.toggle('error',error);}};
   const update=changes=>{ui.passes={...configuration(ui),...changes};onChange?.(ui.passes);};
@@ -115,6 +135,25 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onSchedule,onC
     try{await onCustomerLink(button.dataset.passCustomerLink);linkStatus('');}
     catch(issue){linkStatus(issue?.message||'고객용 상태 링크를 준비하지 못했습니다. 다시 시도해 주세요.',true);}
     finally{linking=false;button.removeAttribute?.('aria-busy');restore();}
+  });
+  // 발급 취소(삭제): 인라인 확인 → onDelete → 서버 응답으로만 완료 처리.
+  view.querySelectorAll('[data-pass-delete]').forEach(button=>button.onclick=()=>{
+    if(busy()||button.disabled)return;
+    const pass=selectPassBalances(state).find(row=>row.id===button.dataset.passDelete);
+    if(pass)update({deleteRequest:passDeletionPayload(pass)});
+  });
+  view.querySelector('[data-pass-delete-cancel]')?.addEventListener('click',()=>{if(!busy())update({deleteRequest:null});});
+  view.querySelector('[data-pass-delete-backdrop]')?.addEventListener('click',event=>{if(event.target===event.currentTarget&&!busy())update({deleteRequest:null});});
+  view.querySelector('[data-pass-delete-confirm]')?.addEventListener('click',async()=>{
+    if(busy())return;
+    const request=configuration(ui).deleteRequest;if(!request?.id)return;
+    if(typeof onDelete!=='function'){linkStatus('수강권 삭제 연결을 확인해 주세요.',true);return;}
+    const payload={...request,reason:text(view.querySelector('[data-pass-delete-reason]')?.value??request.reason??'')};
+    ui.passes={...configuration(ui),deleteRequest:payload};
+    deleting=true;const restore=lockButtons();linkStatus('수강권을 삭제하고 있습니다.');
+    try{await onDelete(payload);linkStatus('');update({deleteRequest:null});}
+    catch(issue){linkStatus('');update({deleteRequest:{...payload,error:issue?.message||'수강권을 삭제하지 못했습니다. 다시 시도해 주세요.'}});}
+    finally{deleting=false;restore();}
   });
   const close=()=>{
     if(busy())return;

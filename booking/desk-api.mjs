@@ -327,6 +327,18 @@ export async function createLessonPass(payload){
   }
   return rpc('slope_create_lesson_pass',{p_payload:{...payload,customerName:String(payload.customerName).trim(),learnerName:String(payload.learnerName).trim()}});
 }
+/** 연결 기록이 없는 수강권만 서버가 지운다. 서버 응답으로만 삭제 완료를 믿는다. */
+export async function deleteLessonPass(payload){
+  await requireBookingOperator();
+  const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if(!payload||!uuid(payload.id)||!uuid(payload.requestId))throw issue('삭제할 수강권을 다시 선택해 주세요.','INPUT_REQUIRED');
+  if(typeof payload.expectedUpdatedAt!=='string'||!Number.isFinite(Date.parse(payload.expectedUpdatedAt)))throw issue('수강권의 최신 정보를 다시 불러와 주세요.','INPUT_REQUIRED');
+  const reason=String(payload.reason||'').trim();
+  if(reason.length>1000)throw issue('삭제 사유는 1000자 이내로 입력해 주세요.','INPUT_REQUIRED');
+  const result=await rpc('slope_delete_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,requestId:payload.requestId,reason}});
+  if(result?.id!==payload.id||result.deleted!==true)throw issue('수강권 삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_DELETE_UNCONFIRMED');
+  return result;
+}
 
 const lessonId=value=>{
   if(typeof value!=='string'||!value||value.length>120||value.trim()!==value||['.','..'].includes(value)||/[\u0000-\u001f/\\]/u.test(value))throw issue('연결할 강습 일정을 확인해 주세요.','INPUT_REQUIRED');

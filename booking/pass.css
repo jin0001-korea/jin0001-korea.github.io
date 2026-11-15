@@ -17,3 +17,16 @@
 .lp-participants .field-label{display:block;margin-bottom:8px}
 .lp-participants .bk-team-chips{display:flex;gap:6px;flex-wrap:wrap}
 .lp-participants .bk-person-chip{display:inline-flex;align-items:center;border:1px solid #d7e6df;background:#f7fbf9;border-radius:6px;padding:5px 9px;font-size:10px;color:#72958a}
+
+.lp-pass-actions .lp-delete{color:#b05c49}
+.lp-delete-layer{position:fixed;inset:0;z-index:80;background:#13272e4d;display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(2px)}
+.lp-delete-confirm{width:min(430px,94vw);background:#fff;border-radius:12px;padding:22px 22px 18px;box-shadow:0 18px 50px #13333a33}
+.lp-delete-confirm h3{margin:0 0 14px;font-size:16px;font-weight:600;color:#3d6069}
+.lp-delete-confirm dl{margin:0 0 13px;display:flex;flex-direction:column;gap:8px}
+.lp-delete-confirm dl>div{display:flex;justify-content:space-between;gap:12px;font-size:12px}
+.lp-delete-confirm dt{color:#8ba0a8}.lp-delete-confirm dd{margin:0;color:#44656e;font-weight:500;text-align:right}
+.lp-delete-note{font-size:11px;line-height:1.8;color:#8d7a4e;background:#fdf7e8;border:1px solid #ecdfbe;border-radius:7px;padding:10px 12px;margin:0 0 13px}
+.lp-delete-blocked{font-size:11px;line-height:1.8;color:#a8604c;background:#fdf1ec;border:1px solid #efd2c6;border-radius:7px;padding:10px 12px;margin:0 0 13px}
+.lp-delete-confirm footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.lp-danger{background:#b3543f!important;border-color:#b3543f!important}
+.lp-danger:disabled{opacity:.5}
