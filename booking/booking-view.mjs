@@ -1652,7 +1652,8 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       preserveDraft();
       if(['raw_A','raw_B','raw_C','raw_N'].includes(event.target.name)||String(event.target.name||'').startsWith('date_'))refreshLessonPlanFields(form,settings.draft,escape);
       refreshLearnerFields(form,settings.draft);syncIndicators();
-      if(settings.draft.passIssueMode)syncPassFinancial(form);
+      // 수강권 모드의 X·Z(총액)는 회차 단위 재계산보다 뒤에 덮어써야 한다.
+      if(settings.draft.passIssueMode)setTimeout(()=>{if(settings.draft.passIssueMode&&form.isConnected)syncPassFinancial(form);},0);
     });
     form.addEventListener('focusout',event=>{if(['raw_L','teamPhone'].includes(event.target.name)){const before=customerIdentitySignature(settings.draft);if(canonicalTelephone(event.target.value))event.target.value=formatTelephone(event.target.value);preserveDraft();if(before===customerIdentitySignature(settings.draft))refreshPhoneFeedback(form,settings.draft,context);else refreshCustomerPanels(form,settings.draft,context,escape);}});
     const selectDirectoryCustomer=(customerId,teamId=null)=>{
@@ -1814,6 +1815,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     });
     form.addEventListener('change',event=>{
       invalidateCandidates();
+      if(settings.draft.passIssueMode)setTimeout(()=>{if(settings.draft.passIssueMode&&form.isConnected)syncPassFinancial(form);},0);
       const session=sessionFinancialTarget(event.target);
       if(session?.rowId){
         const scoped=sessionFinancialForm(form,session.rowId);
