@@ -789,3 +789,4 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 .bk-filter-list label small{color:#a0b2b8;font-size:9px}
 .bk-filter-list input{accent-color:#2b887f}
 .bk-filter-pop>footer{display:flex;justify-content:space-between;padding:10px 12px;border-top:1px solid #ebf0f1}
+.bk-auto-count{display:block;min-height:40px;padding:10px 11px;border:1px solid #e2ece4;background:#edf4ef;border-radius:6px;color:#4c7a6e;font-size:13px;font-weight:600}
