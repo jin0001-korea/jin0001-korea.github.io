@@ -1,7 +1,8 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=81';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=82';
 import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=71';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=18';
 import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=23';
+import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
 import {hasSmsHistoryWork,isSmsHistoryOpen,clearSmsHistory} from './sms-history-view.mjs?v=12';
 import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.mjs?v=14';
 import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
@@ -9,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=78';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=79';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=70';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -73,7 +74,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=74').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=75').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -86,11 +87,12 @@ const pendingBookingDrafts=()=>ui.booking?.teamDeck?.cards?.length?hasUnsavedTea
 function canLeaveBookingMode(){if(hasPaymentReviewInFlight(ui)){toast('사진 전송·저장을 마친 뒤 이동해 주세요.');return false;}if(hasSmsHistoryWork(ui)){toast('과거 문자 가져오기를 마치거나 가져오기 화면을 닫은 뒤 이동해 주세요.');return false;}if(activeWrite||ui.booking?.deckSaving||ui.customers?.saving){toast('현재 저장이 끝난 뒤 이용해 주세요.');return false;}if(hasUnsavedCallDraft(ui)){toast('작성 중인 상담 기록이나 휴대폰 설정을 먼저 저장해 주세요.');return false;}if(pendingBookingDrafts()||hasUnsavedCustomerDraft(ui)){toast('작성 중인 고객·팀 정보를 저장하거나 비운 뒤 전환해 주세요.');return false;}return true;}
 async function exitOperations(){if(!canLeaveBookingMode())return false;clearOperations();if(api)await api.logout().catch(()=>{});return true;}
 function setupDate(ctx){if(!parseKstDate(ui.timetable?.date)){const first=ui.booking.demo?ctx.reservations.map(row=>parseKstDate(row.raw?.A)).filter(Boolean).sort()[0]:null;ui.timetable={...(ui.timetable||{}),date:first||kstDay()};}}
-function modeChanged(){clearPaymentReview(ui);delete ui.paymentReview;ui.paymentReviewData=null;ui.paymentReviewLoading=false;ui.paymentReviewError='';ui.paymentReviewLinkStatus=null;clearSmsMediaViews(ui);clearSmsHistory(ui);closePlan();closeCustomerLink();const legacy=$('#desk-assignment-dialog');if(legacy){if(legacy.open)legacy.close();legacy.innerHTML='';}ui.timetable={};ui.customers={};delete ui.callInbox;ui.callInboxData=null;ui.callInboxLoading=false;ui.callInboxError='';ui.communicationTab='calls';delete ui.smsInbox;ui.smsInboxData=null;ui.smsInboxLoading=false;ui.smsInboxError='';dirty=false;}
+function modeChanged(){clearPaymentReview(ui);delete ui.paymentReview;ui.paymentReviewData=null;ui.paymentReviewLoading=false;ui.paymentReviewError='';ui.paymentReviewLinkStatus=null;clearSmsMediaViews(ui);clearSmsHistory(ui);closePlan();closeCustomerLink();const legacy=$('#desk-assignment-dialog');if(legacy){if(legacy.open)legacy.close();legacy.innerHTML='';}ui.timetable={};ui.customers={};delete ui.callInbox;ui.callInboxData=null;ui.callInboxLoading=false;ui.callInboxError='';ui.communicationTab='calls';delete ui.smsInbox;ui.smsInboxData=null;ui.smsInboxLoading=false;ui.smsInboxError='';delete ui.kakaoInbox;dirty=false;}
 function renderCommunications(customers){
-  const sms=ui.communicationTab==='sms';
-  const tabs=`<nav class="communications-tabs" aria-label="상담 기록 종류"><button type="button" data-communication-tab="calls" aria-pressed="${!sms}">통화 기록</button><button type="button" data-communication-tab="sms" aria-pressed="${sms}">문자 대화</button></nav>`;
-  return tabs+(sms?renderSmsInbox({profile:state.profile,data:ui.smsInboxData,ui,customers,loading:ui.smsInboxLoading,error:ui.smsInboxError,busy:!!activeWrite}):renderCallInbox({profile:state.profile,data:ui.callInboxData,ui,customers,loading:ui.callInboxLoading,error:ui.callInboxError,busy:!!activeWrite}));
+  const tab=['calls','sms','kakao'].includes(ui.communicationTab)?ui.communicationTab:'calls';
+  const tabs=`<nav class="communications-tabs" aria-label="상담 기록 종류"><button type="button" data-communication-tab="calls" aria-pressed="${tab==='calls'}">통화 기록</button><button type="button" data-communication-tab="sms" aria-pressed="${tab==='sms'}">문자 대화</button><button type="button" data-communication-tab="kakao" aria-pressed="${tab==='kakao'}">카카오 채널</button></nav>`;
+  if(tab==='kakao')return tabs+renderKakaoInbox({ui});
+  return tabs+(tab==='sms'?renderSmsInbox({profile:state.profile,data:ui.smsInboxData,ui,customers,loading:ui.smsInboxLoading,error:ui.smsInboxError,busy:!!activeWrite}):renderCallInbox({profile:state.profile,data:ui.callInboxData,ui,customers,loading:ui.callInboxLoading,error:ui.callInboxError,busy:!!activeWrite}));
 }
 function render(){
   invalidateCustomerLink();
@@ -156,7 +158,7 @@ function render(){
     app.querySelectorAll('[data-communication-tab]').forEach(button=>button.addEventListener('click',()=>{
       if(!isCurrent()||activeWrite||ui.booking.deckSaving)return;
       if(hasUnsavedCallDraft(ui)){toast('작성 중인 상담 기록이나 휴대폰 설정을 먼저 저장해 주세요.');return;}
-      const next=button.dataset.communicationTab;if(!['calls','sms'].includes(next)||next===ui.communicationTab)return;
+      const next=button.dataset.communicationTab;if(!['calls','sms','kakao'].includes(next)||next===ui.communicationTab)return;
       if(hasSmsHistoryWork(ui)){toast('과거 문자 가져오기를 마치거나 가져오기 화면을 닫은 뒤 이동해 주세요.');return;}clearSmsMediaViews(ui);clearSmsHistory(ui);
       ui.communicationTab=next;ui.communicationVersion=(ui.communicationVersion||0)+1;
       ui.callInboxRequest=null;ui.smsInboxRequest=null;ui.callInboxLoading=false;ui.smsInboxLoading=false;
@@ -170,6 +172,7 @@ function render(){
         app.querySelector('.communications-tabs [data-communication-tab="calls"]')?.click();
         if(ui.communicationTab==='calls'){ui.callInbox??={};ui.callInbox.settingsOpen=true;render();}
       }});
+    else if(tab==='kakao')bindKakaoInbox(app,{ui,onChange:()=>{dirty=false;render();},onAction:(action,payload)=>{mustBeOperator();return api.paymentReviewAction(action,payload);},isCurrent});
     else bindCallInbox(app,{profile:state.profile,data:ui.callInboxData,ui,customers:ctx.customers,
       onChange:()=>{dirty=false;render();},onRefresh:()=>loadCallInbox(),onAction:callInboxAction,
       onCreateBooking:createCallReservation,onError:toast,onSetupDownload:downloadCallSetup,isCurrent});
@@ -250,7 +253,7 @@ function createPaymentReservation(approvedDraft){
   return {opened:true,type:'reservation'};
 }
 
-function loadCommunications(options={}){return ui.communicationTab==='sms'?loadSmsInbox(options):loadCallInbox(options);}
+function loadCommunications(options={}){if(ui.communicationTab==='kakao')return Promise.resolve({ok:true});return ui.communicationTab==='sms'?loadSmsInbox(options):loadCallInbox(options);}
 async function loadSmsInbox({quiet=false}={}){
   if(!hasOperator()||ui.booking.demo||ui.view!=='calls'||ui.communicationTab!=='sms')return {discarded:true};
   const identity=authVersion,viewUi=ui,token={},version=ui.communicationVersion;
@@ -276,12 +279,12 @@ async function loadSmsInbox({quiet=false}={}){
   }finally{if(current()){ui.smsInboxLoading=false;if(!quiet||(!editingCommunicationInput()&&!hasSmsFilterDraft(ui))){rememberSmsReadPosition(app,ui);render();}}}
 }
 async function loadCallInbox({quiet=false}={}){
-  if(!hasOperator()||ui.booking.demo||ui.view!=='calls'||ui.communicationTab==='sms')return {discarded:true};
+  if(!hasOperator()||ui.booking.demo||ui.view!=='calls'||ui.communicationTab!=='calls')return {discarded:true};
   const identity=authVersion,viewUi=ui,token={},version=ui.communicationVersion;
   const filters=ui.callInbox||{};
   const payload=Object.fromEntries(['sourceId','workflowStatus','query','from','to','offset','limit'].filter(key=>filters[key]!==undefined&&filters[key]!=='').map(key=>[key,filters[key]]));
   ui.callInboxRequest=token;ui.callInboxLoading=true;ui.callInboxError='';
-  const current=()=>identity===authVersion&&viewUi===ui&&version===ui.communicationVersion&&token===ui.callInboxRequest&&hasOperator()&&!ui.booking.demo&&ui.view==='calls'&&ui.communicationTab!=='sms';
+  const current=()=>identity===authVersion&&viewUi===ui&&version===ui.communicationVersion&&token===ui.callInboxRequest&&hasOperator()&&!ui.booking.demo&&ui.view==='calls'&&ui.communicationTab==='calls';
   if(!quiet)render();
   try{
     const result=await api.callInboxAction('inbox-list',payload);
@@ -706,7 +709,7 @@ document.querySelectorAll('[data-desk-view]').forEach(button=>button.onclick=()=
 $('[data-desk-autoassign]').onclick=()=>openAutoAssign();window.addEventListener('hashchange',()=>changeDeskView(viewFromHash()));
 window.addEventListener('beforeunload',event=>{if(ui.passes?.issuing||hasPaymentReviewWork(ui)||activeWrite||pendingBookingDrafts()||hasUnsavedCustomerDraft(ui)||hasUnsavedCallDraft(ui)||hasSmsHistoryWork(ui)){event.preventDefault();event.returnValue='';}});
 app.addEventListener('input',event=>{if(event.target.closest('form')&&!event.target.closest('[data-call-inbox]')&&!event.target.closest('[data-sms-inbox]')&&!event.target.closest('[data-payment-review]'))dirty=true;});app.addEventListener('change',event=>{if(event.target.closest('form')&&!event.target.closest('[data-call-inbox]')&&!event.target.closest('[data-sms-inbox]')&&!event.target.closest('[data-payment-review]'))dirty=true;});
-const editingCommunicationInput=()=>!!document.activeElement?.matches?.('input,textarea,select')&&!!document.activeElement?.closest?.('[data-call-inbox],[data-sms-inbox]');
+const editingCommunicationInput=()=>!!document.activeElement?.matches?.('input,textarea,select')&&!!document.activeElement?.closest?.('[data-call-inbox],[data-sms-inbox],[data-kakao-inbox]');
 const canPoll=()=>ui.view!=='payments'&&!hasPaymentReviewWork(ui)&&!isSmsHistoryOpen(ui)&&hasOperator()&&!ui.booking.demo&&!document.hidden&&!dirty&&!editingCommunicationInput()&&!(ui.view==='calls'&&ui.communicationTab==='sms'&&hasSmsFilterDraft(ui))&&!ui.booking.drawer&&!ui.passes?.issuing&&!(ui.customers?.editor&&!ui.customers?.suspended)&&!hasUnsavedCustomerDraft(ui)&&!hasUnsavedCallDraft(ui)&&!activePlan&&!activeWrite&&!$('#desk-assignment-dialog')?.open;
 const pollDesk=()=>{if(canPoll()){if(ui.view==='calls'){if(!ui.callInboxLoading&&!ui.smsInboxLoading)void loadCommunications({quiet:true});}else void refreshDesk();}};
 window.addEventListener('focus',pollDesk);document.addEventListener('visibilitychange',pollDesk);setInterval(pollDesk,30000);

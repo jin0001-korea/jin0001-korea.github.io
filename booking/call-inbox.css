@@ -6,3 +6,10 @@
 .ci-setup-help{margin-top:8px;border-top:1px solid #e0e7e2}.ci-setup-help>summary{font-weight:650;cursor:pointer;padding:9px 0;min-height:44px;box-sizing:border-box;display:list-item}.ci-setup-help>div{padding:0 0 6px}.ci-setup-help ol{padding-left:20px;margin:8px 0}.ci-setup-help li{margin:5px 0;line-height:1.65}.ci-setup-help>div>p{margin:8px 0 0;font-size:11px;color:#697b70;line-height:1.65}.ci-install-link{display:inline-flex;align-items:center;min-height:44px;color:#27694f;font-weight:650;text-underline-offset:3px}
 
 .communications-tabs{display:flex;gap:4px;align-items:center;width:max-content;max-width:100%;padding:4px;border:1px solid #d9e3de;border-radius:10px;background:#edf3ef;margin:0 0 12px}.communications-tabs button{appearance:none;border:0;border-radius:7px;min-height:44px;padding:9px 18px;font:inherit;font-size:13px;font-weight:650;background:transparent;color:#546c61;cursor:pointer}.communications-tabs button[aria-pressed="true"]{background:#fff;color:#205940;box-shadow:0 1px 4px #203e2414}.communications-tabs button:focus-visible{outline:2px solid #28745a;outline-offset:2px}
+
+/* 카카오 채널 탭 (2026-11-16) — ci-* 레이아웃을 공유하고 소량만 보강 */
+.kk-sources{display:flex;gap:10px;margin-bottom:14px}
+.kk-sources .ci-source{flex:1}
+.kk-rooms .kk-room small{display:block;margin-top:4px;color:#8aa0a8}
+.kk-detail header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.kk-detail header strong{font-size:14px;color:#3e646e}

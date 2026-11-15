@@ -1,4 +1,4 @@
-import {createBookingDraft} from './booking-view.mjs?v=78';
+import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=79';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=67';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
@@ -38,6 +38,8 @@ function applyReviewedRegistration(draft,approvedDraft){
   for(const key of ['parallelLongTurn','snowboardNoviceTurn','juniorPreparation'])if(typeof values[key]==='boolean')draft[key]=values[key];
   if(Number.isSafeInteger(values.experienceCount)&&values.experienceCount>=0&&values.experienceCount<=999)draft.experienceCount=values.experienceCount;
   if(['가족','자녀','성인','단체'].includes(values.relationship))draft.raw.K=values.relationship;
+  // 여자 강사 요청은 특이사항(G)의 표준 문구로 동일하게 전달한다(접수 폼과 패리티, 2026-11-16).
+  if(['','prefer','require'].includes(values.femalePreference))draft.raw.G=applyFemaleInstructorPreference(draft.raw.G,values.femalePreference);
   if(typeof values.ability==='string')draft.raw.O=values.ability.slice(0,200);
   if(typeof values.lessonCount==='string')draft.raw.J=values.lessonCount.slice(0,30);
   if(['single','reorder','season'].includes(values.kind))draft.kind=values.kind;

@@ -1,4 +1,4 @@
-import {renderBookingPaymentIntake} from './booking-view.mjs?v=78';
+import {renderBookingPaymentIntake} from './booking-view.mjs?v=79';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=7';
 
 const list=value=>Array.isArray(value)?value:[];
