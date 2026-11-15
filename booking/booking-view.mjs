@@ -478,12 +478,17 @@ function renderPassIssueModal(settings,context,escape){
 
 // 새 고객(미저장)도 명부를 바로 적게 한다(2026-11-15): draft.pendingPeople에 담았다가
 // 첫 저장으로 고객 ID가 생기면 그대로 서버 명부에 등록된다.
+// ⚠️ 판정은 customerId 유무가 아니다 — prepareCustomerIdentity가 입력 즉시 새 고객에게
+// UUID를 미리 발급하므로(customerDraft 동반), customerDraft가 남아 있으면 아직 서버에 없는 고객이다.
+export function bookingCustomerSaved(draft){
+  return !!draft.customerId&&!draft.customerDraft;
+}
 export function bookingRosterPeople(draft,context){
-  if(draft.customerId)return customerPeopleOf(context,draft.customerId);
+  if(bookingCustomerSaved(draft))return customerPeopleOf(context,draft.customerId);
   return Array.isArray(draft.pendingPeople)?draft.pendingPeople:[];
 }
 function renderPeopleManager(draft,context,escape){
-  const pendingMode=!draft.customerId;
+  const pendingMode=!bookingCustomerSaved(draft);
   const people=bookingRosterPeople(draft,context);
   const note=pendingMode?'<p class="bk-field-note" data-bk-people-hint>아직 고객 저장 전입니다. 지금 추가한 개인은 첫 저장 때 고객 명부에 함께 등록됩니다.</p>':'';
   return `<details class="bk-people-manager" data-bk-people-manager ${people.length?'':'open'}><summary>개인 명부 <small>${people.length}명 · ${pendingMode?'저장 시 함께 등록':'팀 구성 때 클릭으로 선택'}</small></summary>${note}<div class="bk-team-chips">${people.map(person=>`<span class="bk-person-chip">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small><button type="button" data-bk-person-delete="${escape(person.id)}" aria-label="${escape(person.name)} 명부에서 삭제" title="명부에서 삭제">×</button></span>`).join('')||'<span class="bk-field-note">아직 등록한 개인이 없습니다. 가족·일행을 등록해 두면 팀 구성이 빨라집니다.</span>'}</div><div class="bk-person-add"><input data-bk-person-name maxlength="120" placeholder="이름 (예: 엄마, 첫째)"><select data-bk-person-type><option value="adult">성인</option><option value="minor">미성년</option></select><input data-bk-person-age type="number" min="1" max="19" step="1" inputmode="numeric" placeholder="나이(선택)" disabled><button type="button" class="btn secondary small" data-bk-person-add>명부에 추가</button></div><p class="bk-field-note" data-bk-person-feedback role="status"></p></details>`;
@@ -1657,7 +1662,24 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
           Object.assign(next,applyLessonPlan(next));
         }
       }
+      // 작성 중 담아 둔 개인(pendingPeople)은 링크한 기존 고객의 명부로 즉시 등록한다 — 조용한 유실 금지.
+      const pendingToLink=Array.isArray(settings.draft.pendingPeople)?settings.draft.pendingPeople:[];
+      delete next.pendingPeople;
       update({draft:prepareCustomerIdentity(next)});
+      if(pendingToLink.length&&typeof onSaveCustomerPerson==='function')(async()=>{
+        for(const person of pendingToLink){
+          try{
+            const result=await onSaveCustomerPerson({id:person.id,customerId:selected.customerId,name:person.name,personType:person.person_type==='minor'?'minor':'adult',...(Number.isInteger(person.age)?{age:person.age}:{})});
+            state.customerPeople=[...(state.customerPeople||[]),result?.person||{id:person.id,customer_id:selected.customerId,name:person.name,person_type:person.person_type,age:person.age??null}];
+          }catch{}
+        }
+        preserveDraft();
+        if(!Array.isArray(settings.draft.participantPersonIds)&&settings.draft.customerId===selected.customerId&&bookingCustomerSaved(settings.draft)){
+          const roster=customerPeopleOf(context,selected.customerId);
+          const everyone=participantsFromPeople(roster,roster.map(person=>String(person.id)));
+          update({draft:{...settings.draft,participants:everyone,raw:{...settings.draft.raw,M:String(everyone.length)}}});
+        }else update({});
+      })();
     };
     const mutateDates=change=>{if(busy()||settings.draft.id)return;preserveDraft();try{const draft=change(ensureBookingDates(settings.draft));settings.teamDeck=preserveActiveDraft(settings.teamDeck,draft,settings.tab);updatePreservingScroll({draft,teamDeck:settings.teamDeck});}catch(error){showError(form,error.message);}};
     form.addEventListener('click',event=>{
@@ -1697,7 +1719,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const personDelete=event.target.closest?.('[data-bk-person-delete]');if(personDelete){
         if(busy())return;
         const pendingId=personDelete.dataset.bkPersonDelete;
-        if(!settings.draft.customerId&&Array.isArray(settings.draft.pendingPeople)&&settings.draft.pendingPeople.some(person=>String(person.id)===String(pendingId))){
+        if(!bookingCustomerSaved(settings.draft)&&Array.isArray(settings.draft.pendingPeople)&&settings.draft.pendingPeople.some(person=>String(person.id)===String(pendingId))){
           preserveDraft();const draft=settings.draft;
           const pendingPeople=draft.pendingPeople.filter(person=>String(person.id)!==String(pendingId));
           const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds.filter(id=>String(id)!==String(pendingId)):undefined;
@@ -1718,7 +1740,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         const name=String(nameInput?.value||'').trim(),personType=typeInput?.value==='minor'?'minor':'adult';
         const ageText=personType==='minor'?String(ageInput?.value||'').trim():'';
         if(!name){if(feedback)feedback.textContent='이름을 입력해 주세요.';return;}
-        if(!settings.draft.customerId){
+        if(!bookingCustomerSaved(settings.draft)){
           // 고객 저장 전: 로컬 명부에 담아 두고 첫 저장 때 서버에 함께 등록한다.
           preserveDraft();const draft=settings.draft;
           const person={id:globalThis.crypto.randomUUID(),customer_id:'',name,person_type:personType,age:ageText?Number(ageText):null};
