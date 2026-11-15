@@ -447,6 +447,19 @@ function directoryCustomer(draft,context){return (context.customers||[]).find(cu
 
 // 수강권 인라인 발급(2026-11-15 확정): 별도 페이지·드로어 없이 예약창 그대로.
 // 고객·명부·팀 입력을 쓰고, 날짜만 생략한 채 팀별 '몇 회'만 받아 발급한다.
+// 수강권에 같이 실을 조건(2026-11-15 확정): 날짜만 미정일 뿐 회당 강습시간·강습료·장비·입금을
+// 예약폼 값 그대로 담는다. 수강권 테이블에 별도 열이 없어 notes에 표준 줄로 적는다.
+export function passIssueCarryLines(draft){
+  const raw=draft?.raw||{};const lines=[];
+  if(String(raw.N||'').trim())lines.push(`회당 강습시간: ${String(raw.N).trim()}`);
+  if(numeric(raw.T))lines.push(`회당 강습료: ${money(numeric(raw.T))}원`);
+  if(draft?.rentalPaymentStatus){
+    const label=rentalStatusLabel(draft.rentalPaymentStatus)||draft.rentalPaymentStatus;
+    lines.push(`장비: ${label}${[4,6].includes(draft.rentalHours)?` · ${draft.rentalHours}시간`:''}${Number.isInteger(draft.rentalAmount)?` · ${money(draft.rentalAmount)}원`:''}`);
+  }
+  if(numeric(raw.Y))lines.push(`입금: ${money(numeric(raw.Y))}원`);
+  return lines;
+}
 function renderPassIssueModal(settings,context,escape){
   if(!settings.passIssueOpen)return '';
   const deck=settings.teamDeck||{cards:[]};
@@ -456,16 +469,24 @@ function renderPassIssueModal(settings,context,escape){
     const draft=card.draft||{},raw=draft.raw||{};
     const paid=numeric(raw.Y)||0;
     const done=results[card.key];
-    return `<div class="bk-pass-team-row${done?' is-done':''}" data-bk-pass-team="${escape(card.key)}"><div class="bk-pass-team-info"><strong>${escape(raw.I||`팀 ${index+1}`)}</strong><small>${escape(raw.H||'고객')} · 인원 ${escape(raw.M||'1')}명 · 입금 ${money(paid)}원</small></div>${done?`<span class="bk-pass-done">발급 완료 · ${escape(String(done.totalSessions))}회</span>`:`<label class="bk-pass-count"><input data-bk-pass-sessions type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="회"><span>회</span></label>`}</div>`;
+    const carry=passIssueCarryLines(draft);
+    return `<div class="bk-pass-team-row${done?' is-done':''}" data-bk-pass-team="${escape(card.key)}"><div class="bk-pass-team-info"><strong>${escape(raw.I||`팀 ${index+1}`)}</strong><small>${escape(raw.H||'고객')} · 인원 ${escape(raw.M||'1')}명 · 입금 ${money(paid)}원</small>${carry.length?`<small class="bk-pass-carry">${escape(carry.join(' · '))}</small>`:'<small class="bk-pass-carry">시간·금액 미입력 — 팀 정보에서 채우면 수강권에 함께 담깁니다.</small>'}</div>${done?`<span class="bk-pass-done">발급 완료 · ${escape(String(done.totalSessions))}회</span>`:`<label class="bk-pass-count"><input data-bk-pass-sessions type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="회"><span>회</span></label>`}</div>`;
   }).join('');
   const totalPaid=cards.reduce((sum,card)=>sum+(numeric(card.draft?.raw?.Y)||0),0);
-  return `<div class="bk-passissue-backdrop" data-bk-passissue-backdrop><section class="bk-passissue" role="dialog" aria-modal="true" aria-label="수강권 발급"><header><div><span class="bk-eyebrow">LESSON PASS</span><h3>수강권으로 발급</h3><p>날짜만 미정일 뿐, 입력한 고객·명부·팀 정보가 그대로 담깁니다. 각 팀의 총 횟수만 적어 주세요.</p></div><button type="button" class="icon-btn" data-bk-passissue-close aria-label="닫기">×</button></header><div class="bk-passissue-body">${rows||'<p class="bk-field-note">발급할 팀 카드가 없습니다. 팀 정보를 먼저 입력해 주세요.</p>'}<p class="bk-form-error" data-bk-passissue-error role="alert" hidden></p></div><footer><div class="bk-passissue-total"><span>고객 총 입금액</span><strong>${money(totalPaid)}원</strong></div><div><button type="button" class="btn secondary" data-bk-passissue-close>닫기</button><button type="button" class="btn primary" data-bk-passissue-confirm ${cards.length?'':'disabled'}>수강권 발급</button></div></footer></section></div>`;
+  return `<div class="bk-passissue-backdrop" data-bk-passissue-backdrop><section class="bk-passissue" role="dialog" aria-modal="true" aria-label="수강권 발급"><header><div><span class="bk-eyebrow">LESSON PASS</span><h3>수강권으로 발급</h3><p>날짜만 미정일 뿐, 입력한 시간·강습료·장비·입금과 고객·명부·팀 정보가 그대로 담깁니다. 각 팀의 총 횟수만 적어 주세요.</p></div><button type="button" class="icon-btn" data-bk-passissue-close aria-label="닫기">×</button></header><div class="bk-passissue-body">${rows||'<p class="bk-field-note">발급할 팀 카드가 없습니다. 팀 정보를 먼저 입력해 주세요.</p>'}<p class="bk-form-error" data-bk-passissue-error role="alert" hidden></p></div><footer><div class="bk-passissue-total"><span>고객 총 입금액</span><strong>${money(totalPaid)}원</strong></div><div><button type="button" class="btn secondary" data-bk-passissue-close>닫기</button><button type="button" class="btn primary" data-bk-passissue-confirm ${cards.length?'':'disabled'}>수강권 발급</button></div></footer></section></div>`;
 }
 
+// 새 고객(미저장)도 명부를 바로 적게 한다(2026-11-15): draft.pendingPeople에 담았다가
+// 첫 저장으로 고객 ID가 생기면 그대로 서버 명부에 등록된다.
+export function bookingRosterPeople(draft,context){
+  if(draft.customerId)return customerPeopleOf(context,draft.customerId);
+  return Array.isArray(draft.pendingPeople)?draft.pendingPeople:[];
+}
 function renderPeopleManager(draft,context,escape){
-  if(!draft.customerId)return '<p class="bk-field-note" data-bk-people-hint>개인 명부는 고객을 연결하면 열립니다. 연락처 4자리로 기존 고객을 찾아 선택하거나, 첫 저장 후 자동 연결됩니다.</p>';
-  const people=customerPeopleOf(context,draft.customerId);
-  return `<details class="bk-people-manager" data-bk-people-manager ${people.length?'':'open'}><summary>개인 명부 <small>${people.length}명 · 팀 구성 때 클릭으로 선택</small></summary><div class="bk-team-chips">${people.map(person=>`<span class="bk-person-chip">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small><button type="button" data-bk-person-delete="${escape(person.id)}" aria-label="${escape(person.name)} 명부에서 삭제" title="명부에서 삭제">×</button></span>`).join('')||'<span class="bk-field-note">아직 등록한 개인이 없습니다. 가족·일행을 등록해 두면 팀 구성이 빨라집니다.</span>'}</div><div class="bk-person-add"><input data-bk-person-name maxlength="120" placeholder="이름 (예: 엄마, 첫째)"><select data-bk-person-type><option value="adult">성인</option><option value="minor">미성년</option></select><input data-bk-person-age type="number" min="1" max="19" step="1" inputmode="numeric" placeholder="나이(선택)" disabled><button type="button" class="btn secondary small" data-bk-person-add>명부에 추가</button></div><p class="bk-field-note" data-bk-person-feedback role="status"></p></details>`;
+  const pendingMode=!draft.customerId;
+  const people=bookingRosterPeople(draft,context);
+  const note=pendingMode?'<p class="bk-field-note" data-bk-people-hint>아직 고객 저장 전입니다. 지금 추가한 개인은 첫 저장 때 고객 명부에 함께 등록됩니다.</p>':'';
+  return `<details class="bk-people-manager" data-bk-people-manager ${people.length?'':'open'}><summary>개인 명부 <small>${people.length}명 · ${pendingMode?'저장 시 함께 등록':'팀 구성 때 클릭으로 선택'}</small></summary>${note}<div class="bk-team-chips">${people.map(person=>`<span class="bk-person-chip">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small><button type="button" data-bk-person-delete="${escape(person.id)}" aria-label="${escape(person.name)} 명부에서 삭제" title="명부에서 삭제">×</button></span>`).join('')||'<span class="bk-field-note">아직 등록한 개인이 없습니다. 가족·일행을 등록해 두면 팀 구성이 빨라집니다.</span>'}</div><div class="bk-person-add"><input data-bk-person-name maxlength="120" placeholder="이름 (예: 엄마, 첫째)"><select data-bk-person-type><option value="adult">성인</option><option value="minor">미성년</option></select><input data-bk-person-age type="number" min="1" max="19" step="1" inputmode="numeric" placeholder="나이(선택)" disabled><button type="button" class="btn secondary small" data-bk-person-add>명부에 추가</button></div><p class="bk-field-note" data-bk-person-feedback role="status"></p></details>`;
 }
 
 function renderDirectorySelection(draft,context,escape){
@@ -500,8 +521,20 @@ export function participantsFromPeople(people,selectedIds){
   return (people||[]).filter(person=>selected.has(String(person.id)))
     .map(person=>({type:person.person_type==='minor'?'minor':'adult',age:person.person_type==='minor'&&Number.isInteger(person.age)?person.age:null}));
 }
+// 여자 강사 요청(2026-11-15): 특이사항(G)의 표준 문구 한 줄로 저장한다.
+// 별도 열이 없는 시트 미러 구조에서 예약표·강사배정·강사 전달 노트에 그대로 보이게 하기 위한 방식.
+const FEMALE_PREF_LINES=Object.freeze({prefer:'여자 강사 선호',require:'여자 강사 필수'});
+export function femaleInstructorPreference(noteText){
+  const lines=String(noteText||'').split('\n').map(line=>line.trim());
+  return lines.includes(FEMALE_PREF_LINES.require)?'require':lines.includes(FEMALE_PREF_LINES.prefer)?'prefer':'';
+}
+export function applyFemaleInstructorPreference(noteText,pref){
+  const keep=String(noteText||'').split('\n').filter(line=>!Object.values(FEMALE_PREF_LINES).includes(line.trim()));
+  if(FEMALE_PREF_LINES[pref])keep.unshift(FEMALE_PREF_LINES[pref]);
+  return keep.join('\n').replace(/^\n+|\n+$/g,'');
+}
 function renderPeoplePicker(draft,context,escape){
-  const people=customerPeopleOf(context,draft.customerId);
+  const people=bookingRosterPeople(draft,context);
   if(!people.length)return '';
   // 미클릭(participantPersonIds 미조작) = 전원 참가가 기본 (2026-11-15 운영 결정).
   const untouched=!Array.isArray(draft.participantPersonIds);
@@ -644,7 +677,7 @@ function renderTeamConditions(draft,context,escape,{review=false}={}) {
   return `<div class="bk-condition-panel">
     <div class="bk-team-reservation-fields">
       <div class="bk-kind-field"><span class="field-label">예약 구분 · 자동</span><strong data-bk-automatic-kind>${draft.kind==='season'?'시즌강습 · 같은 팀 모든 회차에 같은 강사':draft.isReorder?'리오더':'일반 강습'}</strong></div>
-      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}</div>
+      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}${review?'':`<div class="field bk-female-pref"><span class="field-label">여자 강사</span><div class="bk-female-pref-options" role="group" aria-label="여자 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${femaleInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-female-pref="${value}" aria-pressed="${femaleInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}</div>
       <label class="check-field bk-reorder-check"><input name="isReorder" type="checkbox" ${draft.isReorder?'checked':''}> 이전 강사가 마음에 들어 재등록한 리오더</label>
     </div>
     ${review?'':`<div data-bk-customer-history ${wantsSameInstructor(draft)?'':'hidden'}>${renderCustomerHistory(draft,context,escape)}</div>`}
@@ -1293,7 +1326,7 @@ function validationError(draft,context) {
 
 function bookingPayload(draft,context) {
   const payload=prepareCustomerIdentity(draft);
-  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds'])delete payload[key];
+  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds','pendingPeople'])delete payload[key];
   // 횟수(J) 입력 폐지(2026-11-15) — 비어 있으면 회차 수로 자동 확정.
   // 검토 분석이 제안한 횟수(raw.J)는 보존한다(검토 화면 lessonCount와 공유 필드).
   if(!String(payload.raw?.J||'').trim())payload.raw={...payload.raw,J:String(bookingDateRows(payload).length)+'회'};
@@ -1349,10 +1382,28 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     // allocation. Merging a server snapshot must not retain the intake route.
     for(const target of [card.draft,card.baseline])for(const field of ['paymentRequestCorrection','paymentReviewId','paymentReviewVersion','paymentDepositId','paymentCommitRequestId','paymentAllocationAmount','paymentNeedsBreakConfirmation','paymentReviewedRentalFee'])delete target[field];
   };
+  // 첫 저장으로 고객 ID가 생기면 작성 중 담아 둔 개인 명부를 서버에 등록한다(2026-11-15).
+  const flushPendingPeople=(deck,key,customerId)=>{
+    if(typeof onSaveCustomerPerson!=='function'||!customerId)return;
+    const card=deck?.cards?.find(row=>row.key===key),pending=card?.draft?.pendingPeople;
+    if(!Array.isArray(pending)||!pending.length)return;
+    const rows=pending.map(person=>({id:person.id,customerId,name:person.name,personType:person.person_type==='minor'?'minor':'adult',...(Number.isInteger(person.age)?{age:person.age}:{})}));
+    for(const target of [card.draft,card.baseline])if(target){delete target.pendingPeople;if(!target.customerId)target.customerId=customerId;}
+    (async()=>{
+      for(const row of rows){
+        try{
+          const result=await onSaveCustomerPerson(row);
+          state.customerPeople=[...(state.customerPeople||[]),result?.person||{id:row.id,customer_id:customerId,name:row.name,person_type:row.personType,age:row.age??null}];
+        }catch{}
+      }
+      if(ui.booking)update({});
+    })();
+  };
   const finishSaved=(key,payload,result,requestToken)=>{
     if(result?.discarded||ui.booking?.deckWriteToken!==requestToken||!ui.booking?.teamDeck?.cards?.some(card=>card.key===key))return;
     const deck=markDraftCardSaved(ui.booking.teamDeck,key,{...result,reservation:savedSnapshot(key,payload,result)});
     clearSavedIntent(deck,key);
+    flushPendingPeople(deck,key,result?.reservation?.customer_id||result?.reservations?.[0]?.customer_id||'');
     const active=activeDraftCard(deck);update({teamDeck:deck,draft:clone(active.draft),drawer:'reservation',review:null,reviewSaving:false,deckSaving:false,tab:active.tab});
   };
   const finishPaymentGroup=(group,result,requestToken)=>{
@@ -1365,6 +1416,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     for(const entry of group.entries){
       const reservations=entry.payloads.map(payload=>rows.find(row=>row.id===payload.id)),saved={...result,reservations,reservation:reservations[0]};
       deck=markDraftCardSaved(deck,entry.key,{...saved,reservation:savedSnapshot(entry.key,entry.payloads[0],saved)});clearSavedIntent(deck,entry.key);
+      flushPendingPeople(deck,entry.key,reservations[0]?.customer_id||'');
     }
     const active=activeDraftCard(deck);update({teamDeck:deck,draft:clone(active.draft),drawer:'reservation',review:null,reviewSaving:false,deckSaving:false,tab:active.tab,deckNotice:`${group.entries.length}팀 · ${rows.length}회 예약을 모두 저장했습니다.`});
     root.querySelector('[data-bk-deck-summary],[data-bk-existing-draft-notice]')?.scrollIntoView?.({block:'nearest'});
@@ -1625,10 +1677,16 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const selectCustomer=event.target.closest?.('[data-bk-select-customer]');if(selectCustomer){selectDirectoryCustomer(selectCustomer.dataset.bkSelectCustomer);return;}
       const selectTeam=event.target.closest?.('[data-bk-directory-team]');if(selectTeam){selectDirectoryCustomer(settings.draft.customerId,selectTeam.dataset.bkDirectoryTeam);return;}
       const contact=event.target.closest?.('[data-bk-contact-phone]');if(contact){if(busy())return;const input=form.elements.namedItem('raw_L');if(input)input.value=formatTelephone(contact.dataset.bkContactPhone);refreshCustomer();return;}
+      // 여자 강사 무관/선호/필수: 특이사항(G) 표준 문구를 바꿔 저장한다.
+      const femalePref=event.target.closest?.('[data-bk-female-pref]');if(femalePref){
+        if(busy())return;preserveDraft();
+        const draft=settings.draft;
+        update({draft:{...draft,raw:{...draft.raw,G:applyFemaleInstructorPreference(draft.raw.G,femalePref.dataset.bkFemalePref)}}});return;
+      }
       // 개인 명부(#7): 클릭 선택 → 참가자·인원 자동 반영. 선택 해제도 같은 클릭.
       const personPick=event.target.closest?.('[data-bk-person-pick]');if(personPick){
         if(busy())return;preserveDraft();
-        const draft=settings.draft,people=customerPeopleOf(context,draft.customerId);
+        const draft=settings.draft,people=bookingRosterPeople(draft,context);
         const current=Array.isArray(draft.participantPersonIds)?new Set(draft.participantPersonIds.map(String)):new Set(people.map(person=>String(person.id)));
         const personId=personPick.dataset.bkPersonPick;
         if(current.has(personId))current.delete(personId);else current.add(personId);
@@ -1637,7 +1695,15 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         update({draft:{...draft,participantPersonIds:ids,participants,raw:{...draft.raw,M:participants.length?String(participants.length):draft.raw.M}}});return;
       }
       const personDelete=event.target.closest?.('[data-bk-person-delete]');if(personDelete){
-        if(busy()||!onDeleteCustomerPerson)return;
+        if(busy())return;
+        const pendingId=personDelete.dataset.bkPersonDelete;
+        if(!settings.draft.customerId&&Array.isArray(settings.draft.pendingPeople)&&settings.draft.pendingPeople.some(person=>String(person.id)===String(pendingId))){
+          preserveDraft();const draft=settings.draft;
+          const pendingPeople=draft.pendingPeople.filter(person=>String(person.id)!==String(pendingId));
+          const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds.filter(id=>String(id)!==String(pendingId)):undefined;
+          update({draft:{...draft,pendingPeople,...(ids!==undefined?{participantPersonIds:ids}:{})}});return;
+        }
+        if(!onDeleteCustomerPerson)return;
         const personId=personDelete.dataset.bkPersonDelete;personDelete.disabled=true;
         Promise.resolve(onDeleteCustomerPerson(personId)).then(()=>{
           state.customerPeople=(state.customerPeople||[]).filter(person=>String(person.id)!==String(personId));
@@ -1646,12 +1712,25 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         return;
       }
       const personAdd=event.target.closest?.('[data-bk-person-add]');if(personAdd){
-        if(busy()||!onSaveCustomerPerson||!settings.draft.customerId)return;
+        if(busy()||!onSaveCustomerPerson)return;
         const scope=personAdd.closest('[data-bk-people-manager]')||form;
         const nameInput=scope.querySelector('[data-bk-person-name]'),typeInput=scope.querySelector('[data-bk-person-type]'),ageInput=scope.querySelector('[data-bk-person-age]'),feedback=scope.querySelector('[data-bk-person-feedback]');
         const name=String(nameInput?.value||'').trim(),personType=typeInput?.value==='minor'?'minor':'adult';
         const ageText=personType==='minor'?String(ageInput?.value||'').trim():'';
         if(!name){if(feedback)feedback.textContent='이름을 입력해 주세요.';return;}
+        if(!settings.draft.customerId){
+          // 고객 저장 전: 로컬 명부에 담아 두고 첫 저장 때 서버에 함께 등록한다.
+          preserveDraft();const draft=settings.draft;
+          const person={id:globalThis.crypto.randomUUID(),customer_id:'',name,person_type:personType,age:ageText?Number(ageText):null};
+          const pendingPeople=[...(Array.isArray(draft.pendingPeople)?draft.pendingPeople:[]),person];
+          const next={...draft,pendingPeople};
+          if(!Array.isArray(draft.participantPersonIds)){
+            const everyone=participantsFromPeople(pendingPeople,pendingPeople.map(row=>String(row.id)));
+            next.participants=everyone;next.raw={...draft.raw,M:String(everyone.length)};
+          }
+          if(nameInput)nameInput.value='';if(ageInput)ageInput.value='';
+          update({draft:next});return;
+        }
         const payload={id:globalThis.crypto.randomUUID(),customerId:settings.draft.customerId,name,personType,...(ageText?{age:Number(ageText)}:{})};
         personAdd.disabled=true;
         Promise.resolve(onSaveCustomerPerson(payload)).then(result=>{
@@ -1799,7 +1878,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
           const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:roster.map(person=>String(person.id));
           const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
           const headcount=numeric(raw.M)||participants.length||1;
-          const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:entry.sessions,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:String(raw.G||'').trim()});
+          const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:entry.sessions,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:[...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
           results[entry.key]={totalSessions:entry.sessions,passId:saved?.id||null};
         }
         update({passIssueResults:results});

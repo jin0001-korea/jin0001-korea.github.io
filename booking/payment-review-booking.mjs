@@ -1,4 +1,4 @@
-import {createBookingDraft} from './booking-view.mjs?v=74';
+import {createBookingDraft} from './booking-view.mjs?v=75';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=67';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';

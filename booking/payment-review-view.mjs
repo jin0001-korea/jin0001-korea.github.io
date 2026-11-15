@@ -1,6 +1,6 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=3';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=74';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=75';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=7';
 import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=71';
 import {BOOKING_COMPANIES} from './company-options.mjs?v=31';
@@ -101,7 +101,7 @@ function uploadAnalysisMarkup(u,edit,busy){
   const proposals=list(result.proposals),index=Math.min(Math.max(result.selectedIndex||0,0),Math.max(0,proposals.length-1)),proposal=proposals[index],comparison=proposal?.draft?.paymentComparison;
   const sameBank=edit?.status==='draft'&&proposal?.payerName===edit.payerName&&proposal?.amount===edit.amount&&String(proposal?.transactionDate||'')===String(edit.transactionDate||'');
   const explanation={not_bank:'이번 원본은 은행 입금내역으로 확인되지 않았습니다.',no_deposits:'이번 원본에서 입금 내역을 찾지 못했습니다.',needs_review:'원본의 입금 내역을 직접 확인해야 합니다.'}[result.outcome];
-  return `<section class="pr-latest-analysis pr-upload-analysis" data-pr-upload-analysis aria-label="새 원본 분석 결과"><h3>새 원본 분석 결과</h3><p>사진 원본과 현재 저장된 상담을 새로 읽었습니다. 기존 검토·예약 내용은 유지했습니다.</p>${proposals.length>1?`<label class="pr-field"><span>이번에 읽은 입금 ${proposals.length}건</span><select data-pr-upload-analysis-row ${disabled(busy)}>${proposals.map((row,i)=>option(String(i),`${row.payerName||'입금자 미확인'} · ${won(row.amount)}`,String(index))).join('')}</select></label>`:''}<div class="pr-latest-preview" role="region" aria-label="새 분석 결과 상세">${proposal?`<p><strong>${esc(proposal.payerName||'입금자 미확인')} · ${won(proposal.amount)}</strong><br>${esc(bankSummary(proposal))}</p>${comparison?renderPaymentPriceBreakdown(comparison,proposal.amount):'<p>상담 제안을 확인하지 못했습니다. 원본과 직접 대조하세요.</p>'}${sameBank&&comparison?'<p>자동 반영되지 않은 결과는 상담 출처를 확인한 뒤 팀 전체를 반영할 수 있습니다. 기존 팀·회차 입력은 바뀌고, 입금 배분액도 원문 견적에 따라 초안으로 제안하므로 담당자가 확인합니다. 은행 내역과 고객·확인 메모는 유지합니다.</p>':edit?.status==='draft'?'<p>현재 검토와 은행 값이 다르면 원본을 대조해 직접 수정한 뒤 근거를 반영하세요.</p>':'<p>작성 준비·예약 반영한 검토는 새 제안과 나란히 확인할 수 있습니다.</p>'}`:`<p>${esc(explanation||'새 검토 제안을 만들지 못했습니다. 원본을 확인하세요.')}</p>`}<div class="pr-latest-actions">${sameBank&&comparison?latestTeamActions(comparison,busy,'upload'):''}${sameBank&&comparison?`<button type="button" class="btn secondary small" data-pr-apply-upload-analysis ${disabled(busy)}>이 검토에 새 분석 근거 반영</button>`:''}<button type="button" class="btn ghost small" data-pr-dismiss-upload-analysis ${disabled(busy)}>새 분석 닫기</button></div></div></section>`;
+  return `<section class="pr-latest-analysis pr-upload-analysis" data-pr-upload-analysis aria-label="새 원본 분석 결과"><h3>새 원본 분석 결과</h3><p>사진 원본과 현재 저장된 상담을 새로 읽었습니다. 기존 검토·예약 내용은 유지했습니다.</p>${proposals.length>1?`<label class="pr-field"><span>이번에 읽은 입금 ${proposals.length}건</span><select data-pr-upload-analysis-row ${disabled(busy)}>${proposals.map((row,i)=>option(String(i),`${row.payerName||'입금자 미확인'} · ${won(row.amount)}`,String(index))).join('')}</select></label>`:''}<div class="pr-latest-preview" role="region" aria-label="새 분석 결과 상세">${proposal?`<p><strong>${esc(proposal.payerName||'입금자 미확인')} · ${won(proposal.amount)}</strong><br>${esc(bankSummary(proposal))}</p>${comparison?renderPaymentPriceBreakdown(comparison,proposal.amount):'<p>상담 제안을 확인하지 못했습니다. 원본과 직접 대조하세요.</p>'}${sameBank&&comparison?'<p>자동 반영되지 않은 결과는 상담 출처를 확인한 뒤 팀 전체를 반영할 수 있습니다. 기존 팀·회차 입력은 바뀌고, 입금 배분액도 원문 견적에 따라 초안으로 제안하므로 담당자가 확인합니다. 은행 내역과 고객·확인 메모는 유지합니다.</p>':edit?.status==='draft'?'<p>현재 검토와 은행 값이 다르면 원본을 대조해 직접 수정한 뒤 근거를 반영하세요.</p>':'<p>작성 준비·예약 반영한 검토는 새 제안과 나란히 확인할 수 있습니다.</p>'}`:`<p>${esc(explanation||'새 검토 제안을 만들지 못했습니다. 원본을 확인하세요.')}</p>`}<div class="pr-latest-actions">${(()=>{const adoptable=proposals.filter(row=>row.rowKey&&!list(u.detail?.reviews).some(existing=>existing.rowKey===row.rowKey)).length;return adoptable&&u.detail?.upload?.status==='ready'?`<button type="button" class="btn primary small" data-pr-adopt-upload-analysis ${disabled(busy)}>읽은 입금 ${adoptable}건 검토 초안 만들기</button>`:'';})()}${sameBank&&comparison?latestTeamActions(comparison,busy,'upload'):''}${sameBank&&comparison?`<button type="button" class="btn secondary small" data-pr-apply-upload-analysis ${disabled(busy)}>이 검토에 새 분석 근거 반영</button>`:''}<button type="button" class="btn ghost small" data-pr-dismiss-upload-analysis ${disabled(busy)}>새 분석 닫기</button></div></div></section>`;
 }
 const draftStrings=['company','customerName','phone','teamName','sport','date','startTime','notes','customerId','teamId'];
 const draftNumbers=['lessonMinutes','breakMinutes','studentCount','lessonFee','rentalFee','allocatedAmount'];
@@ -704,6 +704,10 @@ function originalSources(u,edit){
   };
   if(Number.isSafeInteger(u.selectedCandidate))add(list(u.candidates)[u.selectedCandidate]);
   for(const row of list(edit?.evidence))if(row.verification==='stored_message')add({...row,sourceId:evidenceSourceId(edit,row)});
+  // 검토의 전화번호와 같은 번호로 찾은 후보는 신원 선택 없이도 원문 열람 대상이다.
+  // 예약 변경·날짜 미정 수강권처럼 분석이 근거를 못 붙인 입금도 최근 대화를 바로 본다.
+  const reviewPhone=phoneKey(edit?.draft.phone);
+  if(reviewPhone)for(const row of list(u.candidates))if(phoneKey(row.phone)===reviewPhone)add(row);
   return sources;
 }
 function comparisonThreadRows(u,edit,candidate){
@@ -1071,6 +1075,29 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     }catch{if(current())u.sourceFreshness[key]={status:'failed'};}
     finally{if(current()&&selectedEdit===activeEdit(u))paint();}
   };
+  // 상담 원문 자동 표시(2026-11-15): 분석이 근거를 못 붙인 검토(예약 변경·날짜 미정 수강권 등)도
+  // 입금자·금액·번호로 후보를 자동 조회하고, 검토 번호와 같은 번호의 최근 대화는 바로 불러온다.
+  // 번호가 다른 후보는 목록만 보여 주고 신원 확정(선택)은 담당자가 한다.
+  const autoConversation=async()=>{
+    const selectedEdit=activeEdit(u);
+    if(!current()||blocked()||!selectedEdit)return;
+    // 근거가 하나라도 연결돼 있으면 기존 로딩 동작을 그대로 둔다.
+    // 여기는 "연결된 상담 원문이 없습니다"로 끝나던 빈 검토 전용이다.
+    if(originalSources(u,selectedEdit).length)return;
+    u.autoCandidateTried??={};const key=u.activeKey;
+    if(u.autoCandidateTried[key]||u.candidateSearched||u.candidateLoading||!selectedEdit.payerName?.trim())return;
+    u.autoCandidateTried[key]=true;
+    try{
+      const seeded=u.sourceFreshness?.[freshnessKey(selectedEdit)];
+      const result=seeded?.status==='ready'?{candidates:seeded.candidates}:await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(selectedEdit.draft.phone?{phone:selectedEdit.draft.phone}:{})});
+      if(!current()||u.activeKey!==key||selectedEdit!==activeEdit(u)||!Array.isArray(result?.candidates))return;
+      u.candidates=result.candidates;u.candidateSearched=true;u.selectedCandidate=null;
+      u.openPanels??={};u.openPanels.conversation=true;if(result.candidates.length)u.openPanels.candidate=true;
+      const sources=originalSources(u,selectedEdit);
+      if(sources.length){u.comparisonActiveIndex=0;paint();await loadComparisonOriginals(0);}
+      else paint();
+    }catch{}
+  };
   const scrollSection=section=>{
     const selector={bank:'[data-pr-section="bank"]',conversation:'[data-pr-section="conversation"]',results:'[data-pr-section="results"]',intake:'[data-pr-section="intake"]'}[section];if(!selector)return;
     const target=root.querySelector(selector);if(!target)return;
@@ -1106,6 +1133,7 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
       if(destination&&u.detail?.upload?.id===uploadId)scrollSection(destination);else root.querySelector('.pr-detail')?.scrollIntoView?.({block:'start',behavior:'auto'});
       const navigation=u.sectionNavigation||0;
       await Promise.allSettled([waitingForOriginals?loadComparisonOriginals(sourceIndex):Promise.resolve(),checkSourceFreshness()]);
+      if(current()&&request===u.detailRequest&&u.selectedUploadId===uploadId)void autoConversation().catch(()=>{});
       // Mobile stacks the conversation above the result. Its asynchronous load
       // must not move the requested result off screen; honor a later user jump.
       if(destination&&waitingForOriginals&&current()&&request===u.detailRequest&&u.selectedUploadId===uploadId&&navigation===(u.sectionNavigation||0))scrollSection(destination);
@@ -1335,6 +1363,27 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
   root.querySelector('[data-pr-dismiss-upload-analysis]')?.addEventListener('click',()=>{
     if(!current()||blocked())return;const uploadId=u.detail?.upload?.id;if(u.uploadAnalysisPreviews)delete u.uploadAnalysisPreviews[uploadId];if(u.latestUploadAnalysis?.uploadId===uploadId)u.latestUploadAnalysis=null;paint();
   });
+  // AI 다시 분석은 미리보기만 반환한다(저장본 보호). 검토 초안이 없는 입금은
+  // 여기서 초안으로 받아 적어야 저장·승인→예약 작성으로 이어진다. (2026-11-15)
+  root.querySelector('[data-pr-adopt-upload-analysis]')?.addEventListener('click',()=>{
+    if(!current()||blocked()||!preserveCurrent())return;
+    const uploadId=u.detail?.upload?.id,result=u.uploadAnalysisPreviews?.[uploadId];
+    if(!uploadId||u.detail?.upload?.status!=='ready'||u.detail.upload.deletingAt||!list(result?.proposals).length)return;
+    let firstKey='';
+    for(const proposal of list(result.proposals)){
+      if(!proposal?.rowKey||proposal.uploadId&&proposal.uploadId!==uploadId)continue;
+      if(list(u.detail.reviews).some(row=>row.rowKey===proposal.rowKey))continue;
+      const review=JSON.parse(JSON.stringify({rowKey:proposal.rowKey,status:'draft',payerName:proposal.payerName||'',amount:proposal.amount,transactionDate:proposal.transactionDate??null,draft:proposal.draft,evidenceRefs:list(proposal.evidenceRefs)}));
+      const edit=editOf(u,review);edit.dirty=true;
+      u.detail.reviews=[...list(u.detail.reviews),review];
+      if(!firstKey)firstKey=keyFor(review);
+    }
+    if(!firstKey){u.notice='읽은 입금마다 이미 검토 초안이 있습니다.';paint();return;}
+    u.activeKey=firstKey;initializeActiveProposal(u,list(u.detail.reviews).find(row=>keyFor(row)===firstKey),{bookingContext});
+    u.candidates=[];u.comparisonOriginals={};u.comparisonLoading='';u.candidateContext=null;u.candidateContextLoading=false;u.contextRequest=(u.contextRequest||0)+1;u.candidateSearched=false;u.selectedCandidate=null;u.reviewError='';u.comparisonActiveIndex=0;
+    u.notice='읽은 입금을 검토 초안으로 만들었습니다. 입금자별 내용을 확인하고 저장·승인하면 예약 작성이 열립니다.';paint();
+    void Promise.allSettled([loadComparisonOriginals(0),checkSourceFreshness()]).then(()=>autoConversation());
+  });
   const reanalyzeCurrentReview=async()=>{
     if(!current()||blocked()||u.detailLoading)return;
     captureCurrent();
@@ -1444,7 +1493,7 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     u.candidates=[];u.comparisonOriginals={};u.comparisonLoading='';u.candidateContext=null;u.candidateContextLoading=false;u.contextRequest=(u.contextRequest||0)+1;u.error='';u.reviewError='';paint();refresh();
   }));
 
-  root.querySelectorAll('[data-pr-review]').forEach(button=>button.addEventListener('click',()=>{if(!current()||blocked()||!preserveCurrent())return;const review=list(u.detail?.reviews).find(row=>keyFor(row)===button.dataset.prReview);if(review){u.activeKey=keyFor(review);editOf(u,review);initializeActiveProposal(u,review,{bookingContext});u.candidates=[];u.comparisonOriginals={};u.comparisonLoading='';u.candidateContext=null;u.candidateContextLoading=false;u.contextRequest=(u.contextRequest||0)+1;u.candidateSearched=false;u.selectedCandidate=null;u.reviewError='';u.comparisonActiveIndex=0;u.savedRecords=null;paint();if(paymentReviewSaveStatus(review).saved)void openSavedRecords(review.id);else void Promise.allSettled([loadComparisonOriginals(0),checkSourceFreshness()]);}}));
+  root.querySelectorAll('[data-pr-review]').forEach(button=>button.addEventListener('click',()=>{if(!current()||blocked()||!preserveCurrent())return;const review=list(u.detail?.reviews).find(row=>keyFor(row)===button.dataset.prReview);if(review){u.activeKey=keyFor(review);editOf(u,review);initializeActiveProposal(u,review,{bookingContext});u.candidates=[];u.comparisonOriginals={};u.comparisonLoading='';u.candidateContext=null;u.candidateContextLoading=false;u.contextRequest=(u.contextRequest||0)+1;u.candidateSearched=false;u.selectedCandidate=null;u.reviewError='';u.comparisonActiveIndex=0;u.savedRecords=null;paint();if(paymentReviewSaveStatus(review).saved)void openSavedRecords(review.id);else void Promise.allSettled([loadComparisonOriginals(0),checkSourceFreshness()]).then(()=>autoConversation());}}));
   root.querySelector('[data-pr-new-row]')?.addEventListener('click',()=>{
     if(!current()||blocked()||!preserveCurrent()||u.detail?.upload?.status!=='ready'||u.detail?.upload?.analysisStatus==='running'||u.detail?.upload?.deletingAt)return;
     const rowKey=crypto.randomUUID(),review={rowKey,status:'draft',draft:emptyPaymentDraft()},edit=editOf(u,review);
