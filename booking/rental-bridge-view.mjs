@@ -1,4 +1,4 @@
-import {rentalConfirmationPolicy} from './rental-fields.mjs?v=31';
+import {rentalConfirmationPolicy} from './rental-fields.mjs?v=32';
 // Live rental facts are read separately from reservation-owned payment inputs.
 const esc=value=>String(value??'').replace(/[&<>"']/gu,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const money=value=>new Intl.NumberFormat('ko-KR').format(value);

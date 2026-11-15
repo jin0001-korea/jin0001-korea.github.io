@@ -1,5 +1,5 @@
-import {renderBookingPaymentIntake} from './booking-view.mjs?v=70';
-import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=6';
+import {renderBookingPaymentIntake} from './booking-view.mjs?v=71';
+import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=7';
 
 const list=value=>Array.isArray(value)?value:[];
 const applied=draft=>draft.paymentComparison?.appliedProposal||{};

@@ -1,4 +1,4 @@
-import { ASSIGNMENT_REASON_LABELS } from './booking-rules.mjs?v=34';
+import { ASSIGNMENT_REASON_LABELS } from './booking-rules.mjs?v=35';
 
 const escapeFallback=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 const rows=value=>Array.isArray(value)?value:[];

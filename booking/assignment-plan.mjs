@@ -1,7 +1,7 @@
 import {
   ASSIGNMENT_REASON_LABELS, evaluateCandidates, expertRequirement,
   normalizeInstructorIds, parseLessonInterval,
-} from './booking-rules.mjs?v=34';
+} from './booking-rules.mjs?v=35';
 import {bookingTeamLabel} from './customer-teams.mjs?v=26';
 
 /** These plans are suggestions. The server must validate the confirmed batch. */

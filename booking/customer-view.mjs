@@ -1,5 +1,5 @@
 import {canDeleteCustomer,customerDeletionPayload,customerDeletionUsage,isDeletedCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
-import {resizeParticipants} from './booking-participants.mjs?v=32';
+import {resizeParticipants} from './booking-participants.mjs?v=33';
 import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
 import {customerDirectoryTeams,customerContactChoices,customerDirectoryReservations,createCustomerDirectoryDraft,createCustomerTeamDraft,customerDirectoryPayload,customerTeamPayload,searchCustomerCandidates,CUSTOMER_AGE_BANDS,customerTeamAgeLabel} from './customer-directory.mjs?v=35';
 

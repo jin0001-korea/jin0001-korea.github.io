@@ -1,9 +1,9 @@
-import {createBookingDraft} from './booking-view.mjs?v=70';
+import {createBookingDraft} from './booking-view.mjs?v=71';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=67';
-import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=34';
+import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
 import {canonicalTelephone} from './customer-teams.mjs?v=26';
-import {paymentIntakeCorrectionError} from './payment-intake-state.mjs?v=6';
+import {paymentIntakeCorrectionError} from './payment-intake-state.mjs?v=7';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
 import {defaultPaymentSeasonRegistration} from './payment-proposal-policy.mjs?v=5';
 

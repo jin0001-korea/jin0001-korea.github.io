@@ -1,4 +1,4 @@
-import {parseLessonInterval} from './booking-rules.mjs?v=34';
+import {parseLessonInterval} from './booking-rules.mjs?v=35';
 
 const own=(value,key)=>Object.prototype.hasOwnProperty.call(value||{},key);
 const rawOf=row=>row?.raw||row?.raw_data||{};

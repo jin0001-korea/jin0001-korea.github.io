@@ -1,5 +1,5 @@
 import {activeNoticeReservationIds,selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
-import {parseLessonInterval,normalizeInstructorIds} from './booking-rules.mjs?v=34';
+import {parseLessonInterval,normalizeInstructorIds} from './booking-rules.mjs?v=35';
 import {bookingStaffLinks} from './booking-access.mjs?v=27';
 import {CUSTOMER_PORTAL} from './customer-links.mjs?v=17';
 export {CUSTOMER_PORTAL};

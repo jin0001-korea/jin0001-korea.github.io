@@ -1,5 +1,5 @@
 import {scheduleRentalSummary,scheduleRentalLabel,renderScheduleRental} from './schedule-rental.mjs?v=1';
-import {parseKstDate,parseLessonTime,lessonTimeLabel,parseLessonInterval,normalizeInstructorIds,bookingLocation} from './booking-rules.mjs?v=34';
+import {parseKstDate,parseLessonTime,lessonTimeLabel,parseLessonInterval,normalizeInstructorIds,bookingLocation} from './booking-rules.mjs?v=35';
 import {bookingTeamLabel} from './customer-teams.mjs?v=26';
 import {bookingFinancialSummary} from './booking-financial.mjs?v=12';
 
