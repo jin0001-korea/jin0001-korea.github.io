@@ -295,7 +295,10 @@ export function filterBookingTableRows(rows,settings={},context={}){
 export function bookingRowColorClasses(row){
   const company=String(row?.raw?.E||'');
   const tint=company.includes('캐치')?'bk-co-catch':company.includes('라이즌')?'bk-co-risen':'';
-  const due=financialSummary(row)?.balance>0?'bk-row-due':'';
+  // 2026-11-15 운영 결정: 빨간 행은 '강습료' 부분미결제만. 장비렌탈 미결제(당일
+  // 코코넛 실사용 확인)는 정상 흐름이라 빨간색으로 표시하지 않는다.
+  const lessonFee=numeric(row?.raw?.T),paid=numeric(row?.raw?.Y);
+  const due=lessonFee!==null&&lessonFee>0&&(paid===null?0:paid)<lessonFee?'bk-row-due':'';
   return [due,tint].filter(Boolean).join(' ');
 }
 
