@@ -48,7 +48,18 @@ function renderEditor(value,state,escape,preview){
 
 function renderHistory(customer,state,escape){
   const rows=customerDirectoryReservations(customer.id,state),roster=new Map(list(state.roster).map(person=>[person.user_id,person.display_name]));
-  return `<section class="cd-history"><div class="cd-section-heading"><div><h3>이 고객의 예약 이력 <small>${rows.length}건</small></h3><p>이 고객에 연결된 웹 예약만 표시합니다.</p></div></div>${rows.length?`<div class="cd-history-scroll" tabindex="0" role="region" aria-label="고객의 팀별 예약 이력"><table><thead><tr><th>날짜 · 시간</th><th>팀 · 회차</th><th>담당 강사</th></tr></thead><tbody>${rows.slice(0,100).map(row=>{const raw=rawOf(row),ids=row.instructorIds||row.instructor_user_ids||row.instructor_ids||[],names=ids.map(id=>roster.get(id)).filter(Boolean);return `<tr><td>${escape(dateLabel(raw.A))}<small>${escape(raw.B||'')}–${escape(raw.C||'')}</small></td><td>${escape(raw.I||'기본 1팀')}<small>${escape(raw.J||'회차 미입력')} · ${escape(raw.D||'')}</small></td><td>${escape(names.join(' · ')||raw.F||'미배정')}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="cd-empty compact">아직 연결된 예약이 없습니다. 팀을 선택해 첫 예약을 추가하세요.</div>'}</section>`;
+  // 2026-11-15: 이력 표에서 강습료·입금액·장비결제를 바로 수정한다. 요청액·미수는 자동.
+  const won=value=>Number.isFinite(value)?value.toLocaleString('ko-KR'):'—';
+  const amountCell=row=>{
+    const raw=rawOf(row);
+    const status=['free','paid','onsite_unpaid'].includes(row.rental_payment_status??row.rentalPaymentStatus)?(row.rental_payment_status??row.rentalPaymentStatus):'';
+    const hours=[4,6].includes(Number(row.rental_hours??row.rentalHours))?Number(row.rental_hours??row.rentalHours):'';
+    const rentalAmount=status==='free'?0:Number.isFinite(Number(row.rental_amount??row.rentalAmount))&&(row.rental_amount??row.rentalAmount)!==null?Number(row.rental_amount??row.rentalAmount):null;
+    const t=Number(String(raw.T||'').replace(/[^0-9]/g,''))||0,y=Number(String(raw.Y||'').replace(/[^0-9]/g,''))||0;
+    const requested=t+(['paid','onsite_unpaid'].includes(status)&&rentalAmount!==null?rentalAmount:0);
+    return {raw,status,hours,requested,due:requested-y};
+  };
+  return `<section class="cd-history"><div class="cd-section-heading"><div><h3>이 고객의 예약 이력 <small>${rows.length}건</small></h3><p>강습료·입금액·장비결제는 표에서 바로 수정할 수 있습니다. 저장하면 변경 이력에 남습니다.</p></div></div>${rows.length?`<div class="cd-history-scroll" tabindex="0" role="region" aria-label="고객의 팀별 예약 이력"><table><thead><tr><th>날짜 · 시간</th><th>팀 · 회차</th><th>담당 강사</th><th>강습료</th><th>입금액</th><th>장비결제</th><th>요청 · 미수</th><th></th></tr></thead><tbody>${rows.slice(0,100).map(row=>{const cell=amountCell(row),raw=cell.raw,ids=row.instructorIds||row.instructor_user_ids||row.instructor_ids||[],names=ids.map(id=>roster.get(id)).filter(Boolean);return `<tr data-cd-row="${escape(row.id)}"><td>${escape(dateLabel(raw.A))}<small>${escape(raw.B||'')}–${escape(raw.C||'')}</small></td><td>${escape(raw.I||'기본 1팀')}<small>${escape(raw.J||'회차 미입력')} · ${escape(raw.D||'')}</small></td><td>${escape(names.join(' · ')||raw.F||'미배정')}</td><td class="cd-amt"><input data-cd-t value="${escape(raw.T||'')}" inputmode="numeric" maxlength="9" aria-label="강습료"></td><td class="cd-amt"><input data-cd-y value="${escape(raw.Y||'')}" inputmode="numeric" maxlength="9" aria-label="입금액"></td><td class="cd-rental"><select data-cd-rs aria-label="장비결제 상태"><option value="" ${cell.status===''?'selected':''}>미선택</option><option value="onsite_unpaid" ${cell.status==='onsite_unpaid'?'selected':''}>미결제</option><option value="free" ${cell.status==='free'?'selected':''}>무료</option><option value="paid" ${cell.status==='paid'?'selected':''}>결제완료</option></select><select data-cd-rh aria-label="장비 이용시간" ${cell.status==='paid'||cell.status==='onsite_unpaid'?'':'hidden'}><option value="" ${cell.hours===''?'selected':''}>시간 미정</option><option value="4" ${cell.hours===4?'selected':''}>4시간</option><option value="6" ${cell.hours===6?'selected':''}>6시간</option></select></td><td class="cd-due" data-cd-due>${won(cell.requested)}<small data-cd-due-note class="${cell.due>0?'is-due':''}">${cell.due>0?`미수 ${won(cell.due)}`:'완납'}</small></td><td class="cd-save"><button type="button" class="btn secondary small" data-cd-amt-save="${escape(row.id)}" disabled>저장</button><small data-cd-amt-note role="status"></small></td></tr>`;}).join('')}</tbody></table></div>`:'<div class="cd-empty compact">아직 연결된 예약이 없습니다. 팀을 선택해 첫 예약을 추가하세요.</div>'}</section>`;
 }
 function renderDeleteConfirmation(customer,state,value,escape){
   if(value.deleteTarget?.payload?.id!==customer.id)return '';
@@ -79,10 +90,41 @@ function formDraft(form,value){
   return {...draft,name:get('teamName'),teamPhoneMode,phone:teamPhoneMode==='same'?'':get('teamPhone'),defaults:{...(draft.defaults||{}),sport,age:form.elements.namedItem('teamAge')?(ageBand?null:get('teamAge')===''?null:Number(get('teamAge'))):draft.defaults?.age??null,ageBand,...(form.elements.namedItem('teamParticipant_0_type')?{participants:resizeParticipants(draft.defaults?.participants,Number(get('teamHeadcount'))).map((person,index)=>{const type=form.elements.namedItem(`teamParticipant_${index}_type`)?get(`teamParticipant_${index}_type`):person.type;return{type,age:type==='adult'?null:form.elements.namedItem(`teamParticipant_${index}_age`)?get(`teamParticipant_${index}_age`)===''?null:Number(get(`teamParticipant_${index}_age`)):person.age};})}:{}),juniorPreparation:form.elements.namedItem('teamJuniorPreparation')?.checked===true,experienceCount:get('teamExperience')===''?null:Number(get('teamExperience')),parallelLongTurn:boolean(get('teamParallel')),snowboardNoviceTurn:boolean(get('teamSnowboard')),raw:{...(draft.defaults?.raw||{}),D:sport,M:get('teamHeadcount'),N:get('teamDuration'),K:get('teamRelation'),O:get('teamLevel')}}};
 }
 
-export function bindCustomers(root,{state={},ui={},onChange,onSaveCustomer,onSaveTeam,onDeleteCustomer,onNewReservation}={}){
+export function bindCustomers(root,{state={},ui={},onChange,onSaveCustomer,onSaveTeam,onDeleteCustomer,onNewReservation,onQuickAmounts}={}){
   const view=root.querySelector('.customer-page');if(!view)return;
   const update=changes=>{ui.customers={...settings(ui),...changes};onChange?.(ui.customers);};
   const busy=()=>settings(ui).saving;
+  // 이력 표 금액 빠른 수정 (2026-11-15): 입력이 바뀌면 요청·미수 미리보기 + 저장 활성화.
+  view.querySelectorAll('[data-cd-row]').forEach(tr=>{
+    const id=tr.dataset.cdRow;
+    const t=tr.querySelector('[data-cd-t]'),y=tr.querySelector('[data-cd-y]'),rs=tr.querySelector('[data-cd-rs]'),rh=tr.querySelector('[data-cd-rh]');
+    const save=tr.querySelector('[data-cd-amt-save]'),note=tr.querySelector('[data-cd-amt-note]'),due=tr.querySelector('[data-cd-due]');
+    if(!t||!y||!rs||!save)return;
+    const won=value=>Number.isFinite(value)?value.toLocaleString('ko-KR'):'—';
+    const per=hours=>Number(hours)===4?13000:Number(hours)===6?18000:null;
+    const headcount=()=>{const row=(state.reservations||[]).find(item=>item.id===id);const m=Number(String((row?.raw||row?.raw_data||{}).M||'').replace(/[^0-9]/g,''));return m>=1?m:1;};
+    const refresh=()=>{
+      const status=rs.value;if(rh)rh.hidden=!(status==='paid'||status==='onsite_unpaid');
+      const lesson=Number(String(t.value||'').replace(/[^0-9]/g,''))||0;
+      const paid=Number(String(y.value||'').replace(/[^0-9]/g,''))||0;
+      const rent=status==='free'?0:(status==='paid'||status==='onsite_unpaid')&&per(rh?.value)!==null?per(rh.value)*headcount():0;
+      const requested=lesson+rent,gap=requested-paid;
+      if(due)due.innerHTML=`${won(requested)}<small data-cd-due-note class="${gap>0?'is-due':''}">${gap>0?`미수 ${won(gap)}`:'완납'}</small>`;
+      save.disabled=false;if(note)note.textContent='';
+    };
+    for(const field of [t,y,rs,rh])field?.addEventListener('input',refresh),field?.addEventListener('change',refresh);
+    save.addEventListener('click',async()=>{
+      if(busy()||typeof onQuickAmounts!=='function')return;
+      save.disabled=true;const prior=save.textContent;save.textContent='저장 중…';if(note)note.textContent='';
+      try{
+        await onQuickAmounts(id,{lessonFee:String(t.value||'').replace(/[^0-9]/g,''),paidAmount:String(y.value||'').replace(/[^0-9]/g,''),rentalPaymentStatus:rs.value||null,rentalHours:rh&&rh.value?Number(rh.value):null});
+        save.textContent='저장됨';if(note)note.textContent='변경 이력에 기록되었습니다.';
+      }catch(error){
+        save.disabled=false;save.textContent=prior;
+        if(note){note.textContent=error?.message||'저장하지 못했습니다.';note.classList.add('is-error');}
+      }
+    });
+  });
   const begin=(editor,draft)=>{if(busy())return;const previous=settings(ui);if(previous.draft&&!same(previous.draft,previous.baseline)){update({suspended:false,error:'작성 중인 정보를 저장하거나 비운 뒤 다른 정보를 여세요.'});return;}update({editor,draft,baseline:clone(draft),suspended:false,error:'',discardPrompt:false,deleteTarget:null,deleteError:''});};
   const editCustomer=id=>{const row=list(state.customers).find(item=>item.id===id);if(row)begin('customer',{id:row.id,name:row.name,contacts:clone(row.contacts||[]),notes:row.notes||'',expectedUpdatedAt:row.updated_at||row.updatedAt||null});};
   const editTeam=id=>{const row=list(state.customerTeams).find(item=>item.id===id);if(!row)return;const customer=list(state.customers).find(item=>item.id===(row.customer_id||row.customerId)),customerPhone=customerContactChoices(customer||{})[0]?.phone||'',phone=canonicalTelephone(row.phone)||'';begin('team',{id:row.id,customerId:row.customer_id||row.customerId,name:row.name||'',phone:row.phone||'',teamPhoneMode:phone&&phone!==customerPhone?'separate':'same',defaults:clone(row.defaults||{}),expectedUpdatedAt:row.updated_at||row.updatedAt||null});};

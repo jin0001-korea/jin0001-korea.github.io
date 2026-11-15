@@ -443,16 +443,19 @@ function renderTeamSchedule(draft,context,escape){
 }
 
 function directoryCustomer(draft,context){return (context.customers||[]).find(customer=>customer.id===draft.customerId)||null;}
+// 고객 공통의 개인(1..n) 명부 관리 — 팀 참가자는 아래 팀 정보에서 클릭 선택한다.
+function renderPeopleManager(draft,context,escape){
+  if(!draft.customerId)return '<p class="bk-field-note" data-bk-people-hint>개인 명부는 고객을 연결하면 열립니다. 연락처 4자리로 기존 고객을 찾아 선택하거나, 첫 저장 후 자동 연결됩니다.</p>';
+  const people=customerPeopleOf(context,draft.customerId);
+  return `<details class="bk-people-manager" data-bk-people-manager ${people.length?'':'open'}><summary>개인 명부 <small>${people.length}명 · 팀 구성 때 클릭으로 선택</small></summary><div class="bk-team-chips">${people.map(person=>`<span class="bk-person-chip">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small><button type="button" data-bk-person-delete="${escape(person.id)}" aria-label="${escape(person.name)} 명부에서 삭제" title="명부에서 삭제">×</button></span>`).join('')||'<span class="bk-field-note">아직 등록한 개인이 없습니다. 가족·일행을 등록해 두면 팀 구성이 빨라집니다.</span>'}</div><div class="bk-person-add"><input data-bk-person-name maxlength="120" placeholder="이름 (예: 엄마, 첫째)"><select data-bk-person-type><option value="adult">성인</option><option value="minor">미성년</option></select><input data-bk-person-age type="number" min="1" max="19" step="1" inputmode="numeric" placeholder="나이(선택)" disabled><button type="button" class="btn secondary small" data-bk-person-add>명부에 추가</button></div><p class="bk-field-note" data-bk-person-feedback role="status"></p></details>`;
+}
+
 function renderDirectorySelection(draft,context,escape){
   const customer=directoryCustomer(draft,context),teams=customer?customerDirectoryTeams(customer.id,context):[],locked=!!draft.id&&!!draft.customerId;
   if(customer){const contacts=customerContactChoices(customer,teams);return `<div class="bk-linked-customer" data-bk-linked-customer><header><div><small>고객 기록 연결됨</small><strong>${escape(customer.name)} <span>#${escape(customer.id.slice(-6))}</span></strong></div>${!locked?'<button type="button" class="btn ghost small" data-bk-unlink-customer>새 고객으로 입력</button>':''}</header><div class="bk-contact-options">${contacts.map(contact=>`<button type="button" data-bk-contact-phone="${escape(contact.phone)}" class="${canonicalTelephone(customerPhoneOf(draft))===contact.phone?'selected':''}"><span>${escape(contact.label)}</span>${escape(contact.formatted||formatTelephone(contact.phone))}</button>`).join('')||'<span class="bk-field-note">등록된 연락처가 없습니다. 이번 예약의 연락처를 입력해 주세요.</span>'}</div>${teams.length?`<span class="bk-team-choice-label">등록된 팀 선택</span><div class="bk-team-chips">${teams.map(team=>`<button type="button" data-bk-directory-team="${escape(team.id)}" class="${draft.customerTeamId===team.id?'selected':''}" ${locked?'disabled':''}>${escape(team.label)}${team.phone?`<small>${escape(formatTelephone(team.phone))}</small>`:''}</button>`).join('')}</div>`:''}${renderPeopleManager(draft,context,escape)}<p class="bk-field-note">${locked?'고객·팀 이름은 고객관리에서 수정할 수 있습니다. 이번 예약의 연락처는 따로 변경할 수 있습니다.':'이 고객의 연락처와 팀을 선택하세요. 이름이나 번호가 같아도 선택하기 전에는 연결되지 않습니다.'}</p></div>`;}
 
-// 고객 공통의 개인(1..n) 명부 관리 — 팀 참가자는 아래 팀 정보에서 클릭 선택한다.
-function renderPeopleManager(draft,context,escape){
-  if(!draft.customerId)return '';
-  const people=customerPeopleOf(context,draft.customerId);
-  return `<details class="bk-people-manager" data-bk-people-manager ${people.length?'':'open'}><summary>개인 명부 <small>${people.length}명 · 팀 구성 때 클릭으로 선택</small></summary><div class="bk-team-chips">${people.map(person=>`<span class="bk-person-chip">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small><button type="button" data-bk-person-delete="${escape(person.id)}" aria-label="${escape(person.name)} 명부에서 삭제" title="명부에서 삭제">×</button></span>`).join('')||'<span class="bk-field-note">아직 등록한 개인이 없습니다. 가족·일행을 등록해 두면 팀 구성이 빨라집니다.</span>'}</div><div class="bk-person-add"><input data-bk-person-name maxlength="120" placeholder="이름 (예: 엄마, 첫째)"><select data-bk-person-type><option value="adult">성인</option><option value="minor">미성년</option></select><input data-bk-person-age type="number" min="1" max="19" step="1" inputmode="numeric" placeholder="나이(선택)" disabled><button type="button" class="btn secondary small" data-bk-person-add>명부에 추가</button></div><p class="bk-field-note" data-bk-person-feedback role="status"></p></details>`;
-}
+
+  return '';
   return '';
 }
 function renderCustomerSuggestions(draft,context,escape){
@@ -482,8 +485,10 @@ export function participantsFromPeople(people,selectedIds){
 function renderPeoplePicker(draft,context,escape){
   const people=customerPeopleOf(context,draft.customerId);
   if(!people.length)return '';
-  const selected=new Set((Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:[]).map(String));
-  return `<div class="bk-people-picker" data-bk-people-picker><span class="bk-team-choice-label">개인 명부에서 선택 <small>클릭한 인원으로 아래 강습생 정보와 인원수를 채웁니다</small></span><div class="bk-team-chips">${people.map(person=>`<button type="button" data-bk-person-pick="${escape(person.id)}" class="${selected.has(String(person.id))?'selected':''}">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small></button>`).join('')}</div></div>`;
+  // 미클릭(participantPersonIds 미조작) = 전원 참가가 기본 (2026-11-15 운영 결정).
+  const untouched=!Array.isArray(draft.participantPersonIds);
+  const selected=untouched?new Set(people.map(person=>String(person.id))):new Set(draft.participantPersonIds.map(String));
+  return `<div class="bk-people-picker" data-bk-people-picker><span class="bk-team-choice-label">개인 명부에서 선택 <small>${untouched?'기본: 전원 참가 · 빼려면 클릭':'클릭한 인원으로 강습생 정보와 인원수를 채웁니다'}</small></span><div class="bk-team-chips">${people.map(person=>`<button type="button" data-bk-person-pick="${escape(person.id)}" class="${selected.has(String(person.id))?'selected':''}">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}</small></button>`).join('')}</div></div>`;
 }
 function renderParticipantFields(draft,escape,context){return `<div class="bk-participants" data-bk-participants><div class="bk-participant-heading"><strong>강습생별 정보 <b>*</b></strong><span>미성년자는 나이를 직접 입력해 주세요.</span></div>${context?renderPeoplePicker(draft,context,escape):''}<div data-bk-participant-rows>${renderParticipantRows(draft,escape)}</div></div>`;}
 function refreshParticipantFields(form,draft,escape){const target=form.querySelector('[data-bk-participant-rows]');if(target)setStableHTML(target,renderParticipantRows(draft,escape));}
@@ -518,7 +523,7 @@ function refreshLearnerFields(form,draft){
 function renderCustomerBlock(draft,context,escape,{review=false}={}) {
   const original=(context.reservations||[]).find(row=>row.id===draft.id),legacy=original&&!String(original.raw.H||'').trim()&&String(original.raw.I||'').trim(),locked=!!draft.id&&!!draft.customerId;
   const phone=customerPhoneNotice(draft,context),companies=bookingCompanyOptions([draft.raw.E,...(context.reservations||[]).map(row=>row.raw?.E)]);
-  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><label class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(customerPhoneOf(draft))}" required type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="${review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기'}" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span></label><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?'':`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)}</div>`}</section>`;
+  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><label class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(customerPhoneOf(draft))}" required type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="${review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기'}" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span></label><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?'':`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
 }
 function renderTeamEditor(draft,context,escape,settings){
   const locked=!!draft.id&&!!draft.customerId;
@@ -573,7 +578,7 @@ function refreshCustomerPanels(form,draft,context,escape) {
   if(draft.historyInstructorSelection){const result=customerTeamHistory(draft,context,{now:context.bookingNow});if(!result.suggestedInstructorIds.includes(draft.historyInstructorSelection.instructorId)){if(draft.preferredInstructorId===draft.historyInstructorSelection.instructorId)draft.preferredInstructorId=null;delete draft.historyInstructorSelection;}}
   refreshPhoneFeedback(form,draft,context);
   setStableHTML(form.querySelector('[data-bk-customer-suggestions]'),renderCustomerSuggestions(draft,context,escape));
-  setStableHTML(form.querySelector('[data-bk-directory-selection]'),renderDirectorySelection(draft,context,escape));
+  setStableHTML(form.querySelector('[data-bk-directory-selection]'),renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape));
   setStableHTML(form.querySelector('[data-bk-team-choices]'),renderCustomerTeamChoices(draft,context,escape));
   const history=form.querySelector('[data-bk-customer-history]');if(history){history.hidden=!wantsSameInstructor(draft);setStableHTML(history,renderCustomerHistory(draft,context,escape));}
   const preferred=form.elements.namedItem('preferredInstructorId');if(preferred)preferred.value=draft.preferredInstructorId||'';
@@ -1064,6 +1069,30 @@ function renderRowDetail(settings,context,escape){
   return `<div class="bk-detail-backdrop" data-bk-detail-backdrop><section class="bk-detail-pop" role="dialog" aria-modal="true" aria-label="예약 전체보기"><header><h3>${escape(rowName(row))} <small>${escape(dateText(row.raw.A))} ${escape(row.raw.B||'')}</small></h3><button type="button" class="icon-btn" data-bk-detail-close aria-label="전체보기 닫기">×</button></header><dl>${entries.map(([k,v])=>`<div><dt>${escape(k)}</dt><dd>${escape(v)}</dd></div>`).join('')}</dl><footer><button type="button" class="btn secondary small" data-bk-detail-open="${escape(row.id)}">예약 변경 열기</button><button type="button" class="btn ghost small" data-bk-detail-close>닫기</button></footer></section></div>`;
 }
 
+// 고객관리 이력 표의 금액 빠른 수정(2026-11-15): 강습료·입금액·장비상태만 바꿔
+// 기존 예약 변경 계약(검증·변경이력·요청액 자동계산)을 그대로 태운다.
+export function buildQuickAmountChange(row,context,{lessonFee,paidAmount,rentalPaymentStatus,rentalHours}={}){
+  const draft=normalizeBookingRow(clone(row),context);
+  draft.raw={...draft.raw,
+    T:lessonFee===undefined?String(draft.raw.T??''):String(lessonFee??''),
+    Y:paidAmount===undefined?String(draft.raw.Y??''):String(paidAmount??'')};
+  if(rentalPaymentStatus!==undefined){
+    const status=['free','paid','onsite_unpaid'].includes(rentalPaymentStatus)?rentalPaymentStatus:null;
+    draft.rentalPaymentStatus=status;
+    const hours=[4,6].includes(Number(rentalHours))?Number(rentalHours):null;
+    draft.rentalHours=status?hours:null;
+    const per=rentalDefaultAmount(draft.rentalHours),count=Math.max(1,numeric(draft.raw.M)||1);
+    draft.rentalAmount=status==='free'?0:status&&per!==null?per*count:null;
+  }
+  let error=validationError(draft,context);
+  // 금액만 고치는 경로: 현금영수증 미응답(레거시)은 그대로 보존하고 막지 않되,
+  // 그 뒤의 금액·렌탈 검증은 임시값으로 끝까지 수행한다.
+  if(error&&/현금영수증/.test(error)&&(row.cashReceiptRequested??row.cash_receipt_requested??null)===null)
+    error=validationError({...draft,cashReceiptRequested:false},context);
+  if(error)throw Object.assign(new Error(error),{code:'QUICK_AMOUNT_INVALID'});
+  return bookingPayload(draft,context);
+}
+
 export function renderBookingPage({state={},ui={},escapeHTML=fallbackEscape,icon=()=>'',now=new Date()}={}) {
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return '<section class="panel"><div class="empty-state"><strong>예약 관리 권한이 필요합니다.</strong></div></section>';
   const escape=escapeHTML,settings=bookingState(state,ui,now),context=contextFor(state,settings,now),allRows=selectBookingRows(context,settings);
@@ -1494,7 +1523,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
 
   const form=view.querySelector('.bk-reservation-form');
   if(form){
-    for(const [selector,markup]of [['[data-bk-customer-suggestions]',renderCustomerSuggestions(settings.draft,context,escape)],['[data-bk-directory-selection]',renderDirectorySelection(settings.draft,context,escape)],['[data-bk-team-choices]',renderCustomerTeamChoices(settings.draft,context,escape)],['[data-bk-customer-history]',renderCustomerHistory(settings.draft,context,escape)]]){const node=form.querySelector(selector);if(node?.nodeType===1)node._bkStableMarkup=markup;}
+    for(const [selector,markup]of [['[data-bk-customer-suggestions]',renderCustomerSuggestions(settings.draft,context,escape)],['[data-bk-directory-selection]',renderDirectorySelection(settings.draft,context,escape)||renderPeopleManager(settings.draft,context,escape)],['[data-bk-team-choices]',renderCustomerTeamChoices(settings.draft,context,escape)],['[data-bk-customer-history]',renderCustomerHistory(settings.draft,context,escape)]]){const node=form.querySelector(selector);if(node?.nodeType===1)node._bkStableMarkup=markup;}
     const refreshCustomer=()=>{preserveDraft();refreshCustomerPanels(form,settings.draft,context,escape);preserveDraft();};
     const invalidateCandidates=()=>{settings.candidateRequestToken=null;if(ui.booking)ui.booking.candidateRequestToken=null;};
     updateGrandTotal(form); // 다회차면 열자마자 전체 합계 표시
@@ -1526,7 +1555,8 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const customerContactPhone=sameCustomer||exactContact?currentPhone:selected.customerContactPhone??selected.raw.L;
       const teamContact=String(selected.team?.phone||'').trim(),phoneKey=value=>canonicalTelephone(value)||String(value||'').trim();
       const teamPhoneMode=teamId&&teamContact&&phoneKey(teamContact)!==phoneKey(customerContactPhone)?'separate':'same';
-      const next={...settings.draft,commonGroupId:null,customerId:selected.customerId,customerTeamId:selected.customerTeamId,customerDraft:null,teamDraft:null,raw:{...settings.draft.raw,...selected.raw,L:teamPhoneMode==='separate'?selected.raw.L:customerContactPhone},customerContactPhone,teamPhoneMode,sameCustomerNewTeam:false,lessonPassId:null,seasonId:null,preferredInstructorId:null,instructorIds:[],historyInstructorSelection:null,age:null,ageBand:null,participants:resizeParticipants([],numeric(selected.raw?.M||settings.draft.raw.M)),juniorPreparation:false,experienceCount:null,parallelLongTurn:null,snowboardNoviceTurn:null};
+      const next={...settings.draft,commonGroupId:null,customerId:selected.customerId,customerTeamId:selected.customerTeamId,customerDraft:null,teamDraft:null,raw:{...settings.draft.raw,...selected.raw,L:teamPhoneMode==='separate'?selected.raw.L:customerContactPhone},customerContactPhone,teamPhoneMode,sameCustomerNewTeam:false,lessonPassId:null,seasonId:null,preferredInstructorId:null,instructorIds:[],historyInstructorSelection:null,age:null,ageBand:null,participants:(()=>{const roster=customerPeopleOf(context,selected.customerId);return roster.length?participantsFromPeople(roster,roster.map(person=>String(person.id))):resizeParticipants([],numeric(selected.raw?.M||settings.draft.raw.M));})(),participantPersonIds:undefined,juniorPreparation:false,experienceCount:null,parallelLongTurn:null,snowboardNoviceTurn:null};
+      if(Array.isArray(next.participants)&&next.participants.length)next.raw={...next.raw,M:String(next.participants.length)};
       if(teamId){
         const defaults=selected.defaults||{};
         for(const key of ['D','K','M','O'])if(defaults.raw?.[key]!==undefined)next.raw[key]=defaults.raw[key];
@@ -1566,7 +1596,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const personPick=event.target.closest?.('[data-bk-person-pick]');if(personPick){
         if(busy())return;preserveDraft();
         const draft=settings.draft,people=customerPeopleOf(context,draft.customerId);
-        const current=new Set((Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:[]).map(String));
+        const current=Array.isArray(draft.participantPersonIds)?new Set(draft.participantPersonIds.map(String)):new Set(people.map(person=>String(person.id)));
         const personId=personPick.dataset.bkPersonPick;
         if(current.has(personId))current.delete(personId);else current.add(personId);
         const ids=people.map(person=>String(person.id)).filter(id=>current.has(id));
@@ -1594,7 +1624,12 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         Promise.resolve(onSaveCustomerPerson(payload)).then(result=>{
           const saved=result?.person||{id:payload.id,customer_id:payload.customerId,name,person_type:personType,age:ageText?Number(ageText):null};
           state.customerPeople=[...(state.customerPeople||[]),saved];
-          preserveDraft();update({});
+          preserveDraft();
+          if(!Array.isArray(settings.draft.participantPersonIds)){
+            const roster=customerPeopleOf(context,settings.draft.customerId).concat([saved]);
+            const everyone=participantsFromPeople(roster,roster.map(person=>String(person.id)));
+            update({draft:{...settings.draft,participants:everyone,raw:{...settings.draft.raw,M:String(everyone.length)}}});
+          }else update({});
         }).catch(error=>{personAdd.disabled=false;if(feedback)feedback.textContent=error?.message||'명부에 저장하지 못했습니다.';});
         return;
       }

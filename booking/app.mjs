@@ -9,7 +9,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation} from './booking-view.mjs?v=71';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=71';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=70';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -173,7 +173,7 @@ function render(){
       onChange:()=>{dirty=false;render();},onRefresh:()=>loadCallInbox(),onAction:callInboxAction,
       onCreateBooking:createCallReservation,onError:toast,onSetupDownload:downloadCallSetup,isCurrent});
   }
-  if(ui.view==='customers')bindCustomers(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onSaveCustomer:saveCustomer,onSaveTeam:saveCustomerTeam,onDeleteCustomer:deleteCustomer,onNewReservation:createCustomerReservation,onOpenReservation:openReservation});
+  if(ui.view==='customers')bindCustomers(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onSaveCustomer:saveCustomer,onSaveTeam:saveCustomerTeam,onDeleteCustomer:deleteCustomer,onNewReservation:createCustomerReservation,onOpenReservation:openReservation,onQuickAmounts:async(id,changes)=>{mustBeOperator();const row=state.reservations.find(item=>item.id===id);if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');const payload=buildQuickAmountChange(row,getBookingContext(state,ui,new Date()),changes);await writeOperation(()=>api.changeReservation(payload,'고객관리 금액 빠른 수정',{}),'금액을 저장했습니다.');}});
   const rentalReadIdentity=authVersion;
   bindRentalBridgePanels(app,{demo,lookup:async id=>{mustBeOperator();const value=await api.lookupRentalStatus(id);return rentalReadIdentity===authVersion&&hasOperator()&&!ui.booking.demo?value:{discarded:true};},isCurrent:()=>rentalReadIdentity===authVersion&&hasOperator()&&!ui.booking.demo});
   if(active&&!demo&&!['passes','customers','notices','changes','calls','payments'].includes(ui.view))renderExistingAssignments();
