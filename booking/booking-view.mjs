@@ -653,7 +653,7 @@ function renderTeamConditions(draft,context,escape,{review=false}={}) {
       ${selectField('raw_D','종목',raw.D,[['','종목 선택'],['스키','스키'],['보드','보드']],escape,'required')}
       ${inputField('M','강습인원수',raw.M,escape,'type="number" min="1" max="1000" step="1" required')}
       <label class="field"><span class="field-label">이전 강습 경험 <b>*</b></span><span class="bk-suffixed"><input name="experienceCount" type="number" min="0" max="999" step="1" required value="${escape(draft.experienceCount??'')}" placeholder="미확인"><span>회</span></span></label>
-      ${selectField('raw_K','관계',raw.K,[['','선택'],['가족','가족'],['자녀','자녀'],['성인','성인'],['단체','단체']],escape)}<div class="field"><span class="field-label">횟수 · 자동</span><strong class="bk-auto-count" data-bk-auto-count>${escape(String(bookingDateRows(draft).length))}회</strong><input type="hidden" name="raw_J" value=""></div>${inputField('O','수준',raw.O,escape,'maxlength="200"')}
+      ${selectField('raw_K','관계',raw.K,[['','선택'],['가족','가족'],['자녀','자녀'],['성인','성인'],['단체','단체']],escape)}<div class="field"><span class="field-label">횟수 · 자동</span><strong class="bk-auto-count" data-bk-auto-count>${escape(raw.J||String(bookingDateRows(draft).length)+'회')}</strong><input type="hidden" name="raw_J" value="${escape(raw.J||'')}"></div>${inputField('O','수준',raw.O,escape,'maxlength="200"')}
     </div>
     <div class="bk-team-ability-fields">${renderParticipantFields(draft,escape,context)}${renderSportSkillFields(draft,escape)}<label class="check-field bk-junior-preparation"><input type="checkbox" name="juniorPreparation" ${draft.juniorPreparation?'checked':''}> 주니어 기술등급제 준비</label></div>
     <div class="bk-requirement" data-bk-requirement>${renderRequirement(draft,context,escape)}</div>${rawTextarea('G','특이사항·요청사항',raw.G,escape,1)}
@@ -1294,8 +1294,9 @@ function validationError(draft,context) {
 function bookingPayload(draft,context) {
   const payload=prepareCustomerIdentity(draft);
   for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds'])delete payload[key];
-  // 횟수(J)는 입력 폐지(2026-11-15) — 저장 시 회차 수로 자동 확정
-  payload.raw={...payload.raw,J:String(bookingDateRows(payload).length)+'회'};
+  // 횟수(J) 입력 폐지(2026-11-15) — 비어 있으면 회차 수로 자동 확정.
+  // 검토 분석이 제안한 횟수(raw.J)는 보존한다(검토 화면 lessonCount와 공유 필드).
+  if(!String(payload.raw?.J||'').trim())payload.raw={...payload.raw,J:String(bookingDateRows(payload).length)+'회'};
   payload.raw=applyFinancialV3(payload);payload.financialVersion=FINANCIAL_VERSION;
   if(payload.paymentRequestCorrection)payload.paymentRequestCorrection={...payload.paymentRequestCorrection,reason:String(payload.paymentRequestCorrection.reason).trim()};
   if(payload.paymentReviewId)payload.paymentAllocationAmount=bookingFinancialSummary(payload).paid;
