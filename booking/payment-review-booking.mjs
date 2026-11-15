@@ -1,5 +1,5 @@
-import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=79';
-import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=67';
+import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=80';
+import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=68';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
 import {canonicalTelephone} from './customer-teams.mjs?v=26';

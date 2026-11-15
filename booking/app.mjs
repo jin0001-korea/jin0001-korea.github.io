@@ -1,4 +1,4 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=82';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=83';
 import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=71';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=18';
 import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=23';
@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=79';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=80';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=70';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -121,7 +121,7 @@ function render(){
   $('#desk-status').textContent=demo?`체험 모드 · ${bookingRoleLabel(state.profile.role)}`:`${state.profile.display_name||bookingRoleLabel(state.profile.role)} · ${bookingRoleLabel(state.profile.role)}`;
   $('#desk-status').classList.toggle('operational',active&&!demo);
   $('#desk-login').hidden=active;$('#desk-logout').hidden=!active;$('#desk-refresh').hidden=!active;
-  $('[data-desk-autoassign]').hidden=['passes','customers','notices','changes','calls','payments'].includes(ui.view);
+  $('[data-desk-autoassign]').hidden=['passes','customers','notices','changes','calls','payments','reservations'].includes(ui.view);
   document.querySelectorAll('[data-desk-view]').forEach(button=>{const selected=button.dataset.deskView===ui.view;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));});
   $('#desk-notice').innerHTML=demo?'<span class="desk-notice-dot"></span><div><strong>예약표와 강사 시간표를 체험해 보세요.</strong><span>가상 데이터입니다. 자동배정으로 배정안을 만들고, 확정하면 체험 화면에만 반영됩니다.</span></div>':`<span class="desk-notice-dot"></span><div><strong>${state.profile.role==='counselor'?'상담·예약 관리':'예약·배정 관리'}</strong><span>고객 접수, 예약 변경, 수강권과 강사 배정을 관리합니다.</span></div>`;
   if(active&&refreshError&&!demo&&!['calls','payments'].includes(ui.view)&&!ui.booking.drawer&&!hasUnsavedTeamDrafts(ui.booking.teamDeck)){app.innerHTML=`<section class="panel desk-unavailable"><h2>예약 기록을 다시 확인해 주세요.</h2><p>${esc(refreshError)}</p><button type="button" class="btn primary" data-retry>다시 불러오기</button><button type="button" class="btn secondary" data-preview>체험 예약표 보기</button></section>`;app.querySelector('[data-retry]').onclick=()=>refreshDesk({force:true});app.querySelector('[data-preview]').onclick=()=>{modeChanged();ui.booking={...ui.booking,demo:true,drawer:null,draft:null,teamDeck:null,deckMode:'demo'};render();};return;}

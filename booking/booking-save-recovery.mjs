@@ -1,4 +1,4 @@
-import {normalizeBookingRow,bookingChangeItems} from './booking-view.mjs?v=79';
+import {normalizeBookingRow,bookingChangeItems} from './booking-view.mjs?v=80';
 
 /** Recover only a verified, identical create after a lost response, never by ID alone. */
 export function recoverSavedBooking(payload,state={}){

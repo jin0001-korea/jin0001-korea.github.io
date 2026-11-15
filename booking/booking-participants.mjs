@@ -51,7 +51,8 @@ export function participantValidationError(value, count) {
   if (!Array.isArray(value) || value.length !== size) return '강습 인원과 참가자 정보 수를 확인해 주세요.';
   for (let index = 0; index < value.length; index++) {
     const row = value[index], label = `${index + 1}번째 참가자`;
-    if (!objectRow(row) || !['adult','minor'].includes(row.type)) return `${label}의 성인·미성년 구분을 선택해 주세요.`;
+    // 2026-11-16 운영 결정: 성인·미성년 구분도 선택 입력 — 미선택('')이면 미확인으로 저장한다.
+    if (!objectRow(row) || !['adult','minor',''].includes(row.type ?? '')) return `${label}의 성인·미성년 구분을 확인해 주세요.`;
     // 나이는 선택 입력(2026-11-15 운영 결정) — 적으면 1~19세 검증, 비우면 통과.
     if (row.type === 'minor' && !unanswered(row.age) && minorAge(row.age) === null) return `${label}의 나이를 1~19세 사이의 정수로 입력해 주세요.`;
     if (row.type === 'adult' && !unanswered(row.age)) return `${label}는 성인으로 선택되어 있어 나이를 입력하지 않습니다.`;

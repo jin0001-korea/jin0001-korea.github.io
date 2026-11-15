@@ -81,7 +81,10 @@ export function automaticBookingSeason(draft={},context={}){
  if(next.id||next.bookingType==='pass')return next;
  const count=Math.max(1,bookingDateRows(next).filter(row=>parseKstDate(row.date)).length);
  const pack=(context.seasonPackages||[]).find(item=>text(item.id)===seasonId(next));
- const requested=Number(pack?.total_sessions??pack?.totalSessions??next.seasonTotal);
+ // 수강권 연결 예약(N9, 2026-11-16): 10회권이면 구매총회차 10으로 묶여 시즌 취급 —
+ // 같은 강사 유지 자체는 수강권 fixed_instructor 규칙이 보장한다.
+ const linkedPass=(context.lessonPasses||[]).find(item=>text(item.id)===text(next.lessonPassId));
+ const requested=Number(pack?.total_sessions??pack?.totalSessions??linkedPass?.total_sessions??linkedPass?.totalSessions??next.seasonTotal);
  const total=Math.max(Number.isInteger(requested)&&requested>0?requested:1,count);
  if(seasonId(next)||total>1){
   next.kind='season';next.seasonTotal=total;
