@@ -15,3 +15,19 @@
 .cd-save .btn{min-height:30px;padding:5px 9px;font-size:10px}
 .cd-save small{display:block;font-size:9px;color:#8aa39a;max-width:110px;line-height:1.5}
 .cd-save small.is-error{color:#b4694f}
+/* 2026-11-15 고객 목록·상세 색 구분: 미수=빨강 > 캐치=연파랑 / 라이즌=연초록 */
+.cd-customer-row.cd-co-catch{background:#eef5fd;border-color:#d7e6f5}
+.cd-customer-row.cd-co-risen{background:#eef8ef;border-color:#d8ecd9}
+.cd-customer-row.cd-co-mixed{background:linear-gradient(135deg,#eef5fd 50%,#eef8ef 50%)}
+.cd-customer-row.cd-row-due{background:#fdecec;border-color:#f0d2d2}
+.cd-customer-row.selected{outline:2px solid #2c8d87}
+.cd-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:5px;vertical-align:middle}
+.cd-dot-catch{background:#5b9bd5}.cd-dot-risen{background:#5fae72}
+.cd-due-badge{font-style:normal;color:#b4694f;font-weight:600}
+.cd-brand-line{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.cd-brand-chip{display:inline-flex;align-items:center;border-radius:5px;padding:4px 8px;font-size:10px;background:#eef2f3;color:#7b929b}
+.cd-chip-catch{background:#eef5fd;color:#3d6ea8}.cd-chip-risen{background:#eef8ef;color:#2e7a44}
+.cd-chip-due{background:#fdecec;color:#b4694f;font-weight:600}
+.cd-history tbody tr.cd-co-catch td{background:#f2f8fe}
+.cd-history tbody tr.cd-co-risen td{background:#f1faf2}
+.cd-history tbody tr.cd-row-due td{background:#fdf0f0}
