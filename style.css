@@ -209,3 +209,85 @@
 .assignment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}.assignment-options .check-field{margin:0;align-items:flex-start;flex-wrap:wrap}.assignment-options small{overflow-wrap:anywhere}.survey-share-row{display:flex;align-items:center;justify-content:space-between;gap:15px;background:#edf6f4;border:1px solid #d9eae6;border-radius:10px;padding:15px;margin-bottom:20px;font-size:12px;color:#53756e}.score-link{display:inline-flex;align-items:center;gap:8px}@media(max-width:760px){.assignment-options{grid-template-columns:1fr}.survey-share-row{align-items:flex-start;flex-direction:column}.mobile-nav{gap:0}.mobile-nav a{font-size:10px}.mobile-nav a .icon{width:18px}}
 /* Cross-device record refresh; editing forms keep their current values. */
 .workspace-refresh{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.workspace-refresh .icon{width:15px;height:15px}.detail-sync-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}.detail-sync-status{font-size:11px;color:#627d84;font-variant-numeric:tabular-nums}.detail-sync-toolbar .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.sync-notice{padding:12px 14px;background:#edf7f5;border:1px solid #d5e9e3;border-radius:9px;color:#376d65;font-size:12px;line-height:1.85;margin-bottom:18px}@media(max-width:760px){.workspace-refresh{padding:7px!important;min-width:30px}.workspace-refresh>span{display:none}.detail-sync-toolbar{align-items:flex-start;gap:9px}.detail-sync-toolbar .btn{font-size:10px;min-height:33px;padding:8px}.detail-sync-status{font-size:10px;line-height:1.8;max-width:110px}.sync-notice{font-size:11px;padding:11px 12px}}
+
+/* Keep notification actions readable and easy to tap on phones. */
+@media(max-width:760px){
+ .alert-actions{flex-wrap:wrap;align-items:stretch}
+ .alert-actions .btn,.customer-request-notifications .btn{font-size:12px;min-height:44px;white-space:normal}
+ .alert-actions .btn{max-width:100%}
+}
+
+/* A compact work menu keeps related pages together on desktop and phones. */
+.sidebar{overflow-y:auto;overscroll-behavior:contain}
+.sidebar>.brand,.sidebar>.workspace-badge,.sidebar>.nav-label,.sidebar>nav,.sidebar>.sidebar-bottom{flex-shrink:0}
+.staff-navigation{display:grid;gap:5px}
+.staff-nav-group{border-radius:9px}
+.staff-nav-group>summary{display:flex;align-items:center;gap:10px;min-height:44px;padding:12px 13px;border-radius:8px;color:#b7c8cc;font-size:13px;font-weight:600;list-style:none;cursor:pointer}
+.staff-nav-group>summary::-webkit-details-marker{display:none}
+.staff-nav-group>summary:hover{background:#ffffff08;color:#fff}
+.staff-nav-group>summary:focus-visible{outline:3px solid #89cbd2;outline-offset:2px}
+.staff-nav-group.has-current>summary{color:#fff}
+.staff-nav-group>summary>span:first-of-type{flex:1}
+.staff-nav-group .nav-group-chevron{font-size:22px;line-height:16px;transition:transform .15s}
+.staff-nav-group[open] .nav-group-chevron{transform:rotate(90deg)}
+.staff-nav-group .count{background:#d2eea415;color:var(--lime);border-radius:5px;padding:2px 5px;font-size:10px;min-width:22px;text-align:center}
+.staff-nav-children{margin:2px 0 6px 20px;padding-left:7px;border-left:1px solid #365359}
+.staff-nav-children .nav-item{font-size:12px;gap:8px;padding:10px 9px;min-height:42px;margin-bottom:2px}
+.staff-nav-children .nav-item>.icon{width:15px;height:15px}
+.staff-navigation-mobile{gap:8px}
+.staff-navigation-mobile .staff-nav-group{border:1px solid var(--line);background:#f8faf9}
+.staff-navigation-mobile .staff-nav-group>summary{color:var(--navy);padding:14px;font-size:14px;min-height:48px}
+.staff-navigation-mobile .staff-nav-group>summary:hover{background:#edf3f1;color:var(--navy)}
+.staff-navigation-mobile .staff-nav-children{border-left-color:#cbdcd7;margin:0 12px 10px 22px}
+.staff-navigation-mobile .nav-item{color:var(--navy);min-height:46px;font-size:14px;white-space:normal}
+.staff-navigation-mobile .nav-item:hover{background:#e9f1ee;color:var(--teal)}
+.staff-navigation-mobile .nav-item.active{background:#e4f0e9;color:#17473a;box-shadow:inset 3px 0 #679e74}
+.staff-navigation-mobile .nav-item.active .icon{color:#357b55}
+.staff-navigation-mobile .count{color:#375e42;background:#e3eddf}
+@media(max-width:1050px) and (min-width:761px){.staff-nav-group>summary{padding:11px 8px;font-size:12px;gap:7px}.staff-nav-children{margin-left:12px;padding-left:5px}.staff-nav-children .nav-item{padding:10px 7px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){.staff-nav-group .nav-group-chevron{transition:none}}
+
+@media(max-width:760px){
+ .staff-navigation,.staff-nav-group,.staff-nav-children{min-width:0}
+ .staff-navigation .nav-item>span,.staff-nav-group>summary>span:first-of-type{min-width:0;overflow-wrap:anywhere}
+ #modal .modal-head>h2{min-width:0;overflow-wrap:anywhere}
+ #modal .modal-head>.icon-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:10px}
+ #modal .modal-footer .btn{min-height:44px;font-size:12px;white-space:normal}
+ #modal .modal-body>.tabs{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;gap:10px}
+ #modal .modal-body>.tabs>.tab{flex:0 0 auto;min-height:44px;padding:10px 5px;font-size:12px}
+ .mobile-nav>a,.mobile-nav>button{min-height:44px}
+}
+
+/* Phone input stays legible without browser zoom, and frequent actions have a full touch target. */
+@media(max-width:760px){
+ .topbar .icon-btn,.topbar .btn{min-width:44px;min-height:44px}
+ .topbar-right>.notification-button{width:44px}
+ .toolbar .date-nav>.btn,.toolbar .date-nav>.icon-btn,#schedule-date,.filter-tabs button{min-height:44px}
+ .toolbar .date-nav>.icon-btn{min-width:44px;width:44px}
+ .toolbar .search-input input,#schedule-search{min-height:44px;font-size:16px}
+ #modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),#modal select,#modal textarea{font-size:16px;min-height:44px}
+ #modal .field-label{font-size:14px}
+ #modal .modal-body>.detail-summary{padding:12px 14px;margin-bottom:16px;gap:9px}
+ #modal .modal-body>.detail-summary h3{font-size:14px;margin:4px 0}
+ #modal .detail-summary .eyebrow{display:none}
+ #modal .info-box,#modal .warning-box{font-size:13px;line-height:1.7}
+ #modal .photo-slot>.btn{min-height:44px;font-size:13px}
+}
+
+@media(max-width:760px){
+ .filter-tabs button,.toolbar .date-nav>.btn{font-size:12px}
+ #schedule-date{width:150px;font-size:16px}
+ .demo-banner>span{font-size:12px;min-width:0}
+ .demo-banner>span>span{font-size:11px;line-height:1.7}
+ .demo-banner>button{font-size:12px;min-height:44px;white-space:nowrap;flex-shrink:0}
+ .lesson-card .progress-steps{font-size:12px}
+}
+
+.photo-load-error{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px;text-align:center;font-size:13px}.photo-load-error button{min-height:44px}
+
+.instructor-card .account-actions{display:flex;flex-wrap:wrap;gap:8px}.instructor-archive{margin:22px 0;padding:18px;border:1px solid var(--line,#dce3e5);border-radius:12px}.instructor-archive>summary{cursor:pointer;font-weight:700}.instructor-archive .instructor-grid{margin-top:14px}.staff-edit-error{color:#a72e2e}
+
+/* Current staff request corrections: keep existing lesson/status badges intact. */
+.schedule-payment-notice{display:flex;flex-direction:column;gap:3px;margin:8px 0;padding:8px 10px;border-left:3px solid #bd363c;border-radius:5px;background:#fff0ef;color:#9a232b;max-width:100%;overflow-wrap:anywhere;white-space:normal}
+.schedule-payment-notice>strong{font-size:12px;line-height:1.5;color:#9a232b}.schedule-payment-notice>small{font-size:11px;line-height:1.5;color:#8b3438}.schedule-payment-notice.compact{margin:5px 0;padding:5px 7px;min-width:170px;max-width:340px}.schedule-payment-unavailable{display:block;margin:5px 0;color:#6d7279;font-size:11px}
+.lesson-card.schedule-payment-due,.panel>.card-grid .lesson-card.schedule-payment-due{border-color:#d27378;background:#fff6f5;box-shadow:inset 3px 0 #bd363c}.table-wrap tr.schedule-payment-due>td,.table-wrap tr.schedule-payment-due:hover>td,.ov-table tr.schedule-payment-due>td{background:#fff2f1}.table-wrap tr.schedule-payment-due>td:first-child,.ov-table tr.schedule-payment-due>td:first-child{box-shadow:inset 3px 0 #bd363c}.ov-table .schedule-payment-notice small{color:#8b3438}

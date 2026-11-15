@@ -1,0 +1,121 @@
+/* Desktop operations: preserve readable data while reducing decorative spacing.
+   Mobile and tablet touch targets keep their existing rules. */
+@media (min-width:1100px) {
+ .app .topbar{height:58px;padding:0 22px;gap:14px}
+ .app .content{padding:18px 22px 26px}
+ .app .page-head{margin-bottom:16px;gap:14px}
+ .app .page-head h1{font-size:24px;line-height:1.35}
+ .app .page-head .eyebrow{margin-bottom:4px}
+ .app .page-head .subtitle{margin-top:4px;line-height:1.6}
+ .app .content-footer{margin-top:18px;padding-top:12px}
+ .app .panel{margin-bottom:14px;border-radius:10px}
+ .app .panel-head{min-height:48px;padding:13px 16px;gap:10px}
+ .app .panel-body{padding:14px 16px}
+ .app .toolbar{padding:10px 16px;gap:9px}
+ .app .stats-grid{gap:12px;margin-bottom:16px}
+ .app .stat-card{min-height:112px;padding:15px 17px}
+ .app .stat-number{font-size:30px;margin:7px 0}
+ .app .stat-icon{right:15px;top:14px}
+ .app .dashboard-grid{gap:16px}
+ .app .content .info-box,.app .content .warning-box{padding:10px 13px;margin-bottom:14px;line-height:1.65}
+ .app .list-heading{padding:10px 0;gap:9px}
+ .app .panel>.list-heading{padding:10px 16px}
+ .app .content .table-wrap th,.app .content .table-wrap td{padding-top:10px;padding-bottom:10px}
+ .app .content .field{margin-bottom:12px}
+ .app .content .field-label{margin-bottom:5px;font-size:12px}
+ .app .content .form-grid{gap:0 12px}
+ .app .content .form-section .panel-head,.app .content .form-section .panel-body{padding:14px 16px}
+ .app .content .form-section .field input,.app .content .form-section .field select{min-height:36px;padding:7px 10px}
+ .app .settings-grid{gap:16px}
+ .app .content .divider{margin:14px 0}
+ .app .empty-state{padding:28px 20px}
+ /* A report remains one identifiable customer/date block; two blocks fit across a PC. */
+ .app .report-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+ .app .report-list>.report-card{min-width:0;margin:0;padding:14px}
+ .app .report-card-head{gap:10px;align-items:flex-start}
+ .app .report-card-head .person-cell{min-width:0}
+ .app .report-card-head strong{font-size:13px}
+ .app .report-card-head .muted{line-height:1.6}
+ .app .report-placeholder{padding:11px 12px;margin:11px 0;min-height:0;gap:10px}
+ .app .report-text{padding:10px 12px;margin-top:10px;font-size:12px;line-height:1.7}
+ .app .report-meta{margin-top:10px;gap:9px;flex-wrap:wrap}
+ .app .report-actions{margin-top:11px;padding-top:10px;gap:9px;flex-wrap:wrap}
+ .app .report-actions>.muted{font-size:11px;line-height:1.5;flex:1 1 190px}
+ .app .report-actions>.btn{min-height:34px}
+ .app .alert-card{padding:15px 17px;margin-bottom:11px}
+ .app .alert-detail{margin-top:9px;line-height:1.7}
+ .app .alert-actions{margin-top:10px;padding-top:10px;gap:8px}
+ .app .alert-response{margin-top:10px;padding:9px 12px}
+ .app .instructor-grid{gap:12px;margin-bottom:16px}
+ .app .instructor-card{padding:16px}
+ .app .instructor-card .kpi-strip{margin-top:12px}
+ .app .instructor-card .kpi{padding:8px}
+ .app .instructor-card>.btn{min-height:34px;margin-top:12px}
+ /* Dense overview retains sticky columns and every data value. */
+ .app .ov-filter-panel{padding:14px 16px;margin-bottom:14px}
+ .app .ov-filter-form{gap:10px}
+ .app .ov-query{flex:0 1 260px;min-width:200px}
+ .app .ov-field{gap:5px}
+ .app .ov-field input,.app .ov-field select,.app .ov-filter-form>.btn{min-height:36px;padding:7px 10px}
+ .app .ov-presets{padding-top:10px;margin-top:11px;gap:6px}
+ .app .ov-presets button{padding:6px 9px}
+ .app .ov-table-head{padding:14px 16px;gap:12px}
+ .app .ov-table-head p{margin-top:4px;line-height:1.6}
+ .app .ov-column-toolbar{padding:9px 16px;gap:10px}
+ .app .ov-table th{height:40px;padding-top:8px;padding-bottom:8px}
+ .app .ov-table td{height:62px;padding-top:9px;padding-bottom:9px}
+ .app .ov-table-footer{padding:10px 16px}
+ .app .score-overview{gap:16px;margin-bottom:18px}
+ .app .score-summary{padding:19px 22px}
+ .app .score-summary .score-eyebrow{margin-bottom:8px}
+ .app .score-overall-value{font-size:46px;margin:10px 0}
+ .app .score-summary-meta{margin-top:14px;padding-top:11px}
+ .app .score-categories .panel-head{padding:15px 18px 10px}
+ .app .score-category-grid{padding:10px 18px 18px;gap:18px 24px}
+ .app .score-category-top{margin-bottom:7px}
+ .app .score-instructors{margin-bottom:18px}
+ .app .score-section-head{margin-bottom:12px}
+ .app .score-instructor-grid{gap:12px}
+ .app .score-instructor-card{padding:17px}
+ .app .score-instructor-rating{margin:14px 0}
+ .app .score-instructor-categories{padding-top:12px;gap:9px 14px}
+ .app .score-recent .panel-head{padding:15px 18px}
+ .app .score-table td{padding-top:11px;padding-bottom:11px}
+ .app .performance-summary{padding:16px;margin-bottom:16px}
+ .app .performance-section-head{margin-bottom:12px}
+ /* Setup cards are controls, not full-width prose: pair related templates on PCs. */
+ .app .solapi-settings{margin-bottom:20px}
+ .app .sp-heading{margin-bottom:11px}
+ .app .sp-heading h2{font-size:20px;margin-bottom:4px}
+ .app .sp-step{margin-bottom:13px}
+ .app .sp-step-heading,.app .sp-step>summary{padding:12px 15px}
+ .app .sp-step-body{padding:14px 15px}
+ .app .sp-delivery-note{padding:10px 13px;margin-bottom:12px}
+ .app .sp-company-grid{margin:13px 0;gap:10px}
+ .app .sp-company>button{padding:10px 11px 6px}
+ .app .sp-company>a{padding-bottom:9px}
+ .app .sp-template-tools{margin-bottom:12px}
+ .app .sp-template-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;align-items:start}
+ .app .sp-template{padding:13px;min-width:0}
+ .app .sp-template>header{margin-bottom:9px;gap:9px}
+ .app .sp-template>.field{margin-top:9px}
+ .app .sp-template-state{margin:5px 0 8px}
+ .app .sp-register-row{margin-top:10px;padding-top:8px;flex-wrap:wrap}
+ .app .sp-register-row>.btn{margin-left:auto}
+ .app .solapi-settings input,.app .solapi-settings select{min-height:36px;padding:7px 9px}
+ .app .dm-google-account{padding:12px;margin-bottom:14px}
+ .app .dm-settings-path{padding:11px;margin-top:14px}
+ .app .dm-settings .field input{min-height:36px;padding:7px 10px}
+ .app .outbox-list{padding:0 16px}
+ /* Same detail tabs, with less decorative padding before the next action. */
+ #modal .modal-head{padding:15px 20px}
+ #modal .modal-body{padding:17px 20px}
+ #modal .modal-body>.detail-summary{padding:12px 15px;margin-bottom:14px}
+ #modal .modal-body>.tabs{margin-bottom:14px}
+ #modal .modal-body .field{margin-bottom:12px}
+ #modal .modal-body .field-label{margin-bottom:5px}
+ #modal .modal-body .modal-footer{margin:17px -20px -17px;padding:12px 20px}
+ #modal .dm-intro{margin-bottom:13px}
+ #modal .dm-drop-area{padding:18px}
+ #modal .dm-folder{padding:13px;margin-bottom:16px}
+}
