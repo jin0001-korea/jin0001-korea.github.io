@@ -177,7 +177,12 @@ export async function createCustomerLink(kind,subjectIds){
   if(kind==='survey'&&profile.role!=='admin')throw issue('설문 링크는 관리자만 관리할 수 있습니다.','ADMIN_REQUIRED');
   if(!['reservation','pass','survey'].includes(kind)||!Array.isArray(subjectIds)||!subjectIds.length||subjectIds.length>100)throw issue('고객 안내에 연결할 예약이나 수강권을 확인해 주세요.','INPUT_REQUIRED');
   const response=await supabase.functions.invoke('slope-customer-portal',{body:{action:'create-link',kind,subjectIds}});
-  fail(response.error,'고객 확인 링크를 만들지 못했습니다. 다시 시도해 주세요.');
+  if(response.error){
+    // 서버가 밝힌 한국어 사유를 그대로 보여 진단 가능하게 한다(2026-11-16 — 전엔 모든 실패가 같은 문구).
+    let body;try{body=await response.error.context?.clone().json();}catch{}
+    const message=typeof body?.message==='string'&&/[가-힣]/u.test(body.message)?body.message.slice(0,200):'고객 확인 링크를 만들지 못했습니다. 다시 시도해 주세요.';
+    throw issue(message,body?.error||'REQUEST_FAILED');
+  }
   if(!response.data?.url)throw issue('고객 링크를 확인하지 못했습니다.');
   if(!customerTokenUrl(response.data.url,kind))throw issue('고객 확인 링크 주소를 확인하지 못했습니다.');
   return response.data;
