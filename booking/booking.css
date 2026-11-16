@@ -7,9 +7,9 @@
 /* N12(2026-11-16): 호버로 행 배경 안 바뀌게, 행 세로 여백 축소, 전체보기 다열 */
 .bk-table tbody tr:hover td{background:inherit}
 .bk-table tbody tr:nth-child(even):hover td{background:#fbfdfd}
-.bk-table th,.bk-table td{padding:7px 10px;line-height:1.45}
+.bk-table th,.bk-table td{padding:4px 10px;line-height:1.3}
 .bk-table td small{margin-top:2px;line-height:1.4}
-.bk-table-action .btn{min-height:27px;padding:5px 8px}
+.bk-table-action .btn{min-height:23px;padding:3px 8px}
 .bk-detail-pop{width:min(1100px,96vw)!important;max-height:88vh;overflow:auto}
 .bk-detail-pop dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:7px 20px}
 .bk-detail-pop dl>div{display:flex;flex-direction:column;gap:2px;border-bottom:1px solid #eef3f4;padding:5px 0;min-width:0}
@@ -700,7 +700,7 @@
 .bk-grand-total strong{font-size:14px}
 .bk-grand-total .bk-grand-balance-due{color:#b4231f;font-weight:700}
 /* 2026-11-15 #12 예약표: 셀폭 축소·행 색상·열 필터·전체보기 팝업 */
-.bk-table th,.bk-table td{padding:8px 9px;width:86px;min-width:86px;font-size:10.5px;line-height:1.55}
+.bk-table th,.bk-table td{padding:4px 9px;width:86px;min-width:86px;font-size:10.5px;line-height:1.3}
 .bk-table{min-width:3300px}
 .bk-table .bk-col-A{width:100px;min-width:100px}
 .bk-table .bk-col-B,.bk-table .bk-col-C{width:62px;min-width:62px}.bk-table .bk-col-B{left:100px}.bk-table .bk-col-C{left:162px}
