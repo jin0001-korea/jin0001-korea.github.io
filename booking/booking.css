@@ -822,3 +822,12 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 .bk-passissue-total span{font-size:10px;color:#8aa1a9;display:block}
 .bk-passissue-total strong{font-size:16px;color:#2a6e63}
 .bk-passissue footer>div:last-child{display:flex;gap:8px}
+
+/* 2026-11-17 그룹 수정: 행 선택 체크 열 + 일괄 적용 패널 */
+.bk-table th.bk-col-bulk,.bk-table td.bk-col-bulk{width:34px;min-width:34px;max-width:34px;text-align:center;padding:4px 6px}
+.bk-table .bk-col-bulk input{width:15px;height:15px;accent-color:#207c80;cursor:pointer;vertical-align:middle}
+.bk-bulk-editor{margin:0 0 14px}
+.bk-bulk-editor .bk-form-grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.bk-bulk-result{margin:10px 0 0;font-size:12px;background:#fff7ed;border:1px solid #fcd9a8;border-radius:8px;padding:9px 11px}
+.bk-bulk-result ul{margin:6px 0 0;padding-left:16px}
+.bk-bulk-result li{color:#9a4b12;line-height:1.5}

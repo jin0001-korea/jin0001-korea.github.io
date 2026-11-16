@@ -1,5 +1,5 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=95';
-import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=81';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=96';
+import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=82';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=18';
 import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=23';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
@@ -10,9 +10,9 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=22';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=88';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=89';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
-import {recoverSavedBooking} from './booking-save-recovery.mjs?v=78';
+import {recoverSavedBooking} from './booking-save-recovery.mjs?v=79';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=27';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
@@ -74,7 +74,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=87').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=88').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -146,6 +146,42 @@ function render(){
     onAutoAssign:id=>openAutoAssign(id),onOpenLesson:openReservation,onIssuePass:issuePassFromBooking,
     onCreatePass:async payload=>{mustBeOperator();const saved=await writeOperation(()=>api.createLessonPass(payload),'수강권을 발급했습니다.');return saved;},
     onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),
+    // 그룹 수정(2026-11-17 사용자 확정): 선택 행들에 장비렌탈·받은 금액을 건별 검증으로 적용.
+    // 요청액·미수금은 buildQuickAmountChange → FINANCIAL v3 payload가 자동 재계산한다.
+    onBulkAmounts:async(ids,values)=>{
+      mustBeOperator();
+      if(ui.booking.demo)throw new Error('운영 예약표에서 사용해 주세요.');
+      const ctxNow=getBookingContext(state,ui,new Date());
+      const outcome={ok:0,failed:[],failedIds:[]};
+      const result=await writeOperation(async()=>{
+        for(const id of ids){
+          const row=state.reservations.find(item=>item.id===id);
+          const label=row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);
+          try{
+            if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');
+            const status=values.rentalStatus!=='keep'?values.rentalStatus:undefined;
+            const baseStatus=status??row.rentalPaymentStatus??row.rental_payment_status??null;
+            const touchRental=status!==undefined||values.rentalHours!=='keep'||values.rentalAmount!==null;
+            const changes={};
+            if(touchRental){
+              if(!baseStatus)throw new Error('장비렌탈 상태가 없는 예약입니다. 결제상태를 함께 선택해 주세요.');
+              changes.rentalPaymentStatus=baseStatus;
+              changes.rentalHours=values.rentalHours!=='keep'?Number(values.rentalHours):(row.rentalHours??row.rental_hours??null);
+              if(values.rentalAmount!==null)changes.rentalAmount=values.rentalAmount;
+            }
+            if(values.paidAmount!==null)changes.paidAmount=values.paidAmount;
+            const payload=buildQuickAmountChange(row,ctxNow,changes);
+            const saved=await api.changeReservation(payload,'예약표 그룹 수정',{});
+            if(saved?.discarded)throw new Error('세션이 바뀌어 중단했습니다.');
+            outcome.ok++;
+          }catch(error){outcome.failed.push({label,message:error?.message||'저장하지 못했습니다.'});outcome.failedIds.push(id);}
+        }
+        return outcome;
+      },`그룹 수정 적용 · 성공 ${ids.length}건 중 일부는 결과 패널에서 확인`);
+      if(result?.discarded)return result;
+      toast(`그룹 수정: 성공 ${outcome.ok}건 · 실패 ${outcome.failed.length}건`);
+      return outcome;
+    },
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});
   if(ui.view==='passes'||ui.passes?.issuing)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass});
