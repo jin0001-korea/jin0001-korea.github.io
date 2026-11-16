@@ -482,7 +482,7 @@ export async function callInboxAction(action,payload={}){
 
 /** Bank screenshots and AI drafts are isolated from live reservation writes. */
 export async function paymentReviewAction(action,payload={}){
-  const allowed=['upload-prepare','upload-complete','upload-list','upload-detail','upload-analyze','upload-analyze-extract','upload-analyze-match','upload-delete','upload-reanalyze','review-reanalyze','review-save','review-approve','link-code','connect-code','link-status','link-revoke','find-candidates','conversation-detail','review-status','external-threads','external-thread-detail'];
+  const allowed=['upload-prepare','upload-complete','upload-list','upload-detail','upload-analyze','upload-analyze-extract','upload-analyze-match','upload-delete','upload-done','upload-reanalyze','review-reanalyze','review-save','review-approve','link-code','connect-code','link-status','link-revoke','find-candidates','conversation-detail','review-status','external-threads','external-thread-detail'];
   if(!allowed.includes(action)||!payload||typeof payload!=='object'||Array.isArray(payload))throw issue('입금 검토 요청을 확인해 주세요.','INPUT_REQUIRED');
   await requireBookingOperator();
   const response=await supabase.functions.invoke('slope-payment-review',{body:{...payload,action}});
