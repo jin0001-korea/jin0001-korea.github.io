@@ -89,7 +89,23 @@ export function createPaymentPassDraft(approvedDraft={},context={}){
   const phone=canonicalTelephone(text(registration.teamPhoneMode==='separate'?registration.teamPhone:approvedDraft.phone))||'';
   const fixedInstructorId=text(registration.preferredInstructorId);
   if(fixedInstructorId&&!UUID.test(fixedInstructorId))fail('연결할 지정 강사 정보를 다시 확인해 주세요.');
-  const draft={id:newId(),customerName:text(approvedDraft.customerName),learnerName:text(approvedDraft.teamName),phone,company:text(approvedDraft.company),sport:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',totalSessions:Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100?sessions:'',lessonMinutes:[120,240].includes(approvedDraft.lessonMinutes)?approvedDraft.lessonMinutes:'',fixedInstructorId,notes:appliedProposalNotes(approvedDraft).slice(0,2000),paymentReviewId:approvedDraft.paymentReviewId,paymentReviewVersion:approvedDraft.paymentReviewVersion,paymentAllocationAmount:allocation,paymentCommitRequestId:newId()};
+  // 예약접수 인라인 발급과 동일한 항목을 메모로 함께 넘긴다(총 횟수·시간권·강습료·장비·받아야 할/받은/미수).
+  const won=value=>value.toLocaleString('ko-KR');
+  const lessonFee=knownAmount(approvedDraft.lessonFee),rentalFee=knownAmount(approvedDraft.rentalFee);
+  const rentalLabel={free:'무료',paid:'결제완료',onsite_unpaid:'현장 결제',unconfirmed:'미확인'}[registration.rentalPaymentStatus];
+  const sessionsKnown=Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100;
+  const perSession=lessonFee===null?null:lessonFee+(registration.rentalPaymentStatus==='paid'&&rentalFee!==null?rentalFee:0);
+  const expectedTotal=sessionsKnown&&perSession!==null?perSession*sessions:null;
+  const carryLines=[
+    sessionsKnown?`총 횟수: ${sessions}회`:null,
+    [120,240].includes(approvedDraft.lessonMinutes)?`회당 강습시간: ${approvedDraft.lessonMinutes/60}시간`:null,
+    lessonFee!==null?`회당 강습료: ${won(lessonFee)}원`:null,
+    rentalLabel?`장비: ${rentalLabel}${[4,6].includes(registration.rentalHours)?` · ${registration.rentalHours}시간`:''}${rentalFee!==null?` · ${won(rentalFee)}원`:''}`:null,
+    expectedTotal!==null?`받아야 할 금액: ${won(expectedTotal)}원 (총액)`:null,
+    `받은 금액: ${won(allocation)}원`,
+    expectedTotal!==null&&expectedTotal-allocation>0?`미수금: ${won(expectedTotal-allocation)}원`:null,
+  ].filter(Boolean);
+  const draft={id:newId(),customerName:text(approvedDraft.customerName),learnerName:text(approvedDraft.teamName),phone,company:text(approvedDraft.company),sport:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',totalSessions:Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100?sessions:'',lessonMinutes:[120,240].includes(approvedDraft.lessonMinutes)?approvedDraft.lessonMinutes:'',fixedInstructorId,notes:[...carryLines,appliedProposalNotes(approvedDraft)].filter(Boolean).join('\n').slice(0,2000),paymentReviewId:approvedDraft.paymentReviewId,paymentReviewVersion:approvedDraft.paymentReviewVersion,paymentAllocationAmount:allocation,paymentCommitRequestId:newId()};
   if(approvedDraft.paymentDepositId!==undefined){if(!UUID.test(approvedDraft.paymentDepositId||''))fail('연결된 입금 내역을 다시 확인해 주세요.');draft.paymentDepositId=approvedDraft.paymentDepositId;}
   if(UUID.test(approvedDraft.customerId||'')&&UUID.test(approvedDraft.teamId||'')){draft.customerId=approvedDraft.customerId;draft.teamId=approvedDraft.teamId;}
   return draft;
