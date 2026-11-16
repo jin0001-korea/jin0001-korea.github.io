@@ -1984,7 +1984,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       if(errorBox)errorBox.hidden=true;
       const submitButton=form.querySelector('[data-bk-pass-inline-issue]');if(submitButton)submitButton.disabled=true;
       try{
-        const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:[`총 횟수: ${n}회`,...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
+        const saved=await onCreatePass({id:globalThis.crypto.randomUUID(),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:String(raw.N||'').trim()==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',notes:[`총 횟수: ${n}회`,...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
         update({draft:{...settings.draft,passTotalSessions:String(n),passIssueDone:{totalSessions:n,passId:saved?.id||null}}});
       }catch(error){if(submitButton)submitButton.disabled=false;fail(error?.message||'수강권을 발급하지 못했습니다. 다시 시도해 주세요.');}
     };
