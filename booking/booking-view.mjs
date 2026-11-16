@@ -583,6 +583,17 @@ export function applyFemaleInstructorPreference(noteText,pref){
   if(FEMALE_PREF_LINES[pref])keep.unshift(FEMALE_PREF_LINES[pref]);
   return keep.join('\n').replace(/^\n+|\n+$/g,'');
 }
+// 영어 강사 요청(2026-11-17): 여자 강사와 동일하게 특이사항(G) 표준 문구 한 줄로 저장.
+const ENGLISH_PREF_LINES=Object.freeze({prefer:'영어 강사 선호',require:'영어 강사 필수'});
+export function englishInstructorPreference(noteText){
+  const lines=String(noteText||'').split('\n').map(line=>line.trim());
+  return lines.includes(ENGLISH_PREF_LINES.require)?'require':lines.includes(ENGLISH_PREF_LINES.prefer)?'prefer':'';
+}
+export function applyEnglishInstructorPreference(noteText,pref){
+  const keep=String(noteText||'').split('\n').filter(line=>!Object.values(ENGLISH_PREF_LINES).includes(line.trim()));
+  if(ENGLISH_PREF_LINES[pref])keep.unshift(ENGLISH_PREF_LINES[pref]);
+  return keep.join('\n').replace(/^\n+|\n+$/g,'');
+}
 function renderPeoplePicker(draft,context,escape){
   const people=bookingRosterPeople(draft,context);
   if(!people.length)return '';
@@ -745,7 +756,7 @@ function renderTeamConditions(draft,context,escape,{review=false}={}) {
   return `<div class="bk-condition-panel">
     <div class="bk-team-reservation-fields">
       <div class="bk-kind-field"><span class="field-label">예약 구분 · 자동</span><strong data-bk-automatic-kind>${draft.kind==='season'?'시즌강습 · 같은 팀 모든 회차에 같은 강사':draft.isReorder?'리오더':'일반 강습'}</strong></div>
-      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}${review?selectField('femalePreference','여자 강사',femaleInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-female-pref"><span class="field-label">여자 강사</span><div class="bk-female-pref-options" role="group" aria-label="여자 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${femaleInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-female-pref="${value}" aria-pressed="${femaleInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}</div>
+      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}${review?selectField('femalePreference','여자 강사',femaleInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-female-pref"><span class="field-label">여자 강사</span><div class="bk-female-pref-options" role="group" aria-label="여자 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${femaleInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-female-pref="${value}" aria-pressed="${femaleInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}${review?selectField('englishPreference','영어 강사',englishInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-english-pref"><span class="field-label">영어 강사</span><div class="bk-female-pref-options" role="group" aria-label="영어 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${englishInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-english-pref="${value}" aria-pressed="${englishInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}</div>
       <label class="check-field bk-reorder-check"><input name="isReorder" type="checkbox" ${draft.isReorder?'checked':''}> 이전 강사가 마음에 들어 재등록한 리오더</label>
     </div>
     ${review?'':`<div data-bk-customer-history ${wantsSameInstructor(draft)?'':'hidden'}>${renderCustomerHistory(draft,context,escape)}</div>`}
@@ -1837,11 +1848,16 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const selectCustomer=event.target.closest?.('[data-bk-select-customer]');if(selectCustomer){selectDirectoryCustomer(selectCustomer.dataset.bkSelectCustomer);return;}
       const selectTeam=event.target.closest?.('[data-bk-directory-team]');if(selectTeam){selectDirectoryCustomer(settings.draft.customerId,selectTeam.dataset.bkDirectoryTeam);return;}
       const contact=event.target.closest?.('[data-bk-contact-phone]');if(contact){if(busy())return;const input=form.elements.namedItem('raw_L');if(input)input.value=formatTelephone(contact.dataset.bkContactPhone);refreshCustomer();return;}
-      // 여자 강사 무관/선호/필수: 특이사항(G) 표준 문구를 바꿔 저장한다.
+      // 여자/영어 강사 무관/선호/필수: 특이사항(G) 표준 문구를 바꿔 저장한다.
       const femalePref=event.target.closest?.('[data-bk-female-pref]');if(femalePref){
         if(busy())return;preserveDraft();
         const draft=settings.draft;
         update({draft:{...draft,raw:{...draft.raw,G:applyFemaleInstructorPreference(draft.raw.G,femalePref.dataset.bkFemalePref)}}});return;
+      }
+      const englishPref=event.target.closest?.('[data-bk-english-pref]');if(englishPref){
+        if(busy())return;preserveDraft();
+        const draft=settings.draft;
+        update({draft:{...draft,raw:{...draft.raw,G:applyEnglishInstructorPreference(draft.raw.G,englishPref.dataset.bkEnglishPref)}}});return;
       }
       const personAll=event.target.closest?.('[data-bk-person-all]');if(personAll){
         if(busy())return;preserveDraft();
