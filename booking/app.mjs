@@ -8,7 +8,7 @@ import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.m
 import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
 import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
-import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
+import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=22';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
 import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit} from './booking-view.mjs?v=87';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
