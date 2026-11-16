@@ -1,4 +1,4 @@
-import {hydratePaymentIntake,syncPaymentIntake} from './payment-intake-state.mjs?v=7';
+import {hydratePaymentIntake,syncPaymentIntake} from './payment-intake-state.mjs?v=8';
 
 // Suggested draft amounts only. This module never approves a review, writes a
 // booking or allocates money in the bank ledger.

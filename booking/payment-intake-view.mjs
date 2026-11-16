@@ -1,5 +1,5 @@
-import {renderBookingPaymentIntake} from './booking-view.mjs?v=81';
-import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=7';
+import {renderBookingPaymentIntake} from './booking-view.mjs?v=82';
+import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=8';
 
 const list=value=>Array.isArray(value)?value:[];
 const applied=draft=>draft.paymentComparison?.appliedProposal||{};
@@ -87,27 +87,36 @@ export function renderPaymentIntake(edit,u,escape,{context={},locked=false}={}){
       <div class="pr-intake-registration-type"><label class="field"><span class="field-label">등록 유형</span><select name="${escape(prefix)}reservationKind" data-pr-intake-field="reservationKind"><option value="" ${!registration.bookingType?'selected':''}>일정 확인 중</option><option value="lesson" ${registration.bookingType==='lesson'?'selected':''}>날짜가 정해진 예약</option><option value="pass" ${registration.bookingType==='pass'?'selected':''}>날짜 미정 수강권</option></select></label>${teamPass?`<label class="field"><span class="field-label">수강권 총 횟수</span><input name="${escape(prefix)}passTotalSessions" data-pr-intake-field="passTotalSessions" type="number" min="1" max="100" value="${escape((selected?edit.passCountInput:undefined)??registration.totalSessions??'')}" placeholder="미확인"></label>`:''}</div>
       ${renderBookingPaymentIntake(teamManual,escape,{section:'team',context,prefix})}
       <section class="pr-intake-sessions"><div class="bk-section-label"><span>03</span><h3>${teamPass?'수강권 금액':'강습 일정·금액'}</h3><small>${teamPass?'일정은 고객 신청 후 배정':`${team.sessions.length}회차 · 날짜순`}</small></div>
-      ${teamPass?'<p class="bk-field-note">강습일이 미정인 수강권입니다. 입금일로 강습 날짜를 채우지 않습니다.</p>':`<div class="pr-intake-card-actions"><button type="button" class="btn secondary small" data-pr-calendar-toggle>달력에서 여러 날짜 선택</button><button type="button" class="btn secondary small" data-pr-copy-sessions="schedule" ${team.sessions.length<2?'disabled':''}>첫 회차 시간·휴식 같게 적용</button><button type="button" class="btn secondary small" data-pr-copy-sessions="financial" ${team.sessions.length<2?'disabled':''}>첫 회차 강습료·장비요금 같게 적용</button></div>${calendar}`}
+      ${teamPass?'<p class="bk-field-note">강습일이 미정인 수강권입니다. 입금일로 강습 날짜를 채우지 않습니다.</p>':`<div class="pr-intake-card-actions"><button type="button" class="btn secondary small" data-pr-calendar-toggle>달력에서 여러 날짜 선택</button><button type="button" class="btn secondary small" data-pr-copy-sessions="schedule" ${team.sessions.length<2?'disabled':''}>첫 회차 시간·휴식 같게 적용</button><button type="button" class="btn secondary small" data-pr-copy-sessions="financial" ${team.sessions.length<2?'disabled':''}>첫 회차 강습료·장비·받은 금액 같게 적용</button></div>${calendar}`}
       <div class="pr-intake-session-board ${team.sessions.length>1?'has-multiple-sessions':''}">${team.sessions.map((session,i)=>`<article class="pr-intake-session-card" data-pr-intake-session-id="${escape(session.id)}"><header class="pr-intake-card-heading"><strong>${teamPass?'수강권':`${i+1}회차`} · ${escape(session.date||'날짜 미정')} ${escape(session.startTime||'')}</strong>${reviewFlagChips(sessionReviewFlags(session,teamPass),escape)}${team.sessions.length>1?`<button type="button" class="btn ghost small" data-pr-remove-session="${escape(session.id)}" aria-label="${i+1}회차 삭제">×</button>`:''}</header>${renderBookingPaymentIntake(paymentManualDraft(teamDraft,session),escape,{section:'session',context,prefix:prefix+(i?`session_${session.id}_`:'')})}</article>`).join('')}</div></section>
     </article>`;
   }).join('')}</div></section><div class="pr-intake-totals" aria-live="polite">${intakeTotalsMarkup(totals)}</div></fieldset>`;
 }
 
-/** Capture every displayed session before sorting/replacing cards. The first card uses legacy names. */
+/** Capture every displayed session before sorting/replacing cards.
+ * ④(2026-11-17): 입력 이름의 접두사는 "렌더 당시 배열 위치" 기준인데 state 는 patch 마다
+ * sortSessions 로 재정렬된다. 위치 기준으로 되찾으면 순서가 어긋난 회차의 patch 가 빈
+ * 객체가 되어 방금 고른 값(예: 장비 무료)이 되돌아갔다. 각 회차 카드(DOM,
+ * data-pr-intake-session-id) 안에서 자기 컨트롤을 직접 읽어 회차 id 로 적용한다. */
 export function capturePaymentIntakeSessions(form,edit){
   const a=applied(edit.draft);if(a.intakeVersion!==1)return;
   const team=list(a.reviewedTeams).find(row=>row.id===a.activeTeamId);if(!team)return;
-  const patches=team.sessions.map((row,index)=>{const prefix=index?`session_${row.id}_`:'',patch={};
-    for(const key of sessionReviewFields){const name=key==='rentalFee'?'rentalAmount':key,input=form.elements.namedItem(prefix+name);if(!input)continue;
+  const cards=Array.from(form.querySelectorAll?.('[data-pr-intake-session-id]')||[]);
+  const patches=cards.map(card=>{
+    const id=card.dataset?.prIntakeSessionId,row=team.sessions.find(item=>item.id===id);
+    if(!row)return null;
+    const control=name=>card.querySelector?.(`[name="${name}"],[name$="_${name}"]`)||null;
+    const patch={};
+    for(const key of sessionReviewFields){const name=key==='rentalFee'?'rentalAmount':key,input=control(name);if(!input)continue;
       patch[key]=['rentalCustomAmount','patchEnabled'].includes(key)?input.checked===true:['date','startTime','rentalPaymentStatus','patchPaymentStatus','sessionNotes'].includes(key)?String(input.value||''):integer(input.value);
     }
-    const control=form.elements.namedItem(prefix+'paymentCorrectionEnabled');
-    if(control){
+    const toggle=control('paymentCorrectionEnabled');
+    if(toggle){
       const old=row.paymentRequestCorrection;
-      patch.paymentRequestCorrection=control.checked?{requestId:old?.requestId||crypto.randomUUID(),expectedVersion:old?.expectedVersion??0,correctedRequestedAmount:integer(form.elements.namedItem(prefix+'paymentCorrectionAmount')?.value),reason:String(form.elements.namedItem(prefix+'paymentCorrectionReason')?.value||'')}:null;
+      patch.paymentRequestCorrection=toggle.checked?{requestId:old?.requestId||crypto.randomUUID(),expectedVersion:old?.expectedVersion??0,correctedRequestedAmount:integer(control('paymentCorrectionAmount')?.value),reason:String(control('paymentCorrectionReason')?.value||'')}:null;
     }
-    return {id:row.id,patch};
-  });
+    return {id,patch};
+  }).filter(Boolean);
   edit.draft=syncPaymentIntake(edit.draft);
   for(const {id,patch} of patches)if(Object.keys(patch).length)edit.draft=updatePaymentIntakeSession(edit.draft,id,patch);
 }

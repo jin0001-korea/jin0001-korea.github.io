@@ -408,3 +408,6 @@
 .pr-unmatched-list td{padding:6px 8px;border-bottom:1px solid #f3ecd9;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pr-unmatched-list tr:last-child td{border-bottom:0}
 .pr-unmatched-capture{max-width:160px;overflow:hidden;text-overflow:ellipsis;color:#97917c;font-size:11px}
+
+/* ③ PC에서 원문·제안 열이 스크롤을 따라다니게 (2026-11-16) */
+@media(min-width:1100px){.pr-review-tools{position:sticky;top:10px;align-self:flex-start;max-height:calc(100vh - 20px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}}

@@ -84,8 +84,13 @@ export function automaticBookingSeason(draft={},context={}){
  // 수강권 연결 예약(N9, 2026-11-16): 10회권이면 구매총회차 10으로 묶여 시즌 취급 —
  // 같은 강사 유지 자체는 수강권 fixed_instructor 규칙이 보장한다.
  const linkedPass=(context.lessonPasses||[]).find(item=>text(item.id)===text(next.lessonPassId));
- const requested=Number(pack?.total_sessions??pack?.totalSessions??linkedPass?.total_sessions??linkedPass?.totalSessions??next.seasonTotal);
+ // 회차 수에서 자동 유도된 seasonTotal 은 회차가 줄면 같이 줄어야 한다('총 N회차' 고착 수정,
+ // 2026-11-17). seasonTotalAuto 에 "자동 유도 당시 값"을 기억해 두고, 저장된 seasonTotal 이
+ // 그 값 그대로면 count 기반으로 다시 계산한다. 패키지·수강권·검토가 명시한 값은 유지.
+ const autoDerived=Number.isInteger(Number(next.seasonTotalAuto))&&Number(next.seasonTotalAuto)===Number(next.seasonTotal);
+ const requested=Number(pack?.total_sessions??pack?.totalSessions??linkedPass?.total_sessions??linkedPass?.totalSessions??(autoDerived?NaN:next.seasonTotal));
  const total=Math.max(Number.isInteger(requested)&&requested>0?requested:1,count);
+ if(Number.isInteger(requested)&&requested>0)delete next.seasonTotalAuto;else next.seasonTotalAuto=total;
  if(seasonId(next)||total>1){
   next.kind='season';next.seasonTotal=total;
   const occupied=new Set((context.reservations||[]).filter(row=>seasonId(next)&&seasonId(row)===seasonId(next)).map(row=>Number(row.sessionNumber??row.session_number)));
@@ -207,7 +212,7 @@ export function copyBookingDatesForTeam(source,newDraft,options={}){
   return next;
 }
 
-const uiFields=[...TEAM_DRAFT_UI_FIELDS,'dateBatch','candidateRequestToken'];
+const uiFields=[...TEAM_DRAFT_UI_FIELDS,'dateBatch','candidateRequestToken','seasonTotalAuto'];
 const overlaps=lessonIntervalsOverlap;
 function sameTeam(a,b){
   const ca=customerId(a),cb=customerId(b),ta=teamId(a),tb=teamId(b);
@@ -219,7 +224,18 @@ const keyError=(row,index,message)=>({rowId:row.id,index,message});
 
 /** Build an all-or-none proposal. The server remains authoritative for concurrent writes. */
 export function buildBookingBatch(draft={},context={},options={}){
-  const prepared=automaticBookingSeason(ensureBookingDates(draft,options),context),rows=bookingDateRows(prepared),errors=[];
+  let prepared=automaticBookingSeason(ensureBookingDates(draft,options),context);
+  // 일정과 금액·구성까지 완전히 동일한 "유령 복제" 회차만 저장 직전에 하나로 접는다
+  // (2026-11-17: 서버의 '같은 팀의 일괄 예약 날짜·시간이 서로 겹칩니다' 차단 원인).
+  // 금액이 다른 같은 시각 회차는 사람이 판단해야 하므로 기존 중복 오류를 그대로 낸다.
+  const sameFull=(a,b)=>same(a,b)&&a.lessonMinutes===b.lessonMinutes&&a.breakMinutes===b.breakMinutes&&JSON.stringify(a.financial??null)===JSON.stringify(b.financial??null);
+  const allRows=bookingDateRows(prepared),kept=[];
+  const rows=allRows.filter(row=>{if(row.date&&kept.some(prev=>sameFull(prev,row)))return false;kept.push(row);return true;});
+  if(rows.length!==allRows.length&&prepared.dateBatch){
+    prepared.dateBatch.rows=prepared.dateBatch.rows.filter(row=>rows.some(keep=>keep.id===row.id));
+    prepared=automaticBookingSeason(prepared,context);
+  }
+  const errors=[];
   const payloads=rows.map((row,index)=>{
     const value=applyFinancialSnapshot(clone(prepared),row.financial);for(const key of uiFields)delete value[key];
     value.id=row.id;value.raw={...value.raw,A:row.date,B:row.startTime,C:row.endTime,E:row.company,N:row.duration};

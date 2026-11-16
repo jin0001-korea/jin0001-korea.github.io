@@ -1,9 +1,9 @@
-import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=81';
-import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=68';
+import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=82';
+import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=69';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
 import {canonicalTelephone} from './customer-teams.mjs?v=26';
-import {paymentIntakeCorrectionError} from './payment-intake-state.mjs?v=7';
+import {paymentIntakeCorrectionError} from './payment-intake-state.mjs?v=8';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
 import {defaultPaymentSeasonRegistration} from './payment-proposal-policy.mjs?v=5';
 
@@ -105,7 +105,7 @@ export function createPaymentPassDraft(approvedDraft={},context={}){
     `받은 금액: ${won(allocation)}원`,
     expectedTotal!==null&&expectedTotal-allocation>0?`미수금: ${won(expectedTotal-allocation)}원`:null,
   ].filter(Boolean);
-  const draft={id:newId(),customerName:text(approvedDraft.customerName),learnerName:text(approvedDraft.teamName),phone,company:text(approvedDraft.company),sport:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',totalSessions:Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100?sessions:'',lessonMinutes:[120,240].includes(approvedDraft.lessonMinutes)?approvedDraft.lessonMinutes:'',fixedInstructorId,notes:[...carryLines,appliedProposalNotes(approvedDraft)].filter(Boolean).join('\n').slice(0,2000),paymentReviewId:approvedDraft.paymentReviewId,paymentReviewVersion:approvedDraft.paymentReviewVersion,paymentAllocationAmount:allocation,paymentCommitRequestId:newId()};
+  const draft={id:newId(),customerName:text(approvedDraft.customerName),learnerName:text(approvedDraft.teamName),phone,company:text(approvedDraft.company),sport:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',totalSessions:Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100?sessions:'',lessonMinutes:[120,240].includes(approvedDraft.lessonMinutes)?approvedDraft.lessonMinutes:'',studentCount:Number.isInteger(approvedDraft.studentCount)&&approvedDraft.studentCount>=1&&approvedDraft.studentCount<=20?approvedDraft.studentCount:'',fixedInstructorId,notes:[...carryLines,appliedProposalNotes(approvedDraft)].filter(Boolean).join('\n').slice(0,2000),paymentReviewId:approvedDraft.paymentReviewId,paymentReviewVersion:approvedDraft.paymentReviewVersion,paymentAllocationAmount:allocation,paymentCommitRequestId:newId()};
   if(approvedDraft.paymentDepositId!==undefined){if(!UUID.test(approvedDraft.paymentDepositId||''))fail('연결된 입금 내역을 다시 확인해 주세요.');draft.paymentDepositId=approvedDraft.paymentDepositId;}
   if(UUID.test(approvedDraft.customerId||'')&&UUID.test(approvedDraft.teamId||'')){draft.customerId=approvedDraft.customerId;draft.teamId=approvedDraft.teamId;}
   return draft;

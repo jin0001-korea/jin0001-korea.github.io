@@ -9,7 +9,7 @@ import {assertPaymentCorrectionResult} from './payment-correction.mjs?v=2';
 import {canonicalTelephone,formatTelephone,customerIdentity,customerTeamHistory,bookingTeamLabel} from './customer-teams.mjs?v=26';
 import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectDraftCard,activeDraftCard,markDraftCardSaving,markDraftCardSaved,markDraftCardFailed,resumeDraftDeck,discardDraftCard,discardDraftDeck,draftDeckSummary,hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=35';
-import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=68';
+import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=69';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=35';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -891,8 +891,9 @@ export function syncBookingReviewFinancialFields(form,options={}){
 
 function rentalStudentCount(scope){
   // 세션(회차)별 fieldset 에는 raw_M 이 없으므로 상위 form 까지 올라가 찾는다.
-  const direct=scope.elements?.namedItem?.('raw_M')||scope.elements?.namedItem?.('M');
-  const outer=scope.closest?.('form')?.elements.namedItem('raw_M');
+  // 입금검토 양식은 인원이 alias(studentCount)라 그 이름도 함께 찾는다(2026-11-17).
+  const direct=scope.elements?.namedItem?.('raw_M')||scope.elements?.namedItem?.('M')||scope.elements?.namedItem?.('studentCount');
+  const outer=scope.closest?.('form')?.elements.namedItem('raw_M')||scope.closest?.('form')?.elements.namedItem('studentCount');
   const count=Number((direct||outer)?.value);
   return Number.isSafeInteger(count)&&count>0?count:1;
 }
