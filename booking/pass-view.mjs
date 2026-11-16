@@ -121,14 +121,20 @@ function validateDraft(draft){
   return '';
 }
 
-export function bindPasses(root,{state={},ui={},onChange,onCreate,onSchedule,onCustomerLink,onDelete}={}){
+export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,onSchedule,onCustomerLink,onDelete}={}){
   const view=root.querySelector('.pass-page');if(!view)return;
   const form=view.querySelector('.lp-issue-form');let linking=false;let deleting=false;
   const busy=()=>linking||deleting||!!form?.dataset.saving;
   const lockButtons=()=>{const saved=[...new Set([...view.querySelectorAll('button'),...(form?[...form.querySelectorAll('button')]:[])])].map(button=>({button,disabled:button.disabled}));saved.forEach(({button})=>button.disabled=true);return ()=>saved.forEach(({button,disabled})=>button.disabled=disabled);};
   const linkStatus=(message,error=false)=>{const box=view.querySelector('[data-pass-action-status]');if(box&&view.isConnected!==false){box.textContent=message;box.hidden=!message;box.classList?.toggle('error',error);}};
   const update=changes=>{ui.passes={...configuration(ui),...changes};onChange?.(ui.passes);};
-  view.querySelectorAll('[data-pass-new]').forEach(button=>button.onclick=()=>{if(!busy()&&!button.disabled)update({issuing:true,draft:newDraft(),error:''});});
+  view.querySelectorAll('[data-pass-new]').forEach(button=>button.onclick=()=>{
+  if(busy()||button.disabled)return;
+  // 2026-11-17(사용자 확정): 수강권 신규 발급은 별도 발급 모달 대신 예약접수의
+  // [날짜 미정 · 수강권으로 발급] 양식을 바로 연다. 입금검토의 수강권 작성 드로어는 그대로.
+  if(onIssueInline)return onIssueInline();
+  update({issuing:true,draft:newDraft(),error:''});
+});
   view.querySelector('[data-pass-reset]')?.addEventListener('click',()=>update({query:'',sport:'all'}));
   view.querySelector('.lp-filter-form')?.addEventListener('submit',event=>{event.preventDefault();const values=new FormData(event.currentTarget);update({query:text(values.get('query')),sport:text(values.get('sport'))||'all'});});
   view.querySelectorAll('[data-pass-schedule]').forEach(button=>button.onclick=()=>{if(!busy()&&!button.disabled)onSchedule?.(button.dataset.passSchedule);});

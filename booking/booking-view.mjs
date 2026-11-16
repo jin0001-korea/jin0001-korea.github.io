@@ -488,6 +488,37 @@ export function passIssueCarryLines(draft){
   if(numeric(raw.Z)!==null&&numeric(raw.Z)>0)lines.push(`미수금: ${money(numeric(raw.Z))}원`);
   return lines;
 }
+// 수강권 캐리라인 역파싱(2026-11-17 사용자 확정): 발급 때 넣은 시간권·비율·강습료·장비를
+// 일정 등록 프리필로 쓴다 — 고객에게 이미 받은 값을 다시 묻지 않는다.
+// 줄 형식은 passIssueCarryLines/createPaymentPassDraft가 쓰는 표준 문구와 같아야 한다.
+export function parsePassCarry(pass={}){
+  const lines=String(pass.notes||'').split('\n').map(line=>line.trim());
+  const take=prefix=>{const line=lines.find(item=>item.startsWith(prefix));return line?line.slice(prefix.length).trim():'';};
+  const amountOf=value=>{const match=/([0-9][0-9,]*)\s*원/.exec(value);return match?Number(match[1].replace(/,/g,'')):null;};
+  const minutes=[120,240].includes(Number(pass.lessonMinutes??pass.lesson_minutes))?Number(pass.lessonMinutes??pass.lesson_minutes):null;
+  const ratio=/^1:(\d{1,2})$/.exec(String(pass.lessonRatio??pass.lesson_ratio??'').trim());
+  const fee=amountOf(take('회당 강습료:'));
+  const rentalLine=take('장비:');
+  const rentalStatus=rentalLine.includes('결제완료')?'paid':rentalLine.includes('무료')?'free':rentalLine.includes('미결제')?'onsite_unpaid':null;
+  const rentalHours=/([46])\s*시간/.exec(rentalLine);
+  return {minutes,students:ratio?Number(ratio[1]):null,fee,
+    rental:rentalStatus?{status:rentalStatus,hours:rentalHours?Number(rentalHours[1]):null,amount:rentalStatus==='free'?0:amountOf(rentalLine)}:null};
+}
+export function applyPassCarryDraft(draft,pass){
+  if(!pass)return draft;
+  const carry=parsePassCarry(pass);let next=clone(draft);
+  if(carry.minutes){next=applyLessonPlan(next,{lessonMinutes:carry.minutes,breakMinutes:carry.minutes===240?(next.breakMinutes??0):0});next.raw={...next.raw,N:`${carry.minutes/60}시간`};}
+  if(carry.students){next.raw={...next.raw,M:String(carry.students)};next.participants=resizeParticipants(next.participants,carry.students);}
+  if(carry.fee!==null)next.raw={...next.raw,T:String(carry.fee)};
+  if(carry.rental){
+    const defaultRate=carry.rental.hours===4?13000:carry.rental.hours===6?18000:null;
+    next.rentalPaymentStatus=carry.rental.status;next.rentalHours=carry.rental.hours;next.rentalAmount=carry.rental.amount;
+    next.rentalCustomAmount=carry.rental.status!=='free'&&Number.isInteger(carry.rental.amount)&&carry.rental.amount!==defaultRate;
+  }
+  // 수강권은 구매 시 수납 완료 — 이 회차 받은 금액을 자동으로 채워 미수 0으로 시작한다.
+  if(carry.fee!==null)next.raw={...next.raw,Y:String(carry.fee+(carry.rental?.status==='paid'&&Number.isInteger(carry.rental.amount)?carry.rental.amount:0))};
+  return next;
+}
 function renderPassIssueModal(settings,context,escape){
   if(!settings.passIssueOpen)return '';
   const deck=settings.teamDeck||{cards:[]};
@@ -2017,6 +2048,9 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         preserveDraft();
         const pass=(context.lessonPasses||[]).find(item=>item.id===settings.draft.lessonPassId),summary=form.querySelector('[data-bk-pass-summary]');
         if(summary)summary.textContent=pass?`${pass.learner_name||pass.customer_name} · 총 ${Number(pass.total_sessions)}회 · 미예약 ${passAvailable(pass,context)}회`:'수강권 연결 없이 예약을 접수합니다.';
+        // 수강권 선택(2026-11-17 사용자 확정): 발급 때 넣은 시간권·비율·강습료·장비·수납액을
+        // 그대로 가져온다 — 이미 받은 값을 다시 입력하게 하지 않는다.
+        if(event.target.name==='lessonPassId'&&pass){update({draft:applyPassCarryDraft(settings.draft,pass)});return;}
         if(settings.tab==='assignment')update({draft:settings.draft});
       }
     });
