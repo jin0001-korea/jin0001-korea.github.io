@@ -1271,6 +1271,17 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
           adoptBatchResult(result);row.status=status;row.matched=status==='succeeded';row.preserved=result.preserved===true;row.preservedCount=Number.isSafeInteger(result.preservedCount)&&result.preservedCount>=0?result.preservedCount:0;
           if(status==='failed'){row.errorCode=result.analysis?.errorCode||result.upload.analysisErrorCode;row.error=actionError(result.analysis?.error||row.errorCode,'상담·합산 대조에 실패했습니다. 같은 선택으로 이어서 분석하세요.');}
           if(status==='running')row.error='서버에서 처리 중입니다. 잠시 후 같은 선택으로 이어서 분석하세요.';
+          // 간헐 오류(응답 검증 실패·시간 초과)는 자동으로 한 번 더 — 새 호출이라 150초 예산도 새로 받는다.
+          if(row.status==='failed'&&!row.autoRetried&&['ANALYSIS_CONSULTATION_INVALID_RESPONSE','ANALYSIS_TIMEOUT','ANALYSIS_FAILED'].includes(String(row.errorCode||''))){
+            row.autoRetried=true;row.status='matching';row.error='대조가 불안정해 자동으로 한 번 더 시도합니다…';paint();
+            const retryResult=await onAction('upload-analyze-match',{uploadId:row.uploadId,uploadIds:[...uploadIds],requestId:crypto.randomUUID()});if(!active())return;
+            const retryStatus=retryResult?.analysis?.status||retryResult?.upload?.analysisStatus;
+            if(retryResult?.upload?.id===row.uploadId&&['succeeded','running','failed'].includes(retryStatus)&&(retryResult.reviews===undefined||Array.isArray(retryResult.reviews))){
+              adoptBatchResult(retryResult);row.status=retryStatus;row.matched=retryStatus==='succeeded';row.preserved=retryResult.preserved===true;row.preservedCount=Number.isSafeInteger(retryResult.preservedCount)&&retryResult.preservedCount>=0?retryResult.preservedCount:0;
+              if(retryStatus==='failed'){row.errorCode=retryResult.analysis?.errorCode||retryResult.upload.analysisErrorCode;row.error=actionError(retryResult.analysis?.error||row.errorCode,'상담·합산 대조에 실패했습니다. 같은 선택으로 이어서 분석하세요.');}
+              else row.error=retryStatus==='running'?'서버에서 처리 중입니다. 잠시 후 같은 선택으로 이어서 분석하세요.':'';
+            }else{row.status='failed';row.error=actionError(row.errorCode,'상담·합산 대조에 실패했습니다. 같은 선택으로 이어서 분석하세요.');}
+          }
         }catch(error){if(!active())return;row.status='failed';row.errorCode=error?.code||'ANALYSIS_FAILED';row.error=actionError(error,'상담·합산 대조에 실패했습니다. 같은 선택으로 이어서 분석하세요.');}
         paint();
       }
@@ -1437,9 +1448,17 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     const request=++u.detailRequest,selected=()=>current()&&request===u.detailRequest&&u.selectedUploadId===uploadId&&u.detail?.upload?.id===uploadId;
     u.busy=true;u.analyzingUploadId=uploadId;u.error='';u.reviewError='';u.notice='';paint();
     try{
-      const result=await onAction('upload-analyze',{uploadId});
+      let result=await onAction('upload-analyze',{uploadId});
+      let status=result?.analysis?.status||result?.upload?.analysisStatus;
+      // 상담 대조 응답 검증 실패·시간 초과는 모델 간헐 오류가 대부분 — 자동으로 한 번 더
+      // 시도한다(새 호출 = 새 150초 예산, 사진·은행 추출은 서버에 보존돼 대조만 다시 수행).
+      const retryable=['ANALYSIS_CONSULTATION_INVALID_RESPONSE','ANALYSIS_TIMEOUT','ANALYSIS_FAILED'];
+      if(selected()&&status==='failed'&&retryable.includes(String(result?.analysis?.errorCode||result?.analysis?.error||result?.upload?.analysisErrorCode||''))){
+        u.notice='상담 대조가 불안정해 자동으로 한 번 더 분석합니다…';paint();
+        result=await onAction('upload-analyze',{uploadId});
+        status=result?.analysis?.status||result?.upload?.analysisStatus;
+      }
       if(!selected())return;
-      const status=result?.analysis?.status||result?.upload?.analysisStatus;
       if(result?.upload?.id!==uploadId||!['succeeded','running','failed'].includes(status)||(result.upload.analysisStatus&&result.upload.analysisStatus!==status)||(result.reviews!==undefined&&!Array.isArray(result.reviews)))throw Error('자동 분석 결과를 확인하지 못했습니다. 상태를 새로고침해 주세요.');
       const nextUpload={...upload,...result.upload,analysisStatus:status,analysisOutcome:result.analysis?.outcome||result.upload.analysisOutcome,analysisError:result.analysis?.error||result.upload.analysisError||result.analysis?.errorCode||result.upload.analysisErrorCode,analysisLeaseExpiresAt:result.analysis?.leaseExpiresAt??result.upload.analysisLeaseExpiresAt};
       u.detail={...u.detail,upload:nextUpload};updateQueue(nextUpload);
