@@ -1,8 +1,9 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=4';
+import {kakaoContactId,kakaoContactValue} from './kakao-contact.mjs?v=1';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=83';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=84';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=8';
-import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=75';
+import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=76';
 import {BOOKING_COMPANIES} from './company-options.mjs?v=31';
 import {renderPaymentConversation} from './payment-conversation.mjs?v=2';
 import {renderPaymentPriceBreakdown} from './payment-price-breakdown.mjs?v=3';
@@ -942,6 +943,16 @@ function captureSingleTeamForm(form,edit){
     else if(edit.bankInputInvalid){edit.bankInputInvalid=false;edit.bankTimestampError=bankInputError(date,time);}
   }
   for(const key of draftStrings)if(form.elements.namedItem(key))edit.draft[key]=String(value(key));
+  // 카카오 ID 예외(2026-11-17): 체크 상태면 연락처 입력값을 '카카오:아이디' 저장 형태로 감싼다.
+  // 체크 자체는 화면 상태(edit)에만 두고 저장 draft 에는 값('카카오:…')으로만 남긴다.
+  {const kakaoBox=form.elements.namedItem('contactKakaoMode');
+   if(kakaoBox&&form.elements.namedItem('phone')){
+    edit.contactKakaoMode=kakaoBox.checked===true;
+    if(edit.contactKakaoMode){
+     const typed=String(edit.draft.phone||'').trim();
+     edit.draft.phone=typed?kakaoContactValue(kakaoContactId(typed)??typed):'';
+    }
+   }}
   for(const key of draftNumbers)if(form.elements.namedItem(key))edit.draft[key]=integer(key);
   const typeInput=form.elements.namedItem('reservationKind'),countInput=form.elements.namedItem('passTotalSessions');
   if(typeInput){
@@ -1116,7 +1127,7 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     u.sourceFreshness??={};if(u.sourceFreshness[key])return;
     u.sourceFreshness[key]={status:'loading'};paint();
     try{
-      const result=await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(selectedEdit.draft.phone?{phone:selectedEdit.draft.phone}:{})});
+      const result=await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(phoneKey(selectedEdit.draft.phone)?{phone:selectedEdit.draft.phone}:{})});
       if(!current())return;
       if(!Array.isArray(result?.candidates))throw Error('문자 후보를 확인하지 못했습니다.');
       u.sourceFreshness[key]={status:'ready',candidates:result.candidates};
@@ -1137,7 +1148,7 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     u.autoCandidateTried[key]=true;
     try{
       const seeded=u.sourceFreshness?.[freshnessKey(selectedEdit)];
-      const result=seeded?.status==='ready'?{candidates:seeded.candidates}:await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(selectedEdit.draft.phone?{phone:selectedEdit.draft.phone}:{})});
+      const result=seeded?.status==='ready'?{candidates:seeded.candidates}:await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(phoneKey(selectedEdit.draft.phone)?{phone:selectedEdit.draft.phone}:{})});
       if(!current()||u.activeKey!==key||selectedEdit!==activeEdit(u)||!Array.isArray(result?.candidates))return;
       u.candidates=result.candidates;u.candidateSearched=true;u.selectedCandidate=null;
       u.openPanels??={};u.openPanels.conversation=true;if(result.candidates.length)u.openPanels.candidate=true;

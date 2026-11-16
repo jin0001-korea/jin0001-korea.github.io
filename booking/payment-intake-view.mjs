@@ -1,4 +1,4 @@
-import {renderBookingPaymentIntake} from './booking-view.mjs?v=83';
+import {renderBookingPaymentIntake} from './booking-view.mjs?v=84';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=8';
 
 const list=value=>Array.isArray(value)?value:[];
@@ -78,6 +78,8 @@ export function syncPaymentIntakeTotals(root,edit){const target=root.querySelect
 
 export function renderPaymentIntake(edit,u,escape,{context={},locked=false}={}){
   const d=edit.draft,a=applied(d),teams=paymentIntakeTeams(d),active=teams.find(team=>team.id===a.activeTeamId)||teams[0],totals=paymentIntakeTotals(d,edit.remainingAmount??edit.amount),manual=paymentManualDraft(d),pass=a.bookingType==='pass'&&a.scheduleStatus==='undated';
+  // 카카오 ID 예외 체크는 화면 상태(edit)에 있고 재렌더에도 유지되어야 한다.
+  if(edit.contactKakaoMode!==undefined)manual.contactKakaoMode=edit.contactKakaoMode;
   const common=renderBookingPaymentIntake(manual,escape,{section:'common',context}).replace('name="paymentSource"','name="paymentSource" disabled');
   return `<fieldset class="pr-intake-controls" ${locked?'disabled':''}>${common}<section class="bk-team-branches"><div class="bk-section-label"><span>02</span><h3>팀 정보·강습생</h3><small>고객 ${escape(d.customerName||edit.payerName||'미확인')} · ${teams.length}팀</small><button type="button" class="btn secondary small" data-pr-add-team ${pass||teams.length>=6?'disabled':''}>같은 고객 다른 팀 추가 →</button></div><div class="pr-intake-team-board is-expanded ${teams.length===1?'is-single-team':'is-multiple-teams'}">${teams.map((team,index)=>{
     const selected=team.id===active.id,prefix=selected?'':`team_${team.id}_`,teamDraft=switchPaymentIntakeTeam(d,team.id),registration=applied(teamDraft),teamManual=paymentManualDraft(teamDraft),teamPass=registration.bookingType==='pass'&&registration.scheduleStatus==='undated';

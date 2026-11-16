@@ -1,5 +1,6 @@
 import {parseKstDate,parseLessonTime,parseLessonInterval,evaluateCandidates,bookingLocation,reservationInstructorOrder,lessonPlanSettings,applyLessonPlan,lessonIntervalsOverlap,learnerAgeDetails} from './booking-rules.mjs?v=35';
 import {canonicalTelephone,normalizeCustomerText} from './customer-teams.mjs?v=26';
+import {kakaoContactId} from './kakao-contact.mjs?v=1';
 import {applyFinancialV3,bookingFinancialSummary,parseBookingAmount,FINANCIAL_VERSION} from './booking-financial.mjs?v=12';
 import {TEAM_DRAFT_UI_FIELDS} from './team-drafts.mjs?v=36';
 
@@ -212,7 +213,7 @@ export function copyBookingDatesForTeam(source,newDraft,options={}){
   return next;
 }
 
-const uiFields=[...TEAM_DRAFT_UI_FIELDS,'dateBatch','candidateRequestToken','seasonTotalAuto'];
+const uiFields=[...TEAM_DRAFT_UI_FIELDS,'dateBatch','candidateRequestToken','seasonTotalAuto','contactKakaoMode'];
 const overlaps=lessonIntervalsOverlap;
 function sameTeam(a,b){
   const ca=customerId(a),cb=customerId(b),ta=teamId(a),tb=teamId(b);
@@ -289,7 +290,7 @@ export function buildBookingBatch(draft={},context={},options={}){
     const ageDetails=learnerAgeDetails(payload);if(ageDetails.error)add(ageDetails.error);
     if(!text(payload.raw.E).trim())add('강습업체·지점을 입력해 주세요.');
     if(!text(payload.raw.H).trim())add('고객명(입금자)을 입력해 주세요.');
-    if(text(payload.raw.L).trim()&&!canonicalTelephone(payload.raw.L))add('전화번호 형식을 확인해 주세요.');
+    if(text(payload.raw.L).trim()&&!canonicalTelephone(payload.raw.L)&&!kakaoContactId(payload.raw.L))add('전화번호 형식을 확인해 주세요.');
     if(!Number.isInteger(Number(payload.raw.M))||Number(payload.raw.M)<1||Number(payload.raw.M)>1000)add('강습 인원을 1명 이상으로 확인해 주세요.');
     if(!['스키','보드'].includes(payload.raw.D))add('강습 종목을 선택해 주세요.');
     if(!text(payload.raw.T).trim())add('강습요금을 입력해 주세요. 무료이면 0원을 입력해 주세요.');

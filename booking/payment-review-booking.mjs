@@ -1,8 +1,9 @@
-import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=83';
-import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=69';
+import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=84';
+import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=70';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
 import {canonicalTelephone} from './customer-teams.mjs?v=26';
+import {kakaoContactId,kakaoContactValue} from './kakao-contact.mjs?v=1';
 import {paymentIntakeCorrectionError} from './payment-intake-state.mjs?v=8';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
 import {defaultPaymentSeasonRegistration} from './payment-proposal-policy.mjs?v=5';
@@ -127,7 +128,7 @@ export function createPaymentBookingDraft(approvedDraft={},context={}){
   const pause=minutes===240&&breakKnown?approvedDraft.breakMinutes:0;
   Object.assign(raw,{A:parseKstDate(text(approvedDraft.date))||'',B:time&&time.hour<24?time.value:'',C:'',D:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',
     E:text(approvedDraft.company),F:'',G:appliedProposalNotes(approvedDraft),H:text(approvedDraft.customerName),I:text(approvedDraft.teamName),J:'',K:'',
-    L:canonicalTelephone(text(approvedDraft.phone))||'',M:count===null?'':String(count),N:minutes===null?'':`${minutes/60}시간`,O:'',Q:'계좌이체',T:fee===null?'':String(fee),Y:String(allocation),X:'',Z:''});
+    L:canonicalTelephone(text(approvedDraft.phone))||(kakaoContactId(approvedDraft.phone)?kakaoContactValue(kakaoContactId(approvedDraft.phone)):''),M:count===null?'':String(count),N:minutes===null?'':`${minutes/60}시간`,O:'',Q:'계좌이체',T:fee===null?'':String(fee),Y:String(allocation),X:'',Z:''});
   raw.C=minutes!==null&&breakKnown?lessonPlanEndTime(raw.B,minutes,pause)||'':'';
   Object.assign(draft,{lessonMinutes:minutes,breakMinutes:pause,participants:reviewedParticipants(approvedDraft.paymentComparison?.appliedProposal?.participants,count),
     age:null,ageBand:null,experienceCount:null,parallelLongTurn:null,snowboardNoviceTurn:null,instructorIds:[],preferredInstructorId:null,
@@ -139,7 +140,7 @@ export function createPaymentBookingDraft(approvedDraft={},context={}){
   if(approvedDraft.paymentDepositId!==undefined){if(!UUID.test(approvedDraft.paymentDepositId||''))fail('연결된 입금 내역을 다시 확인해 주세요.');draft.paymentDepositId=approvedDraft.paymentDepositId;}
   if(UUID.test(approvedDraft.customerId||'')){draft.customerId=approvedDraft.customerId;delete draft.customerDraft;}
   if(UUID.test(approvedDraft.teamId||'')&&UUID.test(approvedDraft.customerId||'')){draft.customerTeamId=approvedDraft.teamId;delete draft.teamDraft;}
-  if(draft.customerDraft)Object.assign(draft.customerDraft,{name:raw.H,contacts:draft.customerContactPhone?[{label:'고객 연락처',phone:draft.customerContactPhone}]:[]});
+  if(draft.customerDraft)Object.assign(draft.customerDraft,{name:raw.H,contacts:canonicalTelephone(draft.customerContactPhone)?[{label:'고객 연락처',phone:draft.customerContactPhone}]:[]});
   if(draft.teamDraft)Object.assign(draft.teamDraft,{customerId:draft.customerId,name:raw.I,phone:draft.teamPhoneMode==='separate'?raw.L:'',defaults:{}});
   // Discard the ordinary editor's initial date snapshot (today / 09:00 / 2 hours).
   delete draft.dateBatch;

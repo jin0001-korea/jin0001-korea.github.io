@@ -7,9 +7,10 @@ import {renderRentalBridgePanel} from './rental-bridge-view.mjs?v=31';
 import {FINANCIAL_VERSION,bookingFinancialSummary,applyFinancialV3,bookingPaymentSourceOptions} from './booking-financial.mjs?v=12';
 import {assertPaymentCorrectionResult} from './payment-correction.mjs?v=2';
 import {canonicalTelephone,formatTelephone,customerIdentity,customerTeamHistory,bookingTeamLabel} from './customer-teams.mjs?v=26';
+import {kakaoContactId,kakaoContactValue,kakaoContactLabel} from './kakao-contact.mjs?v=1';
 import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectDraftCard,activeDraftCard,markDraftCardSaving,markDraftCardSaved,markDraftCardFailed,resumeDraftDeck,discardDraftCard,discardDraftDeck,draftDeckSummary,hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=35';
-import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=69';
+import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=70';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=35';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -46,6 +47,8 @@ function keepActiveTeamVisible(root){
 }
 const ageBands=[['20s','성인 20대'],['30s','성인 30대'],['40s','성인 40대'],['50s','성인 50대'],['60s','성인 60대']];
 const customerPhoneOf=draft=>String(draft.customerContactPhone??draft.customer_contact_phone??((draft.teamPhoneMode??draft.team_phone_mode)==='separate'?'':draft.raw?.L??''));
+// 전화·카카오 ID 겸용 표시: 전화가 아니면 '카카오 아이디' 라벨, 둘 다 아니면 빈 문자열.
+const contactDisplay=value=>formatTelephone(value)||kakaoContactLabel(value);
 function setStableHTML(node,markup){if(!node)return;if(node._bkStableMarkup!==markup&&node.innerHTML!==markup)node.innerHTML=markup;node._bkStableMarkup=markup;}
 const ageLabel=draft=>ageBands.find(([key])=>key===draft.ageBand)?.[1]||(draft.age===null||draft.age===undefined?'나이 미확인':`${draft.age}세`);
 const booleanAnswer = value => value===true||value===false?value:null;
@@ -389,11 +392,13 @@ const wantsSameInstructor=draft=>draft.designated||draft.isReorder||draft.kind==
 function customerIdentitySignature(draft){const identity=customerIdentity(draft);return JSON.stringify([identity.customerKey,identity.teamKey,identity.sport]);}
 function customerPhoneNotice(draft,context) {
   const phone=customerPhoneOf(draft).trim();
+  if(draft.contactKakaoMode&&!phone)return {invalid:true,text:'카카오톡 ID를 입력해 주세요. 전화번호를 받으면 예외 체크를 해제하세요.'};
   if(!phone)return {invalid:false,text:'전화번호를 입력하면 같은 고객의 팀과 강습 이력을 확인할 수 있습니다.'};
+  if(kakaoContactId(phone))return {invalid:false,text:'전화 대신 카카오톡 ID로 기록합니다. 알림톡·문자는 발송되지 않아 안내는 직접 전달해 주세요.'};
   if(canonicalTelephone(phone))return {invalid:false,text:draft.customerId&&!draft.customerDraft?'선택한 고객에 연결된 이번 예약의 연락처입니다.':'기존 고객 후보를 선택하면 연락처가 달라도 같은 고객 이력으로 이어집니다.'};
   const original=(context.reservations||[]).find(row=>row.id===draft.id);
   const unchanged=original&&customerPhoneOf(original)===customerPhoneOf(draft);
-  return {invalid:true,text:unchanged?'연락처 확인 필요 · 이력 자동 대조 안 함':'전화번호 형식을 확인해 주세요. 예: 010-1234-5678'};
+  return {invalid:true,text:unchanged?'연락처 확인 필요 · 이력 자동 대조 안 함':'전화번호 형식을 확인해 주세요. 예: 010-1234-5678 · 해외 고객은 카카오톡 ID 예외를 선택하세요.'};
 }
 
 function renderCustomerTeamChoices(draft,context,escape) {
@@ -532,7 +537,7 @@ function renderCustomerSuggestions(draft,context,escape){
 }
 function renderTeamPhoneFields(draft,escape){
   const separate=draft.teamPhoneMode==='separate';
-  return `<fieldset class="bk-team-phone" data-bk-team-phone><legend>이 팀의 연락처</legend><div class="bk-team-phone-options">${[['same','고객과 동일'],['separate','별도 번호']].map(([value,label])=>`<label class="${(separate?'separate':'same')===value?'selected':''}"><input type="radio" name="teamPhoneMode" value="${value}" ${(separate?'separate':'same')===value?'checked':''}>${label}</label>`).join('')}</div><label class="field bk-separate-phone" data-bk-separate-phone ${separate?'':'hidden'}><span class="field-label">팀 연락처 <b>*</b> <small>L</small></span><input name="teamPhone" value="${escape(separate?draft.raw.L:'')}" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="이 팀의 연락 가능한 번호" ${separate?'':'disabled'}></label><p class="bk-field-note" data-bk-team-phone-summary>${separate?'강습 안내는 이 팀의 별도 번호를 사용합니다.':`고객 연락처 ${escape(formatTelephone(customerPhoneOf(draft))||'미입력')}를 함께 사용합니다.`}</p></fieldset>`;
+  return `<fieldset class="bk-team-phone" data-bk-team-phone><legend>이 팀의 연락처</legend><div class="bk-team-phone-options">${[['same','고객과 동일'],['separate','별도 번호']].map(([value,label])=>`<label class="${(separate?'separate':'same')===value?'selected':''}"><input type="radio" name="teamPhoneMode" value="${value}" ${(separate?'separate':'same')===value?'checked':''}>${label}</label>`).join('')}</div><label class="field bk-separate-phone" data-bk-separate-phone ${separate?'':'hidden'}><span class="field-label">팀 연락처 <b>*</b> <small>L</small></span><input name="teamPhone" value="${escape(separate?draft.raw.L:'')}" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="이 팀의 연락 가능한 번호" ${separate?'':'disabled'}></label><p class="bk-field-note" data-bk-team-phone-summary>${separate?'강습 안내는 이 팀의 별도 번호를 사용합니다.':`고객 연락처 ${escape(contactDisplay(customerPhoneOf(draft))||'미입력')}를 함께 사용합니다.`}</p></fieldset>`;
 }
 function renderParticipantRows(draft,escape){
   return resizeParticipants(draft.participants,numeric(draft.raw.M)).map((person,index)=>`<fieldset class="bk-participant-row" data-bk-participant="${index}"><legend>강습생 ${index+1}</legend>${selectField(`participant_${index}_type`,'성인·미성년',person.type,[['','미확인'],['adult','성인'],['minor','미성년']],escape)}<label class="field" data-bk-participant-age ${person.type==='minor'?'':'hidden'}><span class="field-label">나이</span><span class="bk-suffixed"><input type="number" name="participant_${index}_age" value="${escape(person.age??'')}" min="1" max="19" step="1" inputmode="numeric" placeholder="미입력 가능" ${person.type==='minor'?'':'disabled'}><span>세</span></span></label></fieldset>`).join('');
@@ -578,7 +583,7 @@ function renderCashReceiptFields(draft,escape){
   const transferSource=paymentSourceValue==='계좌이체',nonTransferSource=!!paymentSourceValue&&!transferSource;
   const requested=!nonTransferSource&&draft.cashReceiptRequested===true,manual=draft.cashReceiptNumberMode==='manual';
   const receiptValue=nonTransferSource?'false':(typeof draft.cashReceiptRequested==='boolean'?String(draft.cashReceiptRequested):'');
-  return `<div class="bk-receipt-fields"><h4>현금영수증</h4>${selectField('cashReceiptRequested',nonTransferSource?'현금영수증 요청 (계좌이체만 해당)':'현금영수증 요청',receiptValue,[['','선택해 주세요'],['true','예'],['false','아니오']],escape,nonTransferSource?'disabled':'')}<div data-bk-receipt-details ${requested?'':'hidden'}>${selectField('cashReceiptNumberMode','발급번호',manual?'manual':'team_phone',[['team_phone','팀 연락처와 동일'],['manual','직접 입력']],escape,requested?'':'disabled')}<p class="bk-field-note" data-bk-receipt-phone ${manual?'hidden':''}>팀 연락처 ${escape(formatTelephone(draft.raw.L)||'미입력')}로 요청합니다.</p><label class="field" data-bk-receipt-manual ${manual?'':'hidden'}><span class="field-label">현금영수증 발급번호 <b>*</b></span><input name="cashReceiptNumber" type="text" inputmode="numeric" maxlength="30" autocomplete="off" value="${escape(draft.cashReceiptNumber||'')}" placeholder="${draft.cashReceiptNumberSet?'기존 발급번호 등록됨 · 관리자만 확인':'전화번호·사업자번호·카드번호 직접 입력'}" ${requested&&manual?draft.cashReceiptNumberSet?'':'required':'disabled'}><span class="bk-field-note">숫자 8~20자리${draft.cashReceiptNumberSet?' · 비워두면 기존 번호를 유지합니다.':''}</span></label></div></div>`;
+  return `<div class="bk-receipt-fields"><h4>현금영수증</h4>${selectField('cashReceiptRequested',nonTransferSource?'현금영수증 요청 (계좌이체만 해당)':'현금영수증 요청',receiptValue,[['','선택해 주세요'],['true','예'],['false','아니오']],escape,nonTransferSource?'disabled':'')}<div data-bk-receipt-details ${requested?'':'hidden'}>${selectField('cashReceiptNumberMode','발급번호',manual?'manual':'team_phone',[['team_phone','팀 연락처와 동일'],['manual','직접 입력']],escape,requested?'':'disabled')}<p class="bk-field-note" data-bk-receipt-phone ${manual?'hidden':''}>팀 연락처 ${escape(contactDisplay(draft.raw.L)||'미입력')}로 요청합니다.</p><label class="field" data-bk-receipt-manual ${manual?'':'hidden'}><span class="field-label">현금영수증 발급번호 <b>*</b></span><input name="cashReceiptNumber" type="text" inputmode="numeric" maxlength="30" autocomplete="off" value="${escape(draft.cashReceiptNumber||'')}" placeholder="${draft.cashReceiptNumberSet?'기존 발급번호 등록됨 · 관리자만 확인':'전화번호·사업자번호·카드번호 직접 입력'}" ${requested&&manual?draft.cashReceiptNumberSet?'':'required':'disabled'}><span class="bk-field-note">숫자 8~20자리${draft.cashReceiptNumberSet?' · 비워두면 기존 번호를 유지합니다.':''}</span></label></div></div>`;
 }
 function refreshCashReceiptFields(form,draft){
   // 명시적 비계좌이체 결제소스만 현금영수증 자동 '아니오' + 잠금 (미확인은 그대로).
@@ -589,7 +594,7 @@ function refreshCashReceiptFields(form,draft){
   else if(requestSelect)requestSelect.disabled=false;
   const requested=!nonTransfer&&draft.cashReceiptRequested===true,manual=draft.cashReceiptNumberMode==='manual';
   const details=form.querySelector('[data-bk-receipt-details]'),number=form.elements.namedItem('cashReceiptNumber'),mode=form.elements.namedItem('cashReceiptNumberMode'),manualBlock=form.querySelector('[data-bk-receipt-manual]'),phone=form.querySelector('[data-bk-receipt-phone]');
-  if(details)details.hidden=!requested;if(mode)mode.disabled=!requested;if(manualBlock)manualBlock.hidden=!manual;if(number){number.disabled=!requested||!manual;number.required=requested&&manual&&!draft.cashReceiptNumberSet;}if(phone){phone.hidden=manual;phone.textContent=`팀 연락처 ${formatTelephone(draft.raw.L)||'미입력'}로 요청합니다.`;}
+  if(details)details.hidden=!requested;if(mode)mode.disabled=!requested;if(manualBlock)manualBlock.hidden=!manual;if(number){number.disabled=!requested||!manual;number.required=requested&&manual&&!draft.cashReceiptNumberSet;}if(phone){phone.hidden=manual;phone.textContent=`팀 연락처 ${contactDisplay(draft.raw.L)||'미입력'}로 요청합니다.`;}
 }
 
 function refreshLearnerFields(form,draft){
@@ -597,12 +602,15 @@ function refreshLearnerFields(form,draft){
   const exact=form.querySelector('[data-bk-exact-age]'),age=form.elements.namedItem('age');if(exact)exact.hidden=!!draft.ageBand;if(age){age.disabled=!!draft.ageBand;if(draft.ageBand)age.value='';}
   const separate=draft.teamPhoneMode==='separate',block=form.querySelector('[data-bk-separate-phone]'),phone=form.elements.namedItem('teamPhone');if(block)block.hidden=!separate;if(phone)phone.disabled=!separate;
   form.querySelectorAll('input[name="teamPhoneMode"]').forEach(input=>input.closest?.('label')?.classList.toggle('selected',input.checked));
-  const summary=form.querySelector('[data-bk-team-phone-summary]');if(summary)summary.textContent=separate?'강습 안내는 이 팀의 별도 번호를 사용합니다.':`고객 연락처 ${formatTelephone(customerPhoneOf(draft))||'미입력'}를 함께 사용합니다.`;
+  const summary=form.querySelector('[data-bk-team-phone-summary]');if(summary)summary.textContent=separate?'강습 안내는 이 팀의 별도 번호를 사용합니다.':`고객 연락처 ${contactDisplay(customerPhoneOf(draft))||'미입력'}를 함께 사용합니다.`;
 }
 function renderCustomerBlock(draft,context,escape,{review=false}={}) {
   const original=(context.reservations||[]).find(row=>row.id===draft.id),legacy=original&&!String(original.raw.H||'').trim()&&String(original.raw.I||'').trim(),locked=!!draft.id&&!!draft.customerId;
   const phone=customerPhoneNotice(draft,context),companies=bookingCompanyOptions([draft.raw.E,...(context.reservations||[]).map(row=>row.raw?.E)]);
-  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><label class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(customerPhoneOf(draft))}" required type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="${review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기'}" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span></label><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?'':`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
+  // 카카오 ID 예외(2026-11-17): 저장값 '카카오:아이디' 또는 체크 상태로 모드를 판단한다.
+  const contactValue=customerPhoneOf(draft),contactKakaoId=kakaoContactId(contactValue),kakaoMode=draft.contactKakaoMode??!!contactKakaoId;
+  const phonePlaceholder=review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기';
+  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><div class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(kakaoMode?(contactKakaoId??contactValue):contactValue)}" required type="${kakaoMode?'text':'tel'}" inputmode="${kakaoMode?'text':'tel'}" autocomplete="${kakaoMode?'off':'tel'}" maxlength="30" placeholder="${kakaoMode?'카카오톡 ID':phonePlaceholder}" data-bk-phone-placeholder="${escape(phonePlaceholder)}" aria-label="고객 연락처" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid&&!kakaoMode?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span><label class="check-field bk-kakao-contact"><input type="checkbox" name="contactKakaoMode" ${kakaoMode?'checked':''}> 해외 거주 등 · 전화 대신 카카오톡 ID 기록</label></div><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?'':`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
 }
 function renderTeamEditor(draft,context,escape,settings){
   const locked=!!draft.id&&!!draft.customerId;
@@ -619,7 +627,7 @@ function boardSessionRows(draft){
 function renderTeamPreview(draft,context,escape){
   const rows=boardSessionRows(draft),skill=sportSkill(draft),teacher=(context.roster||[]).find(person=>person.user_id===draft.preferredInstructorId);
   return `<div class="bk-team-preview"><dl>${[
-    ['팀 연락처',formatTelephone(draft.raw.L)||'미입력'],['강습',`${draft.raw.D||'종목 미입력'} · 1:${draft.raw.M||'—'} · ${kinds[draft.kind]||'일반'}`],
+    ['팀 연락처',contactDisplay(draft.raw.L)||'미입력'],['강습',`${draft.raw.D||'종목 미입력'} · 1:${draft.raw.M||'—'} · ${kinds[draft.kind]||'일반'}`],
     ['강습생',participantSummary(draft.participants)||ageLabel(draft)],['관계',draft.raw.K||'미입력'],['경험·수준',`${draft.experienceCount??'—'}회 · ${draft.raw.O||'미입력'}`],
     ['기술·준비',`${skill.label||'기술'} ${skill.value===true?'가능':skill.value===false?'불가능':'미확인'} · 주니어 준비 ${draft.juniorPreparation?'예':'아니오'}`],
     ['지정 강사',teacher?.display_name||'선택 없음'],...(draft.raw.G?[['특이사항',draft.raw.G]]:[])
@@ -652,6 +660,19 @@ function refreshPhoneFeedback(form,draft,context){
   const phone=customerPhoneNotice(draft,context),field=form.elements.namedItem('raw_L'),feedback=form.querySelector('[data-bk-phone-feedback]');
   field?.setAttribute?.('aria-invalid',phone.invalid?'true':'false');
   if(feedback){feedback.textContent=phone.text;feedback.classList?.toggle('is-invalid',phone.invalid);}
+}
+// 카카오 ID 예외 체크 토글: 재렌더 없이 입력칸을 전화↔카카오 ID 모드로 바꾼다.
+function updateKakaoContactField(form,draft,context){
+  const input=form.elements.namedItem('raw_L'),box=form.elements.namedItem('contactKakaoMode');
+  if(!input||!box)return;
+  const kakao=box.checked===true;
+  input.type=kakao?'text':'tel';
+  input.setAttribute('inputmode',kakao?'text':'tel');
+  input.setAttribute('autocomplete',kakao?'off':'tel');
+  input.placeholder=kakao?'카카오톡 ID':(input.dataset?.bkPhonePlaceholder||input.placeholder);
+  const id=kakaoContactId(input.value);
+  if(kakao&&id!==null)input.value=id;
+  refreshPhoneFeedback(form,draft,context);
 }
 function refreshCustomerPanels(form,draft,context,escape) {
   if(draft.historyInstructorSelection){const result=customerTeamHistory(draft,context,{now:context.bookingNow});if(!result.suggestedInstructorIds.includes(draft.historyInstructorSelection.instructorId)){if(draft.preferredInstructorId===draft.historyInstructorSelection.instructorId)draft.preferredInstructorId=null;delete draft.historyInstructorSelection;}}
@@ -1227,7 +1248,14 @@ export function renderBookingPage({state={},ui={},escapeHTML=fallbackEscape,icon
 function draftFromForm(form,draft) {
   const data=new FormData(form);let next=clone(draft);
   for(const column of RAW_COLUMNS){const key=`raw_${column.key}`;if(column.key!=='L'&&data.has(key)){const value=String(data.get(key)||'');if(column.key!=='E'||normalizeBookingCompany(value)!==normalizeBookingCompany(draft.raw.E))next.raw[column.key]=value;}}
-  if(data.has('raw_L'))next.customerContactPhone=String(data.get('raw_L')||'');
+  if(data.has('raw_L')){
+    const typed=String(data.get('raw_L')||''),kakaoBox=form.elements.namedItem('contactKakaoMode');
+    if(kakaoBox){
+      // 카카오 ID 예외: 체크 상태면 입력값을 '카카오:아이디' 저장 형태로 감싼다.
+      next.contactKakaoMode=kakaoBox.checked===true;
+      next.customerContactPhone=next.contactKakaoMode?kakaoContactValue(kakaoContactId(typed)??typed.trim()):typed;
+    }else next.customerContactPhone=typed;
+  }
   if(data.has('teamPhoneMode'))next.teamPhoneMode=data.get('teamPhoneMode')==='separate'?'separate':'same';
   if(next.teamPhoneMode==='separate'){if(data.has('teamPhone'))next.raw.L=String(data.get('teamPhone')||'');}
   else next.raw.L=customerPhoneOf(next);
@@ -1321,10 +1349,11 @@ function validationError(draft,context) {
   if(!draft.raw.H.trim()&&!legacyCustomer)return '고객명(입금자)을 입력해 주세요.';
   if(draft.sameCustomerNewTeam&&!String(draft.raw.I||'').trim())return '다른 팀을 구분할 강습생·팀 이름을 입력해 주세요.';
   if(draft.teamDraft&&draft.customerId&&(context.customerTeams||[]).some(team=>(team.customer_id||team.customerId)===draft.customerId&&String(team.name||'').trim()===String(draft.raw.I||'').trim()&&team.id!==draft.customerTeamId))return '이 고객에게 같은 이름의 팀이 있습니다. 등록된 팀에서 선택해 주세요.';
-  const phone=String(draft.raw.L||'').trim();
-  if(!canonicalTelephone(customerPhoneOf(draft)))return '고객 연락처를 올바르게 입력해 주세요.';
-  if(!canonicalTelephone(phone))return '강습 안내를 받을 팀 연락처를 올바르게 입력해 주세요.';
-  if(phone&&!canonicalTelephone(phone)&&(!original||String(original.raw.L||'')!==String(draft.raw.L||'')))return '전화번호 형식을 확인해 주세요. 예: 010-1234-5678';
+  const phone=String(draft.raw.L||'').trim(),customerContact=customerPhoneOf(draft);
+  // 카카오 ID 예외: '카카오:아이디' 값은 전화 형식 검사를 대신한다(별도 팀 번호는 전화만).
+  if(!canonicalTelephone(customerContact)&&!kakaoContactId(customerContact))return draft.contactKakaoMode?'카카오톡 ID를 입력해 주세요.':'고객 연락처를 올바르게 입력해 주세요. 해외 고객은 카카오톡 ID 예외를 선택할 수 있습니다.';
+  if(!canonicalTelephone(phone)&&!(draft.teamPhoneMode!=='separate'&&kakaoContactId(phone)))return '강습 안내를 받을 팀 연락처를 올바르게 입력해 주세요.';
+  if(phone&&!canonicalTelephone(phone)&&!kakaoContactId(phone)&&(!original||String(original.raw.L||'')!==String(draft.raw.L||'')))return '전화번호 형식을 확인해 주세요. 예: 010-1234-5678';
   if(!draft.raw.E.trim())return '강습업체·지점을 입력해 주세요.';
   if(!['스키','보드'].includes(String(draft.raw.D||'').trim()))return '강습 종목을 선택해 주세요.';
   if(!Number.isInteger(numeric(draft.raw.M))||numeric(draft.raw.M)<1||numeric(draft.raw.M)>1000)return '강습 인원을 1명 이상으로 확인해 주세요.';
@@ -1342,7 +1371,7 @@ function validationError(draft,context) {
   if(draft.cashReceiptRequested&&draft.cashReceiptNumberMode==='manual'&&!/^\d{8,20}$/.test(String(draft.cashReceiptNumber||'').replace(/[-\s]/g,''))&&!(draft.cashReceiptNumberSet&&original?.cashReceiptNumberMode==='manual'&&!String(draft.cashReceiptNumber||'').trim()))return '현금영수증 발급번호를 숫자 8~20자리로 입력해 주세요.';
   if(draft.experienceCount!==null&&(!Number.isInteger(draft.experienceCount)||draft.experienceCount<0||draft.experienceCount>999))return '강습 경험을 0회 이상의 정수로 입력해 주세요.';
   const customerPhone=customerPhoneOf(draft),oldCustomerPhone=original?customerPhoneOf(original):null;
-  if(customerPhone.trim()&&!canonicalTelephone(customerPhone)&&customerPhone!==oldCustomerPhone)return '고객 전화번호 형식을 확인해 주세요. 예: 010-1234-5678';
+  if(customerPhone.trim()&&!canonicalTelephone(customerPhone)&&!kakaoContactId(customerPhone)&&customerPhone!==oldCustomerPhone)return '고객 전화번호 형식을 확인해 주세요. 예: 010-1234-5678';
   if(draft.teamPhoneMode==='separate'&&!String(draft.raw.L||'').trim())return '팀의 별도 전화번호를 입력해 주세요.';
   const interval=parseLessonInterval(draft);if(interval.error)return interval.error;
   if(![null,'free','paid','onsite_unpaid'].includes(draft.rentalPaymentStatus))return '장비렌탈 결제상태를 확인해 주세요.';
@@ -1687,7 +1716,10 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       if(event.target.name==='cashReceiptNumber'){preserveDraft();return;}
       invalidateCandidates();
       if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form,settings.teamDeck,context,settings.draft);preserveDraft();}
-      if(['raw_H','raw_L','raw_I','teamPhone'].includes(event.target.name))refreshCustomer();
+      if(['raw_H','raw_L','raw_I','teamPhone','contactKakaoMode'].includes(event.target.name)){
+        if(event.target.name==='contactKakaoMode'){preserveDraft();updateKakaoContactField(form,settings.draft,context);}
+        refreshCustomer();
+      }
       preserveDraft();
       if(['raw_A','raw_B','raw_C','raw_N'].includes(event.target.name)||String(event.target.name||'').startsWith('date_'))refreshLessonPlanFields(form,settings.draft,escape);
       refreshLearnerFields(form,settings.draft);syncIndicators();
