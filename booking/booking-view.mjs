@@ -775,9 +775,11 @@ function sessionFinancialTarget(target){
   return {rowId:id==='primary'?null:id,name:String(target.name||'').slice(prefix.length)};
 }
 
-function updateGrandTotal(form,deck=null){
+function updateGrandTotal(form,deck=null,context=null,activeDraft=null){
   // 총입금액 = 고객 전체(열린 모든 팀 카드 × 모든 회차)의 합 (2026-11-15 확정).
   // 활성 카드는 화면 입력값, 나머지 카드는 보관된 초안으로 합산한다.
+  // 2026-11-17: 이미 서버에 저장된 같은 고객 예약도 합산한다 — 팀을 하나씩 저장하며
+  // 작성해도 "고객 전체" 총합이 흔들리지 않게(김한범 건).
   const host=form.closest?.('form')||form;
   const target=host.querySelector?.('[data-bk-grand-total]');if(!target)return;
   let requested=0,paid=0,unknown=false,sessions=0;
@@ -789,8 +791,12 @@ function updateGrandTotal(form,deck=null){
     paid+=y??0;sessions++;
   }
   let teams=1;
-  const activeKey=deck?.activeKey;
+  const activeKey=deck?.activeKey,deckRowIds=new Set(),openTeamKeys=new Set();
+  const teamKeyOf=source=>String(source?.customerTeamId||'')||`name:${String(source?.raw?.I||'').normalize('NFKC').replace(/\s+/gu,'')}`;
+  if(activeDraft){openTeamKeys.add(teamKeyOf(activeDraft));for(const row of bookingDateRows(activeDraft))if(row.id)deckRowIds.add(row.id);}
   for(const card of (deck?.cards||[])){
+    openTeamKeys.add(teamKeyOf(card.draft));
+    for(const row of bookingDateRows(card.draft||{}))if(row.id)deckRowIds.add(row.id);
     if(card.key===activeKey)continue;
     teams++;
     for(const row of bookingDateRows(card.draft||{})){
@@ -799,10 +805,24 @@ function updateGrandTotal(form,deck=null){
       }catch{unknown=true;sessions++;}
     }
   }
+  let savedSessions=0;const savedTeamKeys=new Set();
+  const customerId=activeDraft?.customerId||[...(deck?.cards||[])].map(card=>card.draft?.customerId).find(Boolean)||null;
+  if(customerId&&Array.isArray(context?.reservations)){
+    for(const row of context.reservations){
+      if((row.customerId||row.customer_id)!==customerId)continue;
+      if(['cancelled','canceled'].includes(row.status))continue;
+      if(row.id&&deckRowIds.has(row.id))continue;
+      const x=numeric(row.raw?.X),y=numeric(row.raw?.Y);
+      if(x===null)unknown=true;else requested+=x;
+      paid+=y??0;sessions++;savedSessions++;
+      const key=teamKeyOf(row);if(!openTeamKeys.has(key))savedTeamKeys.add(key);
+    }
+    teams+=savedTeamKeys.size;
+  }
   if(sessions<2&&teams<2){target.hidden=true;return;}
   const balance=Math.max(requested-paid,0);
   target.hidden=false;
-  target.innerHTML=`<strong>고객 전체 ${teams>1?`${teams}팀 · `:''}${sessions}회차 총합</strong><span>받아야 할 금액 ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>총 입금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금 ${money(balance)}원</span>`;
+  target.innerHTML=`<strong>고객 전체 ${teams>1?`${teams}팀 · `:''}${sessions}회차 총합${savedSessions?` · 저장된 ${savedSessions}회 포함`:''}</strong><span>받아야 할 금액 ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>총 입금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금 ${money(balance)}원</span>`;
 }
 function updateFinancialFields(form,{initializeCorrection=false}={}) {
   const patch=form.elements.namedItem('patchEnabled'),group=form.querySelector('[data-bk-patch-inputs]');
@@ -1654,19 +1674,19 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     for(const [selector,markup]of [['[data-bk-customer-suggestions]',renderCustomerSuggestions(settings.draft,context,escape)],['[data-bk-directory-selection]',renderDirectorySelection(settings.draft,context,escape)||renderPeopleManager(settings.draft,context,escape)],['[data-bk-team-choices]',renderCustomerTeamChoices(settings.draft,context,escape)],['[data-bk-customer-history]',renderCustomerHistory(settings.draft,context,escape)]]){const node=form.querySelector(selector);if(node?.nodeType===1)node._bkStableMarkup=markup;}
     const refreshCustomer=()=>{preserveDraft();refreshCustomerPanels(form,settings.draft,context,escape);preserveDraft();};
     const invalidateCandidates=()=>{settings.candidateRequestToken=null;if(ui.booking)ui.booking.candidateRequestToken=null;};
-    updateGrandTotal(form,settings.teamDeck); // 열자마자 고객 전체 합계 표시
+    updateGrandTotal(form,settings.teamDeck,context,settings.draft); // 열자마자 고객 전체 합계 표시
     form.addEventListener('input',event=>{
       const session=sessionFinancialTarget(event.target);
       if(session?.rowId){
         invalidateCandidates();const scoped=sessionFinancialForm(form,session.rowId);
-        if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(session.name))updateFinancialFields(scoped);updateGrandTotal(form,settings.teamDeck);
+        if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(session.name))updateFinancialFields(scoped);updateGrandTotal(form,settings.teamDeck,context,settings.draft);
         preserveDraft();syncIndicators();return;
       }
       if(event.target.name==='raw_M'){preserveDraft();refreshParticipantFields(form,settings.draft,escape);const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
       if(/^participant_\d+_age$/.test(event.target.name||'')){preserveDraft();const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
       if(event.target.name==='cashReceiptNumber'){preserveDraft();return;}
       invalidateCandidates();
-      if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form,settings.teamDeck);preserveDraft();}
+      if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form,settings.teamDeck,context,settings.draft);preserveDraft();}
       if(['raw_H','raw_L','raw_I','teamPhone'].includes(event.target.name))refreshCustomer();
       preserveDraft();
       if(['raw_A','raw_B','raw_C','raw_N'].includes(event.target.name)||String(event.target.name||'').startsWith('date_'))refreshLessonPlanFields(form,settings.draft,escape);
