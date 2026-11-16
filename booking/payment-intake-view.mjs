@@ -1,4 +1,4 @@
-import {renderBookingPaymentIntake} from './booking-view.mjs?v=84';
+import {renderBookingPaymentIntake} from './booking-view.mjs?v=85';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,updatePaymentIntakeSession,switchPaymentIntakeTeam} from './payment-intake-state.mjs?v=8';
 
 const list=value=>Array.isArray(value)?value:[];
@@ -83,6 +83,8 @@ export function renderPaymentIntake(edit,u,escape,{context={},locked=false}={}){
   const common=renderBookingPaymentIntake(manual,escape,{section:'common',context}).replace('name="paymentSource"','name="paymentSource" disabled');
   return `<fieldset class="pr-intake-controls" ${locked?'disabled':''}>${common}<section class="bk-team-branches"><div class="bk-section-label"><span>02</span><h3>팀 정보·강습생</h3><small>고객 ${escape(d.customerName||edit.payerName||'미확인')} · ${teams.length}팀</small><button type="button" class="btn secondary small" data-pr-add-team ${pass||teams.length>=6?'disabled':''}>같은 고객 다른 팀 추가 →</button></div><div class="pr-intake-team-board is-expanded ${teams.length===1?'is-single-team':'is-multiple-teams'}">${teams.map((team,index)=>{
     const selected=team.id===active.id,prefix=selected?'':`team_${team.id}_`,teamDraft=switchPaymentIntakeTeam(d,team.id),registration=applied(teamDraft),teamManual=paymentManualDraft(teamDraft),teamPass=registration.bookingType==='pass'&&registration.scheduleStatus==='undated';
+    // 개인 명부 선택 상태(2026-11-17): 체크는 화면 상태(edit.peoplePicks)에 있고 팀별로 유지한다.
+    if(edit.peoplePicks?.[String(team.id)])teamManual.participantPersonIds=edit.peoplePicks[String(team.id)];
     const reviewRow=list(a.reviewedTeams).find(row=>row.id===team.id),teamFlags=teamReviewFlags(reviewRow,teamDraft);
     const calendar=u.intakeCalendarOpen&&(u.intakeCalendarTeamId?u.intakeCalendarTeamId===team.id:selected)?calendarMarkup(u,teamDraft,escape):'';
     return `<article class="pr-intake-team-card ${selected?'is-active':''}" data-pr-intake-team-id="${escape(team.id)}" data-pr-intake-prefix="${escape(prefix)}"><header class="pr-intake-card-heading"><button type="button" class="btn ${selected?'primary':'secondary'} small" data-pr-select-team="${escape(team.id)}" aria-pressed="${selected}">${index+1}팀 · ${escape(team.draft.teamName||d.customerName||'기본팀')}</button>${reviewFlagChips(teamFlags,escape)}${teams.length>1?`<button type="button" class="btn ghost small" data-pr-remove-team="${escape(team.id)}" aria-label="${escape(team.draft.teamName||`${index+1}팀`)} 카드 삭제">×</button>`:''}</header>

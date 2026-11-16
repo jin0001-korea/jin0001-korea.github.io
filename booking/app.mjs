@@ -1,5 +1,5 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=91';
-import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=77';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=92';
+import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=78';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=18';
 import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=23';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
@@ -10,9 +10,9 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=21';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange} from './booking-view.mjs?v=84';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit} from './booking-view.mjs?v=85';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
-import {recoverSavedBooking} from './booking-save-recovery.mjs?v=74';
+import {recoverSavedBooking} from './booking-save-recovery.mjs?v=75';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=27';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
@@ -74,7 +74,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=83').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=84').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -151,7 +151,7 @@ function render(){
   if(ui.view==='passes'||ui.passes?.issuing)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass});
   if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink});
   if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
-  if(ui.view==='payments'){const identity=authVersion,viewUi=ui;bindPaymentReview(app,{profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,busy:!!activeWrite,onChange:()=>{dirty=false;render();},onRefresh:()=>loadPaymentReviews(),onAction:paymentReviewAction,onOpenBooking:createPaymentReservation,onLoadSavedReservations:loadSavedPaymentReservations,onEditSavedReservation:editSavedPaymentReservation,onError:toast,isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='payments'});}
+  if(ui.view==='payments'){const identity=authVersion,viewUi=ui;bindPaymentReview(app,{profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,busy:!!activeWrite,onChange:()=>{dirty=false;render();},onRefresh:()=>loadPaymentReviews(),onAction:paymentReviewAction,onOpenBooking:createPaymentReservation,onLoadSavedReservations:loadSavedPaymentReservations,onEditSavedReservation:editSavedPaymentReservation,onError:toast,onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.'),isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='payments'});}
   if(ui.view==='calls'){
     const identity=authVersion,viewUi=ui,tab=ui.communicationTab,version=ui.communicationVersion;
     const isCurrent=()=>identity===authVersion&&viewUi===ui&&version===ui.communicationVersion&&hasOperator()&&!ui.booking.demo&&ui.view==='calls'&&ui.communicationTab===tab;
@@ -235,22 +235,32 @@ function adoptSavedPaymentReview(review){
   const identity=authVersion,viewUi=ui;
   setTimeout(()=>{if(identity===authVersion&&viewUi===ui)void loadPaymentReviews();},0);
 }
-function createPaymentReservation(approvedDraft){
+async function createPaymentReservation(approvedDraft){
   mustBeOperator();
   if(ui.booking.demo)throw new Error('운영 계정으로 이용해 주세요.');
   if(activeWrite||ui.booking.deckSaving)throw new Error('다른 저장 작업을 마친 뒤 다시 눌러 주세요. 검토 승인은 보관되어 있습니다.');
-  if(pendingBookingDrafts())throw new Error('기존 작성 중인 예약 카드를 먼저 저장하거나 비워 주세요. 검토 승인은 보관되어 있어 다시 열 수 있습니다.');
-  if(ui.passes?.issuing)throw new Error('작성 중인 수강권을 먼저 저장하거나 닫아 주세요. 검토 승인은 보관되어 있습니다.');
   if(paymentReviewBookingType(approvedDraft)==='pass'){
+    if(pendingBookingDrafts())throw new Error('기존 작성 중인 예약 카드를 먼저 저장하거나 비워 주세요. 검토 승인은 보관되어 있어 다시 열 수 있습니다.');
+    if(ui.passes?.issuing)throw new Error('작성 중인 수강권을 먼저 저장하거나 닫아 주세요. 검토 승인은 보관되어 있습니다.');
     const draft=createPaymentPassDraft(approvedDraft);
     ui.passes={...(ui.passes||{}),issuing:true,draft,error:''};dirty=false;render();
     toast('날짜 미정 수강권입니다. 총 횟수와 고객 정보를 확인한 뒤 발급해 주세요.');
     return {opened:true,type:'pass'};
   }
-  const drafts=createPaymentBookingDrafts(approvedDraft,context());
-  suspendBookingDrafts(app,ui);for(const draft of drafts)openBookingDraft(ui,draft,{tab:'intake'});dirty=false;render();
-  toast(drafts.length>1?`${drafts.length}팀을 예약 카드로 불러왔습니다. 각 팀의 구성·일정·입금 배분액을 확인하고 저장해 주세요.`:'검토한 내용을 불러왔습니다. 빠진 정보를 채우고 예약을 저장해 주세요.');
-  return {opened:true,type:'reservation'};
+  // 2026-11-17(사용자 확정): 검토양식이 곧 예약접수 양식 — 예약 드로어를 다시 열지 않고
+  // 승인한 내용 그대로 즉시 저장한다. 빠진 항목은 검토양식에서 고치고 다시 누르면 된다.
+  const ctx=context();
+  const drafts=createPaymentBookingDrafts(approvedDraft,ctx);
+  const prepared=preparePaymentDirectCommit(drafts,ctx);
+  if(prepared.errors.length){
+    const teamOf=key=>{const index=Number(String(key).replace('direct-',''));const name=String(drafts[index]?.raw?.I||'').trim();return name?`[${name}] `:'';};
+    const first=prepared.errors[0];
+    return {opened:false,message:`${teamOf(first.cardKey)}${first.message} — 검토 양식에서 수정한 뒤 다시 눌러 주세요.`};
+  }
+  const result=await saveBookingBatch(prepared.payloads,prepared.requestId);
+  if(result?.discarded)return {opened:false,message:'다른 저장 작업이 진행 중입니다. 잠시 후 다시 눌러 주세요.'};
+  // adoptSavedPaymentReview(saveBookingBatch 내부)가 검토 상태 반영과 목록 갱신을 예약한다.
+  return {opened:true,type:'saved',count:prepared.payloads.length,teams:drafts.length};
 }
 
 function loadCommunications(options={}){if(ui.communicationTab==='kakao')return Promise.resolve({ok:true});return ui.communicationTab==='sms'?loadSmsInbox(options):loadCallInbox(options);}

@@ -1,9 +1,9 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=4';
 import {kakaoContactId,kakaoContactValue} from './kakao-contact.mjs?v=1';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields} from './booking-view.mjs?v=84';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields,bookingRosterPeople,participantsFromPeople} from './booking-view.mjs?v=85';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=8';
-import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=76';
+import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=77';
 import {BOOKING_COMPANIES} from './company-options.mjs?v=31';
 import {renderPaymentConversation} from './payment-conversation.mjs?v=2';
 import {renderPaymentPriceBreakdown} from './payment-price-breakdown.mjs?v=3';
@@ -834,7 +834,7 @@ function formMarkup(u,edit,busy,bookingContext={}){
   }
   const d=edit.draft,committed=edit.status==='committed',locked=busy||committed||partial,cached=cachedApprovedDraft(u,edit),approvalHint=committed?'서버에 저장된 예약·수강권입니다. 변경은 해당 내역에서 진행해 주세요.':progressBlocked?(progress.error||'이미 저장된 예약입니다. 예약 목록에서 확인해 주세요.'):cached?'작성 내용을 다시 열 수 있습니다.':paymentReviewValidation(edit,{approve:true});
   const pass=isUndatedPass(d),registration=registrationOf(d),destination=pass?'수강권':'예약',missing=committed?[]:[!d.sport&&'종목',!pass&&!d.date&&'날짜',!pass&&!d.startTime&&'시간',!d.studentCount&&'인원',![120,240].includes(Number(d.lessonMinutes))&&'강습시간(2·4시간)',Number(d.lessonMinutes)===240&&![0,60,120].includes(Number(d.breakMinutes))&&'휴식 구성(연속·분할)',(d.lessonFee===null||d.lessonFee===undefined||d.lessonFee==='')&&'회당 강습료'].filter(Boolean);
-  return `<form data-pr-review-form novalidate>${committedReviewMarkup(u,edit,bookingContext)}${edit.remoteCommitted&&edit.dirty&&!u.reviewError?'<p class="pr-feedback pr-error" role="alert">다른 작업에서 이미 예약·수강권에 반영한 검토입니다. 수정 취소를 눌러 서버 내용을 다시 확인해 주세요.</p>':''}<section class="pr-intake-block pr-bank-fields"><h4>은행 입금 내역</h4><div class="pr-fields">${field('payerName','입금자명',edit.payerName,{disabled:locked})}${field('amount','실제 입금액',edit.amount,{type:'number',min:'1',step:'1',disabled:locked})}${field('bankDate','입금 날짜 · 한국 시간',edit.bankDate,{type:'date',disabled:locked})}${field('bankTime','입금 시간 · 한국 시간',edit.bankTime,{type:'time',step:'any',disabled:locked})}</div>${!edit.bankDate||!edit.bankTime||edit.bankTimestampError?'<p class="pr-warning">입금 날짜·시간 확인 필요. 원본에 없는 날짜·시간은 추정하지 않습니다.</p>':''}</section>${!committed&&list(registration.autoFlags).length?`<p class="pr-flag-summary" role="status">${list(registration.autoFlags).map(item=>`<span class="pr-flag ${item.level==='danger'?'danger':'warn'}">${item.level==='danger'?'❗':'⚠️'} ${esc(item.label)}</span>`).join('')}</p>`:''}${committed||progressBlocked?'':renderPaymentIntake(edit,u,esc,{context:bookingContext,locked})}${partial&&progress.savedSessions?.some(row=>row.cancelled)?`<p class="pr-warning">${esc(progress.savedSessions.filter(row=>row.cancelled).map(row=>row.teamName).join(', '))} 예약은 저장 후 취소된 상태입니다. 해당 입금 배분 기록은 유지되며, 아래에는 아직 저장하지 않은 예약만 표시합니다.</p>`:''}${partial?`<p class="pr-feedback ${progressBlocked?'pr-error':''}" role="status">${esc(progressBlocked?progress.error||'저장된 예약을 예약 목록에서 확인해 주세요.':'이미 저장된 팀·날짜를 제외했습니다. 남은 예약 작성을 누르면 나머지만 작성합니다. 변경할 내용은 예약 작성창에서 수정해 주세요.')}</p>`:committed?'':allocationProposalMarkup(edit,locked)}${missing.length?`<p class="pr-warning pr-flag-summary"><span class="pr-flag danger">❗ 직접 확인 필요</span> ${esc(missing.join(' · '))} 미확인. 임의로 채우지 않습니다. 원문을 대조하고 ${destination} 작성에서 확인하세요.</p>`:''}<label class="pr-field"><span>상담 확인 메모 · 선택</span><textarea name="manualReason" rows="2" maxlength="2000" placeholder="예: 고객에게 전화로 입금자·번호·희망 일정을 확인함" ${disabled(locked)}>${esc(edit.manualReason)}</textarea></label><div class="pr-allocation"><span>아직 배분하지 않은 입금액</span><strong>${won(Number.isSafeInteger(edit.remainingAmount)?edit.remainingAmount:edit.amount)}</strong></div><div class="pr-approval"><p class="pr-actions-note">${committed?'이 입금의 배분을 완료했습니다.':partial?'남은 예약 작성을 누르면 아직 저장하지 않은 팀·날짜만 작성 화면으로 이동합니다. 실제 예약은 작성 화면에서 저장해야 등록됩니다.':`${destination} 작성을 누르면 입력 내용을 저장하고 작성 화면으로 이동합니다. 실제 ${destination}은 작성 화면에서 저장해야 등록됩니다.`}</p>${u.reviewError?`<p class="pr-feedback pr-error" role="alert">${esc(u.reviewError)}</p>`:''}<p class="pr-actions-note" id="pr-approval-hint" data-pr-approval-hint role="status">${esc(approvalHint||'빠진 고객·강습 정보는 작성 화면에서 이어서 입력할 수 있습니다.')}</p><div class="pr-actions"><button type="button" class="btn ghost" data-pr-discard ${disabled(busy||!edit.dirty)}>${edit.id?'수정 취소':'입력 취소'}</button><button type="button" class="btn secondary" data-pr-save ${disabled(locked||!edit.dirty&&!edit.receiptPolicyChanged&&!edit.notesPolicyChanged)}>검토 내용 저장</button><button type="button" class="btn primary" data-pr-approve aria-describedby="pr-approval-hint" ${disabled(busy||committed||progressBlocked)}>${partial?'남은 예약 작성':cached?`${destination} 작성 다시 열기`:`${destination} 작성`}</button></div></div></form>`;
+  return `<form data-pr-review-form novalidate>${committedReviewMarkup(u,edit,bookingContext)}${edit.remoteCommitted&&edit.dirty&&!u.reviewError?'<p class="pr-feedback pr-error" role="alert">다른 작업에서 이미 예약·수강권에 반영한 검토입니다. 수정 취소를 눌러 서버 내용을 다시 확인해 주세요.</p>':''}<section class="pr-intake-block pr-bank-fields"><h4>은행 입금 내역</h4><div class="pr-fields">${field('payerName','입금자명',edit.payerName,{disabled:locked})}${field('amount','실제 입금액',edit.amount,{type:'number',min:'1',step:'1',disabled:locked})}${field('bankDate','입금 날짜 · 한국 시간',edit.bankDate,{type:'date',disabled:locked})}${field('bankTime','입금 시간 · 한국 시간',edit.bankTime,{type:'time',step:'any',disabled:locked})}</div>${!edit.bankDate||!edit.bankTime||edit.bankTimestampError?'<p class="pr-warning">입금 날짜·시간 확인 필요. 원본에 없는 날짜·시간은 추정하지 않습니다.</p>':''}</section>${!committed&&list(registration.autoFlags).length?`<p class="pr-flag-summary" role="status">${list(registration.autoFlags).map(item=>`<span class="pr-flag ${item.level==='danger'?'danger':'warn'}">${item.level==='danger'?'❗':'⚠️'} ${esc(item.label)}</span>`).join('')}</p>`:''}${committed||progressBlocked?'':renderPaymentIntake(edit,u,esc,{context:bookingContext,locked})}${partial&&progress.savedSessions?.some(row=>row.cancelled)?`<p class="pr-warning">${esc(progress.savedSessions.filter(row=>row.cancelled).map(row=>row.teamName).join(', '))} 예약은 저장 후 취소된 상태입니다. 해당 입금 배분 기록은 유지되며, 아래에는 아직 저장하지 않은 예약만 표시합니다.</p>`:''}${partial?`<p class="pr-feedback ${progressBlocked?'pr-error':''}" role="status">${esc(progressBlocked?progress.error||'저장된 예약을 예약 목록에서 확인해 주세요.':'이미 저장된 팀·날짜를 제외했습니다. 남은 예약 작성을 누르면 나머지만 작성합니다. 변경할 내용은 예약 작성창에서 수정해 주세요.')}</p>`:committed?'':allocationProposalMarkup(edit,locked)}${missing.length?`<p class="pr-warning pr-flag-summary"><span class="pr-flag danger">❗ 직접 확인 필요</span> ${esc(missing.join(' · '))} 미확인. 임의로 채우지 않습니다. 원문을 대조하고 ${destination} 작성에서 확인하세요.</p>`:''}<label class="pr-field"><span>상담 확인 메모 · 선택</span><textarea name="manualReason" rows="2" maxlength="2000" placeholder="예: 고객에게 전화로 입금자·번호·희망 일정을 확인함" ${disabled(locked)}>${esc(edit.manualReason)}</textarea></label><div class="pr-allocation"><span>아직 배분하지 않은 입금액</span><strong>${won(Number.isSafeInteger(edit.remainingAmount)?edit.remainingAmount:edit.amount)}</strong></div><div class="pr-approval"><p class="pr-actions-note">${committed?'이 입금의 배분을 완료했습니다.':partial?'남은 예약 저장을 누르면 아직 저장하지 않은 팀·날짜를 이 양식 그대로 예약표에 저장합니다.':pass?'수강권 작성을 누르면 입력 내용을 저장하고 발급 화면으로 이동합니다. 실제 수강권은 발급 화면에서 저장해야 등록됩니다.':'예약표에 저장을 누르면 이 양식 그대로 예약표에 바로 저장됩니다. 빠진 항목이 있으면 저장하지 않고 여기에서 알려줍니다.'}</p>${u.reviewError?`<p class="pr-feedback pr-error" role="alert">${esc(u.reviewError)}</p>`:''}<p class="pr-actions-note" id="pr-approval-hint" data-pr-approval-hint role="status">${esc(approvalHint||(pass?'빠진 고객·강습 정보는 발급 화면에서 이어서 입력할 수 있습니다.':'빠진 항목이 있으면 저장하지 않고 이 자리에서 알려줍니다.'))}</p><div class="pr-actions"><button type="button" class="btn ghost" data-pr-discard ${disabled(busy||!edit.dirty)}>${edit.id?'수정 취소':'입력 취소'}</button><button type="button" class="btn secondary" data-pr-save ${disabled(locked||!edit.dirty&&!edit.receiptPolicyChanged&&!edit.notesPolicyChanged)}>검토 내용 저장</button><button type="button" class="btn primary" data-pr-approve aria-describedby="pr-approval-hint" ${disabled(busy||committed||progressBlocked)}>${partial?'남은 예약 저장':pass?(cached?'수강권 작성 다시 열기':'수강권 작성'):cached?'예약표에 저장 다시 시도':'예약표에 저장'}</button></div></div></form>`;
 }
 function detailMarkup(u,busy,bookingContext={}){
   if(u.detailLoading)return `<section class="pr-detail"><header class="pr-detail-heading"><button type="button" class="btn ghost small" data-pr-back ${disabled(busy)}>목록으로</button><h2>캡처 불러오기</h2></header><div class="pr-empty" role="status">캡처와 검토 내용을 불러오고 있습니다.</div></section>`;
@@ -1011,7 +1011,7 @@ function putReview(u,review){
   if(index<0)rows.push(review);else rows[index]=review;
   u.detail.reviews=rows;delete u.edits[review.id];if(review.rowKey)delete u.edits[`new:${review.rowKey}`];u.activeKey=review.id;return editOf(u,review);
 }
-export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},onChange,onRefresh,onAction,onOpenBooking,onLoadSavedReservations,onEditSavedReservation,isCurrent=()=>true,busy=false,upload=globalThis.fetch,crypto=globalThis.crypto,confirm=message=>globalThis.confirm?.(message)===true}={}){
+export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},onChange,onRefresh,onAction,onOpenBooking,onLoadSavedReservations,onEditSavedReservation,onSaveCustomerPerson,onDeleteCustomerPerson,isCurrent=()=>true,busy=false,upload=globalThis.fetch,crypto=globalThis.crypto,confirm=message=>globalThis.confirm?.(message)===true}={}){
   if(!canReviewPayments(profile,ui))return;
   const u=stateOf(ui),current=()=>isCurrent()&&ui.paymentReview===u&&canReviewPayments(profile,ui);
   const blocked=()=>u.busy||u.handoffPending||u.uploading||(typeof busy==='function'?busy():!!busy);
@@ -1837,12 +1837,90 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
         }
         u.approvedHandoff=approvedDraft;
       }
-      u.notice='작성 화면에서 내용을 확인하고 저장하면 등록됩니다.';
       // Retry only the editor handoff after preparation; never repeat a successful approval.
       if(typeof onOpenBooking!=='function')throw Error('작성 화면을 열 수 없습니다. 준비한 내용은 보관되어 있습니다. 다시 열어 주세요.');
-      u.busy=false;const opened=await onOpenBooking(approvedDraft);editorRendered=opened?.opened===true;
-      if(opened?.opened===false)throw Error(opened.message||'작성 화면을 열지 못했습니다. 준비한 내용은 보관되어 있습니다. 다시 눌러 주세요.');
+      u.busy=false;
+      const opened=await onOpenBooking(approvedDraft);
+      if(opened?.type==='saved'){
+        // 2026-11-17(사용자 확정): 예약은 드로어 없이 그대로 저장된다 — 검토 화면에 결과만 알린다.
+        u.approvedHandoff=null;editorRendered=false;
+        u.notice=`예약 ${opened.count||''}회를 예약표에 저장했습니다.${opened.teams>1?` (${opened.teams}팀)`:''} 저장 내역에서 확인할 수 있습니다.`;
+      }else{
+        u.notice='작성 화면에서 내용을 확인하고 저장하면 등록됩니다.';
+        editorRendered=opened?.opened===true;
+      }
+      if(opened?.opened===false)throw Error(opened.message||'저장하지 못했습니다. 준비한 내용은 보관되어 있습니다. 다시 눌러 주세요.');
     }catch(error){if(current())u.reviewError=safeError(error,u.approvedHandoff?'작성 화면을 열지 못했습니다. 준비한 내용은 보관되어 있습니다. 다시 눌러 주세요.':'작성 내용을 저장하지 못했습니다. 다시 시도해 주세요.');}
     finally{u.busy=false;u.handoffPending=false;if(!editorRendered)paint();}
+  });
+  // 개인 명부(2026-11-17 사용자 확정): 입금검토 양식도 예약접수처럼 수강생 이름 명부를
+  // 보여주고 클릭 선택·등록·삭제를 지원한다(기존 고객 연결 시). 선택은 활성 팀에 적용.
+  const reviewPeople=()=>edit?.draft.customerId?bookingRosterPeople({customerId:edit.draft.customerId},bookingContext):[];
+  const applyPeoplePick=ids=>{
+    captureForm(form,edit);
+    const people=reviewPeople(),picked=people.filter(person=>ids.includes(String(person.id)));
+    const participants=participantsFromPeople(people,ids);
+    edit.draft.paymentComparison??={version:1,status:'unmatched',candidates:[]};
+    edit.draft.paymentComparison.appliedProposal??={fields:[],requiresConfirmation:true};
+    const proposal=edit.draft.paymentComparison.appliedProposal;
+    if(participants.length){proposal.participants=participants;edit.draft.studentCount=participants.length;}
+    const autoName=picked.map(person=>person.name).join('·');
+    if(autoName&&(!String(edit.draft.teamName||'').trim()||String(edit.draft.teamName).trim()===(edit.autoTeamNameFromPeople||''))){edit.draft.teamName=autoName;edit.autoTeamNameFromPeople=autoName;}
+    const known=picked.map(person=>person.experience_count).filter(value=>Number.isInteger(value)&&value>=0);
+    if(known.length)proposal.registrationFields={...(proposal.registrationFields||{}),experienceCount:Math.min(...known)};
+    edit.dirty=true;invalidate(edit);paint();
+  };
+  form?.addEventListener('change',event=>{
+    if(!event.target.matches?.('[data-bk-person-type]'))return;
+    const scope=event.target.closest('[data-bk-people-manager]'),age=scope?.querySelector('[data-bk-person-age]');
+    if(age){age.disabled=event.target.value!=='minor';if(age.disabled)age.value='';}
+  });
+  form?.addEventListener('click',async event=>{
+    if(!current()||reviewBlocked()||!edit||edit!==activeEdit(u)||edit.status==='committed')return;
+    const pick=event.target.closest?.('[data-bk-person-pick]'),all=event.target.closest?.('[data-bk-person-all]');
+    const add=event.target.closest?.('[data-bk-person-add]'),remove=event.target.closest?.('[data-bk-person-delete]');
+    if(!pick&&!all&&!add&&!remove)return;
+    const card=event.target.closest?.('[data-pr-intake-team-id]');
+    if(card&&card.dataset.prIntakePrefix)return; // 비활성 팀 카드는 먼저 팀을 선택
+    const intakeTeams=paymentIntakeTeams(edit.draft),activeTeam=intakeTeams.find(team=>team.id===registrationOf(edit.draft).activeTeamId)||intakeTeams[0];
+    const teamKey=String(activeTeam?.id||'t0');
+    if(pick||all){
+      const people=reviewPeople();edit.peoplePicks??={};
+      let ids;
+      if(all)ids=people.map(person=>String(person.id));
+      else{
+        const selected=new Set((edit.peoplePicks[teamKey]||[]).map(String)),id=pick.dataset.bkPersonPick;
+        if(selected.has(id))selected.delete(id);else selected.add(id);
+        ids=people.map(person=>String(person.id)).filter(value=>selected.has(value));
+      }
+      edit.peoplePicks[teamKey]=ids;applyPeoplePick(ids);return;
+    }
+    if(remove){
+      if(typeof onDeleteCustomerPerson!=='function')return;
+      const personId=remove.dataset.bkPersonDelete;remove.disabled=true;
+      try{
+        const result=await onDeleteCustomerPerson(personId);if(result?.discarded){remove.disabled=false;return;}
+        bookingContext.customerPeople=(bookingContext.customerPeople||[]).filter(person=>String(person.id)!==String(personId));
+        if(edit.peoplePicks)for(const key of Object.keys(edit.peoplePicks))edit.peoplePicks[key]=edit.peoplePicks[key].filter(id=>String(id)!==String(personId));
+        paint();
+      }catch(error){remove.disabled=false;u.reviewError=safeError(error,'명부에서 삭제하지 못했습니다.');paint();}
+      return;
+    }
+    if(typeof onSaveCustomerPerson!=='function'||!edit.draft.customerId)return;
+    const scope=add.closest('[data-bk-people-manager]')||form;
+    const nameInput=scope.querySelector('[data-bk-person-name]'),typeInput=scope.querySelector('[data-bk-person-type]'),ageInput=scope.querySelector('[data-bk-person-age]'),expInput=scope.querySelector('[data-bk-person-exp]'),feedback=scope.querySelector('[data-bk-person-feedback]');
+    const name=String(nameInput?.value||'').trim(),personType=typeInput?.value==='minor'?'minor':'adult';
+    const ageText=personType==='minor'?String(ageInput?.value||'').trim():'';
+    const expText=String(expInput?.value||'').trim();
+    const experience=expText!==''&&Number.isInteger(Number(expText))&&Number(expText)>=0&&Number(expText)<=999?Number(expText):null;
+    if(!name){if(feedback)feedback.textContent='이름을 입력해 주세요.';return;}
+    const payload={id:globalThis.crypto.randomUUID(),customerId:edit.draft.customerId,name,personType,...(ageText?{age:Number(ageText)}:{}),...(experience!==null?{experienceCount:experience}:{})};
+    add.disabled=true;
+    try{
+      const result=await onSaveCustomerPerson(payload);if(result?.discarded){add.disabled=false;return;}
+      const saved={experience_count:experience,...(result?.person||{id:payload.id,customer_id:payload.customerId,name,person_type:personType,age:ageText?Number(ageText):null})};
+      bookingContext.customerPeople=[...(bookingContext.customerPeople||[]),saved];
+      captureForm(form,edit);paint();
+    }catch(error){add.disabled=false;u.reviewError=safeError(error,'명부에 저장하지 못했습니다.');paint();}
   });
 }

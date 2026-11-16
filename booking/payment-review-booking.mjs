@@ -1,4 +1,4 @@
-import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=84';
+import {createBookingDraft,applyFemaleInstructorPreference} from './booking-view.mjs?v=85';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=70';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';

@@ -102,6 +102,9 @@ export function normalizeBookingRow(row={},state={}) {
     kind:row.kind||'single',isReorder:row.isReorder??row.is_reorder??row.kind==='reorder',designated:row.designated===true,
     preferredInstructorId:aliased(row,'preferredInstructorId','preferred_instructor_user_id')??null,
     seasonId:aliased(row,'seasonId','season_id')??null,seasonTotal:row.seasonTotal??row.season_total??(state.seasonPackages||[]).find(pack=>pack.id===(row.seasonId??row.season_id))?.total_sessions??null,
+    // seasonTotalAuto(자동 유도 마커, 2026-11-17)가 재정규화에서 떨어지면 자동 계산된
+    // 총회차가 "명시값"으로 둔갑해 회차를 지워도 줄지 않는다. 반드시 함께 통과시킨다.
+    ...(Number.isInteger(Number(row.seasonTotalAuto))?{seasonTotalAuto:Number(row.seasonTotalAuto)}:{}),
     sessionNumber:row.sessionNumber??row.session_number??null,
     instructorIds:selectedIds(row,state.schedules),status:row.status||'received',
     expectedUpdatedAt:row.expectedUpdatedAt??row.updated_at??row.updatedAt??null};
@@ -547,6 +550,21 @@ export function customerPeopleOf(context,customerId){
   if(!customerId)return [];
   return (context?.customerPeople||[]).filter(person=>String(person.customer_id||person.customerId)===String(customerId));
 }
+// 개인 명부: 클릭 = 이 팀 참여(opt-in, 2026-11-16). 팀 이름·인원·경험도 선택을 따라간다.
+// 2026-11-17: 입금검토 양식도 같은 명부 선택을 쓰도록 모듈로 승격·export.
+export function applyPeopleSelection(draft,people,ids){
+  const participants=participantsFromPeople(people,ids);
+  const picked=people.filter(person=>ids.includes(String(person.id)));
+  const next={...draft,participantPersonIds:ids,participants,raw:{...draft.raw,M:participants.length?String(participants.length):draft.raw.M}};
+  // 팀 이름: 비어 있거나 직전 자동값 그대로면 선택한 명부 이름으로 채운다(직접 입력은 보존).
+  const autoName=picked.map(person=>person.name).join('·');
+  const previousAuto=draft.autoTeamNameFromPeople||'';
+  if(autoName&&(!String(draft.raw.I||'').trim()||String(draft.raw.I).trim()===previousAuto)){next.raw.I=autoName;next.autoTeamNameFromPeople=autoName;}
+  // 경험: 선택 인원 중 기록된 값이 있으면 최소값으로 프리필(요건 판정은 보수적으로).
+  const known=picked.map(person=>person.experience_count).filter(value=>Number.isInteger(value)&&value>=0);
+  if(known.length)next.experienceCount=Math.min(...known);
+  return next;
+}
 /** 선택한 개인들을 예약 participants 스냅샷({type,age})으로 변환한다. */
 export function participantsFromPeople(people,selectedIds){
   const selected=new Set(Array.isArray(selectedIds)?selectedIds.map(String):[]);
@@ -574,7 +592,8 @@ function renderPeoplePicker(draft,context,escape){
   const hint=untouched?'클릭한 사람만 이 팀 참여 · 아무도 안 누르면 전원 참가':`이 팀 참여 ${selected.size}명 · 강습생 정보와 인원수 자동`;
   return `<div class="bk-people-picker" data-bk-people-picker><span class="bk-team-choice-label">개인 명부에서 선택 <small>${hint}</small></span><div class="bk-team-chips">${people.map(person=>`<button type="button" data-bk-person-pick="${escape(person.id)}" class="${selected.has(String(person.id))?'selected':''}" aria-pressed="${selected.has(String(person.id))}">${escape(person.name)}<small>${person.person_type==='minor'?`미성년${Number.isInteger(person.age)?` ${person.age}세`:''}`:'성인'}${Number.isInteger(person.experience_count)?`<b class="bk-person-exp">경험 ${person.experience_count}회</b>`:''}</small></button>`).join('')}${untouched?'':'<button type="button" class="bk-people-reset" data-bk-person-all>전원 참가로</button>'}</div></div>`;
 }
-function renderParticipantFields(draft,escape,context,{review=false}={}){return `<div class="bk-participants" data-bk-participants><div class="bk-participant-heading"><strong>강습생별 정보 <b>*</b></strong><span>미성년자는 나이를 직접 입력해 주세요.</span></div>${context&&!review?renderPeoplePicker(draft,context,escape):''}<div data-bk-participant-rows>${renderParticipantRows(draft,escape)}</div></div>`;}
+// 2026-11-17: 입금검토 양식도 예약접수와 동일하게 명부 선택을 보여준다(명부가 있을 때).
+function renderParticipantFields(draft,escape,context,{review=false}={}){return `<div class="bk-participants" data-bk-participants><div class="bk-participant-heading"><strong>강습생별 정보 <b>*</b></strong><span>미성년자는 나이를 직접 입력해 주세요.</span></div>${context&&(!review||bookingRosterPeople(draft,context).length)?renderPeoplePicker(draft,context,escape):''}<div data-bk-participant-rows>${renderParticipantRows(draft,escape)}</div></div>`;}
 function refreshParticipantFields(form,draft,escape){const target=form.querySelector('[data-bk-participant-rows]');if(target)setStableHTML(target,renderParticipantRows(draft,escape));}
 function renderCashReceiptFields(draft,escape){
   // 현금영수증은 계좌이체 결제에만 해당. 결제소스가 '명시적으로' 다른 수단이면
@@ -610,7 +629,7 @@ function renderCustomerBlock(draft,context,escape,{review=false}={}) {
   // 카카오 ID 예외(2026-11-17): 저장값 '카카오:아이디' 또는 체크 상태로 모드를 판단한다.
   const contactValue=customerPhoneOf(draft),contactKakaoId=kakaoContactId(contactValue),kakaoMode=draft.contactKakaoMode??!!contactKakaoId;
   const phonePlaceholder=review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기';
-  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><div class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(kakaoMode?(contactKakaoId??contactValue):contactValue)}" required type="${kakaoMode?'text':'tel'}" inputmode="${kakaoMode?'text':'tel'}" autocomplete="${kakaoMode?'off':'tel'}" maxlength="30" placeholder="${kakaoMode?'카카오톡 ID':phonePlaceholder}" data-bk-phone-placeholder="${escape(phonePlaceholder)}" aria-label="고객 연락처" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid&&!kakaoMode?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span><label class="check-field bk-kakao-contact"><input type="checkbox" name="contactKakaoMode" ${kakaoMode?'checked':''}> 해외 거주 등 · 전화 대신 카카오톡 ID 기록</label></div><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?'':`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
+  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape(draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><div class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(kakaoMode?(contactKakaoId??contactValue):contactValue)}" required type="${kakaoMode?'text':'tel'}" inputmode="${kakaoMode?'text':'tel'}" autocomplete="${kakaoMode?'off':'tel'}" maxlength="30" placeholder="${kakaoMode?'카카오톡 ID':phonePlaceholder}" data-bk-phone-placeholder="${escape(phonePlaceholder)}" aria-label="고객 연락처" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid&&!kakaoMode?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span><label class="check-field bk-kakao-contact"><input type="checkbox" name="contactKakaoMode" ${kakaoMode?'checked':''}> 해외 거주 등 · 전화 대신 카카오톡 ID 기록</label></div><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?(draft.customerId?`<div data-bk-directory-selection>${renderPeopleManager(draft,context,escape)}</div>`:'<p class="bk-field-note">상담 후보에서 기존 고객을 연결하면 개인 명부(수강생 이름)를 선택할 수 있습니다. 새 고객의 명부는 예약 저장 때 함께 만들어집니다.</p>'):`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
 }
 function renderTeamEditor(draft,context,escape,settings){
   const locked=!!draft.id&&!!draft.customerId;
@@ -840,10 +859,11 @@ function updateGrandTotal(form,deck=null,context=null,activeDraft=null){
     }
     teams+=savedTeamKeys.size;
   }
-  if(sessions<2&&teams<2){target.hidden=true;return;}
+  // 2026-11-17(사용자 확정): 1팀 1회차여도 항상 표시 — 계산이 맞는지 눈으로 확인하는 용도.
+  if(!sessions){target.hidden=true;return;}
   const balance=Math.max(requested-paid,0);
   target.hidden=false;
-  target.innerHTML=`<strong>고객 전체 ${teams>1?`${teams}팀 · `:''}${sessions}회차 총합${savedSessions?` · 저장된 ${savedSessions}회 포함`:''}</strong><span>받아야 할 금액 ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>총 입금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금 ${money(balance)}원</span>`;
+  target.innerHTML=`<strong>고객 전체 ${teams>1?`${teams}팀 · `:''}${sessions}회차 총합${savedSessions?` · 저장된 ${savedSessions}회 포함`:''}</strong><span>실제 받아야 할 금액(자동) ${unknown?'일부 미확인 · ':''}${money(requested)}원</span><span>실제 받은 금액 ${money(paid)}원</span><span class="${balance>0?'bk-grand-balance-due':''}">미수금(자동) ${money(balance)}원</span>`;
 }
 function updateFinancialFields(form,{initializeCorrection=false}={}) {
   const patch=form.elements.namedItem('patchEnabled'),group=form.querySelector('[data-bk-patch-inputs]');
@@ -1171,6 +1191,32 @@ export function preparePaymentBookingGroup(settings,context={}){
     }
   }
   return {entries,payloads:entries.flatMap(entry=>entry.payloads),requestId,errors};
+}
+
+/** 입금검토 바로 저장(2026-11-17 사용자 확정): 검토양식이 곧 예약접수 양식 — [예약 저장]을
+ * 누르면 드로어를 다시 열지 않고 승인 초안 팀들을 여기서 검증해 그대로 서버로 보낸다.
+ * 검증 규칙은 드로어의 묶음 저장(preparePaymentBookingGroup)과 동일해야 한다. */
+export function preparePaymentDirectCommit(drafts,context={}){
+  if(!Array.isArray(drafts)||!drafts.length)return {entries:[],payloads:[],requestId:'',errors:[{cardKey:'',index:0,rowId:'',message:'저장할 예약 내용을 확인해 주세요.'}]};
+  if(drafts.length>1){
+    const group=globalThis.crypto.randomUUID();
+    const cards=drafts.map((draft,index)=>({key:`direct-${index}`,status:'editing',draft:{...draft,commonGroupId:group}}));
+    const prepared=preparePaymentBookingGroup({draft:cards[0].draft,teamDeck:{cards,activeKey:cards[0].key}},context);
+    return prepared||{entries:[],payloads:[],requestId:'',errors:[{cardKey:'',index:0,rowId:'',message:'함께 저장할 팀 구성을 확인해 주세요.'}]};
+  }
+  const draft=prepareCustomerIdentity(drafts[0]),requestId=draft.paymentCommitRequestId;
+  const errors=[];
+  if(typeof requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId))errors.push({cardKey:'direct-0',index:0,rowId:'',message:'입금 예약의 저장 요청 번호를 다시 확인해 주세요.'});
+  const batch=buildBookingBatch(draft,context);
+  for(const issue of batch.errors)errors.push({cardKey:'direct-0',index:issue.index,rowId:issue.rowId,message:issue.message});
+  const ids=new Set(batch.payloads.map(row=>row.id));
+  const base={...context,reservations:(context.reservations||[]).filter(row=>!ids.has(row.id)),schedules:(context.schedules||[]).filter(row=>!ids.has(row.id)),passBalances:[]};
+  for(const [index,row]of batch.payloads.entries()){
+    const peers=batch.payloads.filter(other=>other.id!==row.id);
+    const message=validationError({...row,id:''},{...base,reservations:[...base.reservations,...peers]});
+    if(message&&!errors.some(item=>item.rowId===row.id&&item.message===message))errors.push({cardKey:'direct-0',index,rowId:row.id,message});
+  }
+  return {entries:[{key:'direct-0',draft:batch.draft,payloads:batch.payloads}],payloads:batch.payloads,requestId,errors};
 }
 
 function bookingSaveScope(settings){
@@ -1797,20 +1843,6 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         const draft=settings.draft;
         update({draft:{...draft,raw:{...draft.raw,G:applyFemaleInstructorPreference(draft.raw.G,femalePref.dataset.bkFemalePref)}}});return;
       }
-      // 개인 명부: 클릭 = 이 팀 참여(opt-in, 2026-11-16). 팀 이름·인원·경험도 선택을 따라간다.
-      const applyPeopleSelection=(draft,people,ids)=>{
-        const participants=participantsFromPeople(people,ids);
-        const picked=people.filter(person=>ids.includes(String(person.id)));
-        const next={...draft,participantPersonIds:ids,participants,raw:{...draft.raw,M:participants.length?String(participants.length):draft.raw.M}};
-        // 팀 이름: 비어 있거나 직전 자동값 그대로면 선택한 명부 이름으로 채운다(직접 입력은 보존).
-        const autoName=picked.map(person=>person.name).join('·');
-        const previousAuto=draft.autoTeamNameFromPeople||'';
-        if(autoName&&(!String(draft.raw.I||'').trim()||String(draft.raw.I).trim()===previousAuto)){next.raw.I=autoName;next.autoTeamNameFromPeople=autoName;}
-        // 경험: 선택 인원 중 기록된 값이 있으면 최소값으로 프리필(요건 판정은 보수적으로).
-        const known=picked.map(person=>person.experience_count).filter(value=>Number.isInteger(value)&&value>=0);
-        if(known.length)next.experienceCount=Math.min(...known);
-        return next;
-      };
       const personAll=event.target.closest?.('[data-bk-person-all]');if(personAll){
         if(busy())return;preserveDraft();
         const draft={...settings.draft};delete draft.participantPersonIds;delete draft.autoTeamNameFromPeople;
