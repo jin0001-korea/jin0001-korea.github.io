@@ -399,3 +399,12 @@
 .pr-flag-list{display:inline-flex;flex-wrap:wrap;gap:5px;margin-left:8px;vertical-align:middle}
 .pr-flag-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-left:4px solid #d9705a}
 .pr-intake-card-heading .pr-flag{font-size:11px;padding:2px 6px}
+
+/* 원문 없음 입금 모음 (2026-11-16) */
+.pr-unmatched-note{margin:8px 0;font-size:12px;color:#5c6f66;line-height:1.7}
+.pr-unmatched-list{margin:4px 0 12px;border:1px solid #e3d9c2;border-radius:9px;background:#fffdf5;padding:10px 12px;overflow-x:auto}
+.pr-unmatched-list table{width:100%;border-collapse:collapse;font-size:13px}
+.pr-unmatched-list th{text-align:left;font-weight:600;color:#7a6c47;font-size:11px;padding:4px 8px;border-bottom:1px solid #ecdfc0;white-space:nowrap}
+.pr-unmatched-list td{padding:6px 8px;border-bottom:1px solid #f3ecd9;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pr-unmatched-list tr:last-child td{border-bottom:0}
+.pr-unmatched-capture{max-width:160px;overflow:hidden;text-overflow:ellipsis;color:#97917c;font-size:11px}
