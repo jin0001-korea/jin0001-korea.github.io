@@ -391,3 +391,11 @@
 .bk-financial-summary .bk-field-Y input:not([readonly]){background:#fff!important;color:#234b56!important;border-color:#7daba0}
 .bk-payment-correction>summary{cursor:pointer;font-size:11px;font-weight:600;padding:9px 0}
 .bk-payment-correction>p,.bk-payment-correction>.check-field{margin:6px 0}
+
+/* 검토 플래그 (2026-11-16): ❗빨강=직접 확인 필요, ⚠️노랑=검토 필요(유추값) */
+.pr-flag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border-radius:6px;padding:2px 7px;margin-right:6px;vertical-align:middle;white-space:nowrap}
+.pr-flag.danger{color:#a4321f;background:#fdeae4;border:1px solid #f0c5b8}
+.pr-flag.warn{color:#8a6a14;background:#fdf4d7;border:1px solid #ecd9a0}
+.pr-flag-list{display:inline-flex;flex-wrap:wrap;gap:5px;margin-left:8px;vertical-align:middle}
+.pr-flag-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-left:4px solid #d9705a}
+.pr-intake-card-heading .pr-flag{font-size:11px;padding:2px 6px}

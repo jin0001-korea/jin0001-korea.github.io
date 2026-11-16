@@ -7,6 +7,29 @@ const money=value=>Number.isSafeInteger(value)?`${value.toLocaleString('ko-KR')}
 const integer=value=>/^\d+$/.test(String(value??'').trim())&&Number.isSafeInteger(Number(value))?Number(value):null;
 export const sessionReviewFields=['date','startTime','lessonMinutes','breakMinutes','lessonFee','rentalFee','allocatedAmount','rentalPaymentStatus','rentalHours','rentalCustomAmount','patchEnabled','patchFee','patchPaymentStatus','sessionNotes'];
 
+// 검토 플래그(2026-11-16): ❗빨강=핵심값 미확인·상충(직접 확인 필요), ⚠️노랑=서버 유추값 포함(검토 필요).
+const feeNumber=value=>value===''||value===null||value===undefined?NaN:Number(value);
+export function sessionReviewFlags(session,teamPass){
+  const flags=[];
+  if(!teamPass){
+    if(!session.date)flags.push({level:'danger',label:'강습일 직접 확인'});
+    if(!session.startTime)flags.push({level:'danger',label:'시작 시간 직접 확인'});
+  }
+  if(![120,240].includes(Number(session.lessonMinutes)))flags.push({level:'danger',label:'강습시간(2·4시간) 직접 확인'});
+  else if(Number(session.lessonMinutes)===240&&![0,60,120].includes(Number(session.breakMinutes)))flags.push({level:'danger',label:'휴식 구성(연속·1시간·2시간) 직접 확인'});
+  if(!Number.isSafeInteger(feeNumber(session.lessonFee)))flags.push({level:'danger',label:'회당 강습료 직접 확인'});
+  return flags;
+}
+export function teamReviewFlags(reviewRow,teamDraft){
+  const flags=[],fields=list(reviewRow?.fields);
+  const conflicts=fields.filter(fact=>fact?.status==='conflict').length,inferred=fields.filter(fact=>fact?.inferred===true).length;
+  if(conflicts)flags.push({level:'danger',label:`상충 ${conflicts}건 직접 확인`});
+  if(inferred)flags.push({level:'warn',label:`유추값 ${inferred}건 검토 필요`});
+  if(!Number.isInteger(Number(teamDraft?.studentCount))||Number(teamDraft?.studentCount)<1)flags.push({level:'danger',label:'강습 인원 직접 확인'});
+  return flags;
+}
+export const reviewFlagChips=(flags,escape)=>flags.length?`<span class="pr-flag-list">${flags.map(flag=>`<span class="pr-flag ${flag.level}" role="status">${flag.level==='danger'?'❗':'⚠️'} ${escape(flag.label)}</span>`).join('')}</span>`:'';
+
 export function preparePaymentIntake(edit,registrationFields){
   if(!edit.draft.paymentComparison?.appliedProposal?.intakeVersion){
     edit.draft.paymentComparison??={version:1,status:'unmatched',candidates:[]};
@@ -58,13 +81,14 @@ export function renderPaymentIntake(edit,u,escape,{context={},locked=false}={}){
   const common=renderBookingPaymentIntake(manual,escape,{section:'common',context}).replace('name="paymentSource"','name="paymentSource" disabled');
   return `<fieldset class="pr-intake-controls" ${locked?'disabled':''}>${common}<section class="bk-team-branches"><div class="bk-section-label"><span>02</span><h3>팀 정보·강습생</h3><small>고객 ${escape(d.customerName||edit.payerName||'미확인')} · ${teams.length}팀</small><button type="button" class="btn secondary small" data-pr-add-team ${pass||teams.length>=6?'disabled':''}>같은 고객 다른 팀 추가 →</button></div><div class="pr-intake-team-board is-expanded ${teams.length===1?'is-single-team':'is-multiple-teams'}">${teams.map((team,index)=>{
     const selected=team.id===active.id,prefix=selected?'':`team_${team.id}_`,teamDraft=switchPaymentIntakeTeam(d,team.id),registration=applied(teamDraft),teamManual=paymentManualDraft(teamDraft),teamPass=registration.bookingType==='pass'&&registration.scheduleStatus==='undated';
+    const reviewRow=list(a.reviewedTeams).find(row=>row.id===team.id),teamFlags=teamReviewFlags(reviewRow,teamDraft);
     const calendar=u.intakeCalendarOpen&&(u.intakeCalendarTeamId?u.intakeCalendarTeamId===team.id:selected)?calendarMarkup(u,teamDraft,escape):'';
-    return `<article class="pr-intake-team-card ${selected?'is-active':''}" data-pr-intake-team-id="${escape(team.id)}" data-pr-intake-prefix="${escape(prefix)}"><header class="pr-intake-card-heading"><button type="button" class="btn ${selected?'primary':'secondary'} small" data-pr-select-team="${escape(team.id)}" aria-pressed="${selected}">${index+1}팀 · ${escape(team.draft.teamName||d.customerName||'기본팀')}</button>${teams.length>1?`<button type="button" class="btn ghost small" data-pr-remove-team="${escape(team.id)}" aria-label="${escape(team.draft.teamName||`${index+1}팀`)} 카드 삭제">×</button>`:''}</header>
+    return `<article class="pr-intake-team-card ${selected?'is-active':''}" data-pr-intake-team-id="${escape(team.id)}" data-pr-intake-prefix="${escape(prefix)}"><header class="pr-intake-card-heading"><button type="button" class="btn ${selected?'primary':'secondary'} small" data-pr-select-team="${escape(team.id)}" aria-pressed="${selected}">${index+1}팀 · ${escape(team.draft.teamName||d.customerName||'기본팀')}</button>${reviewFlagChips(teamFlags,escape)}${teams.length>1?`<button type="button" class="btn ghost small" data-pr-remove-team="${escape(team.id)}" aria-label="${escape(team.draft.teamName||`${index+1}팀`)} 카드 삭제">×</button>`:''}</header>
       <div class="pr-intake-registration-type"><label class="field"><span class="field-label">등록 유형</span><select name="${escape(prefix)}reservationKind" data-pr-intake-field="reservationKind"><option value="" ${!registration.bookingType?'selected':''}>일정 확인 중</option><option value="lesson" ${registration.bookingType==='lesson'?'selected':''}>날짜가 정해진 예약</option><option value="pass" ${registration.bookingType==='pass'?'selected':''}>날짜 미정 수강권</option></select></label>${teamPass?`<label class="field"><span class="field-label">수강권 총 횟수</span><input name="${escape(prefix)}passTotalSessions" data-pr-intake-field="passTotalSessions" type="number" min="1" max="100" value="${escape((selected?edit.passCountInput:undefined)??registration.totalSessions??'')}" placeholder="미확인"></label>`:''}</div>
       ${renderBookingPaymentIntake(teamManual,escape,{section:'team',context,prefix})}
       <section class="pr-intake-sessions"><div class="bk-section-label"><span>03</span><h3>${teamPass?'수강권 금액':'강습 일정·금액'}</h3><small>${teamPass?'일정은 고객 신청 후 배정':`${team.sessions.length}회차 · 날짜순`}</small></div>
       ${teamPass?'<p class="bk-field-note">강습일이 미정인 수강권입니다. 입금일로 강습 날짜를 채우지 않습니다.</p>':`<div class="pr-intake-card-actions"><button type="button" class="btn secondary small" data-pr-calendar-toggle>달력에서 여러 날짜 선택</button><button type="button" class="btn secondary small" data-pr-copy-sessions="schedule" ${team.sessions.length<2?'disabled':''}>첫 회차 시간·휴식 같게 적용</button><button type="button" class="btn secondary small" data-pr-copy-sessions="financial" ${team.sessions.length<2?'disabled':''}>첫 회차 강습료·장비요금 같게 적용</button></div>${calendar}`}
-      <div class="pr-intake-session-board ${team.sessions.length>1?'has-multiple-sessions':''}">${team.sessions.map((session,i)=>`<article class="pr-intake-session-card" data-pr-intake-session-id="${escape(session.id)}"><header class="pr-intake-card-heading"><strong>${teamPass?'수강권':`${i+1}회차`} · ${escape(session.date||'날짜 미정')} ${escape(session.startTime||'')}</strong>${team.sessions.length>1?`<button type="button" class="btn ghost small" data-pr-remove-session="${escape(session.id)}" aria-label="${i+1}회차 삭제">×</button>`:''}</header>${renderBookingPaymentIntake(paymentManualDraft(teamDraft,session),escape,{section:'session',context,prefix:prefix+(i?`session_${session.id}_`:'')})}</article>`).join('')}</div></section>
+      <div class="pr-intake-session-board ${team.sessions.length>1?'has-multiple-sessions':''}">${team.sessions.map((session,i)=>`<article class="pr-intake-session-card" data-pr-intake-session-id="${escape(session.id)}"><header class="pr-intake-card-heading"><strong>${teamPass?'수강권':`${i+1}회차`} · ${escape(session.date||'날짜 미정')} ${escape(session.startTime||'')}</strong>${reviewFlagChips(sessionReviewFlags(session,teamPass),escape)}${team.sessions.length>1?`<button type="button" class="btn ghost small" data-pr-remove-session="${escape(session.id)}" aria-label="${i+1}회차 삭제">×</button>`:''}</header>${renderBookingPaymentIntake(paymentManualDraft(teamDraft,session),escape,{section:'session',context,prefix:prefix+(i?`session_${session.id}_`:'')})}</article>`).join('')}</div></section>
     </article>`;
   }).join('')}</div></section><div class="pr-intake-totals" aria-live="polite">${intakeTotalsMarkup(totals)}</div></fieldset>`;
 }
