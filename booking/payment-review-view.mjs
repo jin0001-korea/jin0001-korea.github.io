@@ -1488,22 +1488,23 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     paint();scrollSection('results');void loadComparisonOriginals(0);
   });
   root.querySelector('[data-pr-dismiss-latest]')?.addEventListener('click',()=>{if(!current()||blocked())return;u.latestProposal=null;u.notice='기존 검토 내용을 유지했습니다.';paint();});
-  // 백그라운드 분석 폴링(2026-11-18 사용자 확정): 서버가 분석을 끝까지 돌리는 동안
-  // 5초마다 상태를 확인하고, 끝나면 저장된 결과(검토 초안)를 그대로 이어받는다.
+  // 배치 분석 폴링(2026-11-18 사용자 확정): 분석은 배치 API가 서버 밖에서 돌고,
+  // upload-analyze-poll 이 상태 확인 + lease 연장 + 완료 시 초안 저장까지 수행한다.
+  // 완료 응답은 기존 분석 응답과 같은 모양이라 이어지는 처리도 동일하다.
   const waitForAnalysis=async(uploadId,result,alive)=>{
     let status=result?.analysis?.status||result?.upload?.analysisStatus;
-    const deadline=Date.now()+(analysisWait.deadlineMs??8*60*1000);
-    // lease 가 이미 지난 running 은 죽은 워커 — 폴링하지 않고 그대로 보여 재시도를 허용한다.
+    const deadline=Date.now()+(analysisWait.deadlineMs??25*60*1000);
+    // lease 가 이미 지난 running 은 죽은 작업 — 폴링하지 않고 그대로 보여 재시도를 허용한다.
     const leaseGone=()=>{const at=Date.parse(result?.analysis?.leaseExpiresAt??result?.upload?.analysisLeaseExpiresAt??'');return Number.isFinite(at)&&at<=Date.now();};
     while(alive()&&status==='running'&&!leaseGone()&&Date.now()<deadline){
       await new Promise(done=>setTimeout(done,analysisWait.intervalMs??5000));
       if(!alive())return result;
       try{
-        const detail=await onAction('upload-detail',{uploadId});
+        const polled=await onAction('upload-analyze-poll',{uploadId});
         if(!alive())return result;
-        if(detail?.upload?.id!==uploadId)continue;
-        status=detail.upload.analysisStatus;
-        result={...result,upload:detail.upload,reviews:detail.reviews,analysis:{status,outcome:detail.upload.analysisOutcome,errorCode:detail.upload.analysisErrorCode,error:detail.upload.analysisError,leaseExpiresAt:detail.upload.analysisLeaseExpiresAt}};
+        if(polled?.upload?.id!==uploadId)continue;
+        status=polled.analysis?.status||polled.upload.analysisStatus;
+        result={...result,...polled,analysis:{status,outcome:polled.analysis?.outcome??polled.upload.analysisOutcome,errorCode:polled.analysis?.errorCode??polled.upload.analysisErrorCode,error:polled.analysis?.error??polled.upload.analysisError,leaseExpiresAt:polled.analysis?.leaseExpiresAt??polled.upload.analysisLeaseExpiresAt}};
       }catch{/* 일시 네트워크 오류는 다음 폴링에서 재확인 */}
     }
     return result;
