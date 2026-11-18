@@ -1011,7 +1011,7 @@ function putReview(u,review){
   if(index<0)rows.push(review);else rows[index]=review;
   u.detail.reviews=rows;delete u.edits[review.id];if(review.rowKey)delete u.edits[`new:${review.rowKey}`];u.activeKey=review.id;return editOf(u,review);
 }
-export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},onChange,onRefresh,onAction,onOpenBooking,onLoadSavedReservations,onEditSavedReservation,onSaveCustomerPerson,onDeleteCustomerPerson,isCurrent=()=>true,busy=false,upload=globalThis.fetch,crypto=globalThis.crypto,confirm=message=>globalThis.confirm?.(message)===true}={}){
+export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},onChange,onRefresh,onAction,onOpenBooking,onLoadSavedReservations,onEditSavedReservation,onSaveCustomerPerson,onDeleteCustomerPerson,analysisWait={intervalMs:5000,deadlineMs:8*60*1000},isCurrent=()=>true,busy=false,upload=globalThis.fetch,crypto=globalThis.crypto,confirm=message=>globalThis.confirm?.(message)===true}={}){
   if(!canReviewPayments(profile,ui))return;
   const u=stateOf(ui),current=()=>isCurrent()&&ui.paymentReview===u&&canReviewPayments(profile,ui);
   const blocked=()=>u.busy||u.handoffPending||u.uploading||(typeof busy==='function'?busy():!!busy);
@@ -1315,7 +1315,9 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
         if(!active())return;if(row.matched){row.status='succeeded';continue;}
         row.phase='match';row.status='matching';row.error='';paint();
         try{
-          const result=await onAction('upload-analyze-match',{uploadId:row.uploadId,uploadIds:[...uploadIds],requestId:row.requestId,...(row.rescan?{rescan:true}:{})});if(!active())return;
+          let result=await onAction('upload-analyze-match',{uploadId:row.uploadId,uploadIds:[...uploadIds],requestId:row.requestId,...(row.rescan?{rescan:true}:{})});if(!active())return;
+          // 백그라운드 분석(2026-11-18): running 응답이면 서버가 끝낼 때까지 폴링해 결과를 받는다.
+          result=await waitForAnalysis(row.uploadId,result,active);if(!active())return;
           const status=result?.analysis?.status||result?.upload?.analysisStatus;
           if(result?.upload?.id!==row.uploadId||!['succeeded','running','failed'].includes(status)||(result.upload.analysisStatus&&result.upload.analysisStatus!==status&&!(result.preserved===true&&status==='succeeded'))||(result.reviews!==undefined&&!Array.isArray(result.reviews)))throw Error('상담·합산 대조 결과를 확인하지 못했습니다.');
           adoptBatchResult(result);row.status=status;row.matched=status==='succeeded';row.preserved=result.preserved===true;row.preservedCount=Number.isSafeInteger(result.preservedCount)&&result.preservedCount>=0?result.preservedCount:0;
@@ -1324,7 +1326,8 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
           // 간헐 오류(응답 검증 실패·시간 초과)는 자동으로 한 번 더 — 새 호출이라 150초 예산도 새로 받는다.
           if(row.status==='failed'&&!row.autoRetried&&['ANALYSIS_CONSULTATION_INVALID_RESPONSE','ANALYSIS_TIMEOUT','ANALYSIS_FAILED'].includes(String(row.errorCode||''))){
             row.autoRetried=true;row.status='matching';row.error='대조가 불안정해 자동으로 한 번 더 시도합니다…';paint();
-            const retryResult=await onAction('upload-analyze-match',{uploadId:row.uploadId,uploadIds:[...uploadIds],requestId:crypto.randomUUID()});if(!active())return;
+            let retryResult=await onAction('upload-analyze-match',{uploadId:row.uploadId,uploadIds:[...uploadIds],requestId:crypto.randomUUID()});if(!active())return;
+            retryResult=await waitForAnalysis(row.uploadId,retryResult,active);if(!active())return;
             const retryStatus=retryResult?.analysis?.status||retryResult?.upload?.analysisStatus;
             if(retryResult?.upload?.id===row.uploadId&&['succeeded','running','failed'].includes(retryStatus)&&(retryResult.reviews===undefined||Array.isArray(retryResult.reviews))){
               adoptBatchResult(retryResult);row.status=retryStatus;row.matched=retryStatus==='succeeded';row.preserved=retryResult.preserved===true;row.preservedCount=Number.isSafeInteger(retryResult.preservedCount)&&retryResult.preservedCount>=0?retryResult.preservedCount:0;
@@ -1485,6 +1488,26 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     paint();scrollSection('results');void loadComparisonOriginals(0);
   });
   root.querySelector('[data-pr-dismiss-latest]')?.addEventListener('click',()=>{if(!current()||blocked())return;u.latestProposal=null;u.notice='기존 검토 내용을 유지했습니다.';paint();});
+  // 백그라운드 분석 폴링(2026-11-18 사용자 확정): 서버가 분석을 끝까지 돌리는 동안
+  // 5초마다 상태를 확인하고, 끝나면 저장된 결과(검토 초안)를 그대로 이어받는다.
+  const waitForAnalysis=async(uploadId,result,alive)=>{
+    let status=result?.analysis?.status||result?.upload?.analysisStatus;
+    const deadline=Date.now()+(analysisWait.deadlineMs??8*60*1000);
+    // lease 가 이미 지난 running 은 죽은 워커 — 폴링하지 않고 그대로 보여 재시도를 허용한다.
+    const leaseGone=()=>{const at=Date.parse(result?.analysis?.leaseExpiresAt??result?.upload?.analysisLeaseExpiresAt??'');return Number.isFinite(at)&&at<=Date.now();};
+    while(alive()&&status==='running'&&!leaseGone()&&Date.now()<deadline){
+      await new Promise(done=>setTimeout(done,analysisWait.intervalMs??5000));
+      if(!alive())return result;
+      try{
+        const detail=await onAction('upload-detail',{uploadId});
+        if(!alive())return result;
+        if(detail?.upload?.id!==uploadId)continue;
+        status=detail.upload.analysisStatus;
+        result={...result,upload:detail.upload,reviews:detail.reviews,analysis:{status,outcome:detail.upload.analysisOutcome,errorCode:detail.upload.analysisErrorCode,error:detail.upload.analysisError,leaseExpiresAt:detail.upload.analysisLeaseExpiresAt}};
+      }catch{/* 일시 네트워크 오류는 다음 폴링에서 재확인 */}
+    }
+    return result;
+  };
   root.querySelector('[data-pr-analyze]')?.addEventListener('click',async()=>{
     if(!current()||blocked()||u.detailLoading)return;
     const upload=u.detail?.upload,uploadId=upload?.id;
@@ -1500,12 +1523,17 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     try{
       let result=await onAction('upload-analyze',{uploadId});
       let status=result?.analysis?.status||result?.upload?.analysisStatus;
-      // 상담 대조 응답 검증 실패·시간 초과는 모델 간헐 오류가 대부분 — 자동으로 한 번 더
-      // 시도한다(새 호출 = 새 150초 예산, 사진·은행 추출은 서버에 보존돼 대조만 다시 수행).
+      // 백그라운드 분석(2026-11-18): 서버는 '분석 중'만 즉시 답하고 끝까지 알아서 돌린다.
+      // 화면은 상태를 폴링해 저장된 결과를 이어받는다 — 창을 닫아도 분석은 계속된다.
+      if(selected()&&status==='running'){u.notice='서버에서 자동 분석을 진행하고 있습니다… 끝나면 결과를 자동으로 불러옵니다. (이 화면을 닫아도 분석은 계속됩니다)';paint();}
+      result=await waitForAnalysis(uploadId,result,selected);
+      status=result?.analysis?.status||result?.upload?.analysisStatus;
+      // 상담 대조 응답 검증 실패·시간 초과는 모델 간헐 오류가 대부분 — 자동으로 한 번 더 시도한다.
       const retryable=['ANALYSIS_CONSULTATION_INVALID_RESPONSE','ANALYSIS_TIMEOUT','ANALYSIS_FAILED'];
       if(selected()&&status==='failed'&&retryable.includes(String(result?.analysis?.errorCode||result?.analysis?.error||result?.upload?.analysisErrorCode||''))){
         u.notice='상담 대조가 불안정해 자동으로 한 번 더 분석합니다…';paint();
         result=await onAction('upload-analyze',{uploadId});
+        result=await waitForAnalysis(uploadId,result,selected);
         status=result?.analysis?.status||result?.upload?.analysisStatus;
       }
       if(!selected())return;
