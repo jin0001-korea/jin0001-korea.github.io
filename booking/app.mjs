@@ -32,7 +32,7 @@ const kstDay=(value=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia
 const paths={plus:'M12 5v14M5 12h14',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-2-5h4l1 3 3-1 2 3-2 3 2 3-2 4-3-1-1 3h-4l-1-3-3 1-2-4 2-3-2-3 2-3 3 1 1-3Z',close:'m6 6 12 12M6 18 18 6',arrow:'m9 5 7 7-7 7'};
 const icon=name=>`<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.arrow}"/></svg>`;
 const emptyState=()=>({profile:null,roster:[],schedules:[],reservations:[],seasonPackages:[],lessonPasses:[],reservationChanges:[],customers:[],customerTeams:[],capabilities:[],timeOffRequests:[],settings:{},bookingUnavailable:null});
-const viewFromHash=()=>['timetable','passes','customers','notices','changes','calls','payments','reviews'].includes(location.hash.slice(1))?location.hash.slice(1):'reservations';
+const viewFromHash=()=>['timetable','passes','customers','notices','changes','calls','payments'].includes(location.hash.slice(1))?location.hash.slice(1):'reservations';
 const initialUi=()=>({role:null,view:viewFromHash(),communicationTab:'calls',booking:{demo:true},timetable:{},passes:{},customers:{},customerChanges:{status:'pending',notes:{},requests:[],loading:false,error:''}});
 let state=emptyState(),ui=initialUi();
 let api=null,apiPromise=null,operational=false,checkingSession=true,signingIn=false,dirty=false,refreshError='',accessError=null,authVersion=0,writeVersion=0,readPromise=null,activeWrite=null,activePlan=null;

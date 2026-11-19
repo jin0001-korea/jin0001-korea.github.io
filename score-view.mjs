@@ -31,8 +31,18 @@ const ratingCell = value => {
   return number === null ? '<span class="score-unavailable">—</span>' : `<span class="score-table-number">${number}<small>점</small></span>`;
 };
 
+const BRAND_LABELS = { catchski: '캐치', risenski: '라이즌' };
+// 설문 칭찬 글의 사이트 공개 상태 셀 — 공개 전엔 브랜드 버튼, 공개 후엔 내리기 버튼.
+const publishCell = (escape, info) => {
+  if (!info || !info.praise) return '<span class="score-unavailable">—</span>';
+  return ['catchski', 'risenski'].map(brand => {
+    const published = (info.publishedBrands || []).includes(brand);
+    return `<button type="button" class="score-publish-btn${published ? ' is-on' : ''}" data-review-${published ? 'unpublish' : 'publish'}="${escape(info.scoreId)}:${brand}" title="${published ? '클릭하면 사이트에서 내립니다' : '클릭하면 해당 사이트 후기 위젯에 고객이 쓴 그대로 게시됩니다'}">${BRAND_LABELS[brand]}${published ? ' ✓' : ''}</button>`;
+  }).join(' ');
+};
+
 /** Render only numeric customer ratings and their aggregates. */
-export function renderScorePage({ role, profile = {}, scores = [], roster = [], schedules = [], escapeHTML } = {}) {
+export function renderScorePage({ role, profile = {}, scores = [], roster = [], schedules = [], reviewPublish = null, escapeHTML } = {}) {
   const escape = typeof escapeHTML === 'function' ? escapeHTML : fallbackEscape;
   const admin = role === 'admin';
   const userId = profile.user_id || profile.id || null;
@@ -65,10 +75,22 @@ export function renderScorePage({ role, profile = {}, scores = [], roster = [], 
     return `<article class="panel score-instructor-card"><div class="score-instructor-top"><span class="score-instructor-avatar" aria-hidden="true">${escape((names.get(id) || '강사').slice(-2))}</span><div><h3>${escape(names.get(id) || '이름 미등록 강사')}</h3><span>고객 응답 ${individual.length}건</span></div></div><div class="score-instructor-rating"><strong>${formattedScore(value)}<small>/ 5</small></strong>${stars(value)}</div><div class="score-instructor-categories">${categories.map(([key, label]) => `<div><span>${label}</span><strong>${formattedScore(average(individual, key))}</strong></div>`).join('')}</div></article>`;
   }).join('')}</div>` : '<div class="panel score-empty"><span class="score-empty-mark" aria-hidden="true">☆</span><strong>등록된 강사 계정이 없습니다.</strong><p>강사 계정을 발급하고 일정을 배정해 주세요.</p></div>'}</section>` : '';
 
-  const recentRatings = `<section class="panel score-recent"><div class="panel-head"><div><h2 class="panel-title">최근 고객 평가</h2><p class="score-panel-description">${recent.length ? `최근 ${recent.length}건의 항목별 점수입니다.` : '고객이 응답한 강습 평가가 이곳에 표시됩니다.'}</p></div><span class="score-scale">총 ${rows.length}건</span></div>${recent.length ? `<div class="table-wrap"><table class="score-table"><thead><tr>${admin ? '<th>담당 강사</th>' : ''}<th>강습일</th><th>응답일</th><th>종합</th>${categories.map(([, label]) => `<th>${label}</th>`).join('')}</tr></thead><tbody>${recent.map(row => {
+  // 사이트 공개(admin 전용): 설문 칭찬 글을 캐치/라이즌 후기 위젯에 게시한다 —
+  // 별도 화면 없이 이 표의 열 두 개로 끝낸다(2026-11-20 사용자 확정).
+  const publishInfo = admin && reviewPublish ? reviewPublish : null;
+  const publishColumns = publishInfo ? '<th>후기</th><th>사이트 공개</th>' : '';
+  const publishCells = row => {
+    if (!publishInfo) return '';
+    const info = publishInfo.byScoreId?.[row.id];
+    const praise = info?.praise || '';
+    const shortPraise = praise.length > 24 ? praise.slice(0, 24) + '…' : praise;
+    return `<td class="score-praise" title="${escape(praise)}">${praise ? escape(shortPraise) : '<span class="score-unavailable">—</span>'}</td><td class="score-publish">${publishCell(escape, info ? { ...info, scoreId: row.id } : null)}</td>`;
+  };
+  const publishNotice = publishInfo ? `<div class="score-publish-foot">${publishInfo.error ? `<span class="score-publish-error">${escape(publishInfo.error)}</span>` : publishInfo.notice ? `<span class="score-publish-ok">${escape(publishInfo.notice)}</span>` : ''}<span class="score-publish-hint">공개 버튼을 누르면 고객이 쓴 그대로 사이트 후기 위젯에 게시됩니다.</span><button type="button" class="btn-ghost" data-review-jsonld="catchski">캐치 JSON-LD 복사</button><button type="button" class="btn-ghost" data-review-jsonld="risenski">라이즌 JSON-LD 복사</button></div>` : '';
+  const recentRatings = `<section class="panel score-recent"><div class="panel-head"><div><h2 class="panel-title">최근 고객 평가</h2><p class="score-panel-description">${recent.length ? `최근 ${recent.length}건의 항목별 점수입니다.` : '고객이 응답한 강습 평가가 이곳에 표시됩니다.'}</p></div><span class="score-scale">총 ${rows.length}건</span></div>${recent.length ? `<div class="table-wrap"><table class="score-table"><thead><tr>${admin ? '<th>담당 강사</th>' : ''}<th>강습일</th><th>응답일</th><th>종합</th>${categories.map(([, label]) => `<th>${label}</th>`).join('')}${publishColumns}</tr></thead><tbody>${recent.map(row => {
     const schedule = scheduleById.get(row.schedule_id);
-    return `<tr>${admin ? `<td class="score-table-person">${escape(names.get(row.instructor_user_id) || '이름 미등록 강사')}</td>` : ''}<td>${dateLabel(schedule?.start || schedule?.start_at)}</td><td>${dateLabel(row.submitted_at)}</td><td class="score-table-overall">${ratingCell(row.overall)}</td>${categories.map(([key]) => `<td>${ratingCell(row[key])}</td>`).join('')}</tr>`;
-  }).join('')}</tbody></table></div>` : '<div class="score-empty"><span class="score-empty-mark" aria-hidden="true">☆</span><strong>고객 응답이 쌓이면 점수가 표시됩니다.</strong><p>평가가 등록되면 종합 평점과 항목별 점수를 확인할 수 있습니다.</p></div>'}</section>`;
+    return `<tr>${admin ? `<td class="score-table-person">${escape(names.get(row.instructor_user_id) || '이름 미등록 강사')}</td>` : ''}<td>${dateLabel(schedule?.start || schedule?.start_at)}</td><td>${dateLabel(row.submitted_at)}</td><td class="score-table-overall">${ratingCell(row.overall)}</td>${categories.map(([key]) => `<td>${ratingCell(row[key])}</td>`).join('')}${publishCells(row)}</tr>`;
+  }).join('')}</tbody></table></div>${publishNotice}` : '<div class="score-empty"><span class="score-empty-mark" aria-hidden="true">☆</span><strong>고객 응답이 쌓이면 점수가 표시됩니다.</strong><p>평가가 등록되면 종합 평점과 항목별 점수를 확인할 수 있습니다.</p></div>'}</section>`;
 
   return `<div class="score-page">${summary}${instructorCards}${recentRatings}</div>`;
 }

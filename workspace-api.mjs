@@ -376,6 +376,26 @@ export async function assignInstructors(scheduleId,userIds){
  const {error}=await supabase.rpc('slope_assign_instructors',{p_schedule_id:scheduleKey(scheduleId),p_instructor_ids:userIds});
  fail(error,'담당 강사를 배정하지 못했습니다. 계정 상태와 관리자 권한을 확인해 주세요.');
 }
+// 강사 후기 공개(slope-reviews Edge). invoke 는 GET/DELETE 쿼리를 함수명 문자열에 싣는다.
+export async function reviewsAction(kind,payload={}){
+ const call=async(path,options)=>{
+  const {data,error}=await supabase.functions.invoke(path,options);
+  if(error){let message;try{message=(await error.context?.clone().json())?.message;}catch{}throw new Error(typeof message==='string'&&/[가-힣]/u.test(message)?message:'후기 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');}
+  if(data?.error)throw new Error(data.message||data.error);return data;
+ };
+ if(kind==='queue')return call(`slope-reviews?queue=1&t=${Date.now()}`,{method:'GET'});
+ if(kind==='list'){
+  if(!['catchski','risenski'].includes(payload.brand))throw new Error('브랜드를 확인해 주세요.');
+  return call(`slope-reviews?brand=${payload.brand}&t=${Date.now()}`,{method:'GET'});
+ }
+ if(kind==='publish')return call('slope-reviews',{method:'POST',body:payload});
+ if(kind==='remove'){
+  if(/^[0-9a-f-]{36}$/i.test(String(payload.id||'')))return call(`slope-reviews?id=${payload.id}`,{method:'DELETE'});
+  if(/^[0-9a-f-]{36}$/i.test(String(payload.scoreId||''))&&['catchski','risenski'].includes(payload.brand))return call(`slope-reviews?scoreId=${payload.scoreId}&brand=${payload.brand}`,{method:'DELETE'});
+  throw new Error('내릴 후기를 확인해 주세요.');
+ }
+ throw new Error('후기 요청을 확인해 주세요.');
+}
 export async function surveyAction(action,payload={}){
  const {data,error}=await supabase.functions.invoke('slope-surveys',{body:{...payload,action}});
  if(error){let message;try{message=(await error.context?.clone().json())?.error;}catch{}throw new Error(typeof message==='string'?message:'만족도 설문을 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');}
