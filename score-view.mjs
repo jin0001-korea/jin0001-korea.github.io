@@ -90,7 +90,7 @@ export function renderScorePage({ role, profile = {}, scores = [], roster = [], 
   const recentRatings = `<section class="panel score-recent"><div class="panel-head"><div><h2 class="panel-title">최근 고객 평가</h2><p class="score-panel-description">${recent.length ? `최근 ${recent.length}건의 항목별 점수입니다.` : '고객이 응답한 강습 평가가 이곳에 표시됩니다.'}</p></div><span class="score-scale">총 ${rows.length}건</span></div>${recent.length ? `<div class="table-wrap"><table class="score-table"><thead><tr>${admin ? '<th>담당 강사</th>' : ''}<th>강습일</th><th>응답일</th><th>종합</th>${categories.map(([, label]) => `<th>${label}</th>`).join('')}${publishColumns}</tr></thead><tbody>${recent.map(row => {
     const schedule = scheduleById.get(row.schedule_id);
     return `<tr>${admin ? `<td class="score-table-person">${escape(names.get(row.instructor_user_id) || '이름 미등록 강사')}</td>` : ''}<td>${dateLabel(schedule?.start || schedule?.start_at)}</td><td>${dateLabel(row.submitted_at)}</td><td class="score-table-overall">${ratingCell(row.overall)}</td>${categories.map(([key]) => `<td>${ratingCell(row[key])}</td>`).join('')}${publishCells(row)}</tr>`;
-  }).join('')}</tbody></table></div>${publishNotice}` : '<div class="score-empty"><span class="score-empty-mark" aria-hidden="true">☆</span><strong>고객 응답이 쌓이면 점수가 표시됩니다.</strong><p>평가가 등록되면 종합 평점과 항목별 점수를 확인할 수 있습니다.</p></div>'}</section>`;
+  }).join('')}</tbody></table></div>${publishNotice}` : `<div class="score-empty"><span class="score-empty-mark" aria-hidden="true">☆</span><strong>고객 응답이 쌓이면 점수가 표시됩니다.</strong><p>평가가 등록되면 종합 평점과 항목별 점수를 확인할 수 있습니다.${publishInfo ? ' 후기(칭찬 글)가 함께 접수되면 이 표에서 바로 캐치스키·라이즌 사이트로 공개할 수 있습니다.' : ''}</p></div>`}</section>`;
 
   return `<div class="score-page">${summary}${instructorCards}${recentRatings}</div>`;
 }
