@@ -67,6 +67,12 @@ small.hint{color:var(--sub)}
 
   <div class="card" id="listCard" hidden>
     <b id="listTitle">등록된 후기</b>
+    <div style="margin:8px 0 2px;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" id="copyLdBtn" style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px">아임웹 헤더용 JSON-LD 복사 (SEO·AI 검색용)</button>
+      <button type="button" id="logoutBtn" style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;color:var(--sub)">로그아웃</button>
+    </div>
+    <small class="hint">JSON-LD는 아임웹 [환경설정 → 헤더(head) 코드]에 붙여넣으면 자바스크립트를 실행하지 않는 AI 검색엔진도 후기·별점을 읽습니다. 후기를 새로 등록한 뒤에는 다시 복사해 교체해 주세요.</small>
+    <div class="msg" id="listMsg"></div>
     <div id="list"></div>
   </div>
 </div>
@@ -78,17 +84,24 @@ const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const FN = SUPABASE_URL + '/functions/v1/slope-reviews';
 const $ = id => document.getElementById(id);
 let session = null;
-try { session = JSON.parse(localStorage.getItem('gjReviewSession') || 'null'); } catch {}
+// 세션은 탭을 닫으면 사라지는 sessionStorage 에만 둔다 — 이 origin 은 다른 운영 화면과
+// 공유되므로 운영진 refresh_token 을 영구 보관하지 않는다(감사 2026-11-19 반영).
+try { session = JSON.parse(sessionStorage.getItem('gjReviewSession') || 'null'); } catch {}
+try { localStorage.removeItem('gjReviewSession'); } catch {}
 let brand = 'catchski', rating = 5;
 
-const saveSession = value => { session = value; localStorage.setItem('gjReviewSession', JSON.stringify(value)); };
+const saveSession = value => { session = value; sessionStorage.setItem('gjReviewSession', JSON.stringify(value)); };
+const dropSession = () => { session = null; sessionStorage.removeItem('gjReviewSession'); };
+// 세션 만료 시 입력(작성 중인 후기)을 보존한 채 로그인 카드만 다시 연다.
+const requireRelogin = () => { dropSession(); $('loginCard').hidden = false; $('loginMsg').className = 'msg err'; $('loginMsg').textContent = '세션이 만료되었습니다. 다시 로그인한 뒤 등록 버튼을 다시 눌러 주세요(작성 내용은 유지됩니다).'; };
 async function authFetch(url, options = {}) {
+  if (!session?.access_token) { requireRelogin(); throw new Error('로그인이 필요합니다.'); }
   const run = () => fetch(url, { ...options, headers: { ...(options.headers || {}), Authorization: 'Bearer ' + session.access_token } });
   let response = await run();
   if (response.status === 401 && session?.refresh_token) {
     const refreshed = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: session.refresh_token }) });
     if (refreshed.ok) { saveSession(await refreshed.json()); response = await run(); }
-    else { localStorage.removeItem('gjReviewSession'); location.reload(); }
+    else { requireRelogin(); throw new Error('세션이 만료되었습니다.'); }
   }
   return response;
 }
@@ -103,9 +116,10 @@ $('loginBtn').addEventListener('click', async () => {
 
 function enter() {
   $('loginCard').hidden = true; $('formCard').hidden = false; $('listCard').hidden = false;
-  $('reviewDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (!$('reviewDate').value) $('reviewDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   paintStars(); loadList();
 }
+$('logoutBtn').addEventListener('click', () => { dropSession(); location.reload(); });
 
 $('brandToggle').addEventListener('click', event => {
   const button = event.target.closest('button[data-brand]'); if (!button) return;
@@ -155,10 +169,30 @@ $('submitBtn').addEventListener('click', async () => {
   } finally { $('submitBtn').disabled = false; }
 });
 
+let lastData = null;
+$('copyLdBtn').addEventListener('click', async () => {
+  const message = $('listMsg'); message.className = 'msg';
+  if (!lastData || !lastData.summary.count) { message.className = 'msg err'; message.textContent = '복사할 후기가 없습니다. 먼저 후기를 등록해 주세요.'; return; }
+  const data = lastData;
+  const payload = {
+    '@context': 'https://schema.org', '@type': 'Service',
+    name: `${data.brandName} 스키·보드 강습`,
+    provider: { '@type': 'LocalBusiness', name: data.brandName },
+    aggregateRating: { '@type': 'AggregateRating', ratingValue: data.summary.average, reviewCount: data.summary.count, bestRating: 5, worstRating: 1 },
+    review: data.reviews.slice(0, 10).map(review => ({ '@type': 'Review', author: { '@type': 'Person', name: '수강생' }, datePublished: review.reviewDate, reviewBody: review.body.slice(0, 500), name: `${review.instructorName} 강사 강습 후기`, reviewRating: { '@type': 'Rating', ratingValue: review.rating, bestRating: 5, worstRating: 1 } })),
+  };
+  const html = '<script type="application/ld+json">' + JSON.stringify(payload, null, 1).replace(/</g, '\\u003c') + '<' + '/script>';
+  try { await navigator.clipboard.writeText(html); message.className = 'msg ok'; message.textContent = `복사했습니다 (${data.brandName} 후기 ${data.summary.count}건 기준). 아임웹 헤더 코드에 붙여넣어 주세요.`; }
+  catch { message.className = 'msg err'; message.textContent = '클립보드 복사에 실패했습니다. 브라우저 권한을 확인해 주세요.'; }
+});
+
 async function loadList() {
-  const response = await fetch(FN + '?brand=' + brand, { cache: 'no-store' });
-  if (!response.ok) return;
+  const message = $('listMsg');
+  const response = await fetch(FN + '?brand=' + brand + '&t=' + Date.now(), { cache: 'no-store' }).catch(() => null);
+  if (!response || !response.ok) { message.className = 'msg err'; message.textContent = '후기 목록을 불러오지 못했습니다. 네트워크를 확인해 주세요.'; return; }
+  message.textContent = '';
   const data = await response.json();
+  lastData = data;
   $('listTitle').textContent = `등록된 후기 · ${data.brandName} ${data.summary.count}건` + (data.summary.average ? ` · 평균 ★${data.summary.average}` : '');
   const datalist = $('instructorList'); datalist.textContent = '';
   for (const item of data.summary.instructors) { const option = document.createElement('option'); option.value = item.name; datalist.appendChild(option); }

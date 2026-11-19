@@ -8,7 +8,8 @@
  */
 (() => {
 'use strict';
-const ENDPOINT = 'https://ewiekbmjvgktwsbbxrzw.supabase.co/functions/v1/slope-reviews';
+const SUPABASE_HOST = 'https://ewiekbmjvgktwsbbxrzw.supabase.co';
+const ENDPOINT = SUPABASE_HOST + '/functions/v1/slope-reviews';
 const PAGE_SIZE = 10;
 const CSS = `
 :host{all:initial;display:block;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;color:#20242b;line-height:1.6}
@@ -43,8 +44,10 @@ function koreanDate(value) {
   return match ? `${match[1]}.${match[2]}.${match[3]}` : '';
 }
 
-function injectJsonLd(brandName, summary, reviews) {
+function injectJsonLd(brand, brandName, summary, reviews) {
   if (!summary.count) return;
+  // 아임웹이 PC/모바일 섹션으로 같은 위젯을 두 번 배치해도 JSON-LD 는 브랜드당 1개만.
+  if (document.head.querySelector(`script[data-gonjiam-reviews-ld="${brand}"]`)) return;
   const payload = {
     '@context': 'https://schema.org',
     '@type': 'Service',
@@ -62,12 +65,16 @@ function injectJsonLd(brandName, summary, reviews) {
   };
   const script = document.createElement('script');
   script.type = 'application/ld+json';
-  script.textContent = JSON.stringify(payload);
+  script.dataset.gonjiamReviewsLd = brand;
+  // HTML 재직렬화(프리렌더·캐시) 시 본문의 "</script>" 가 태그를 닫지 못하게 이스케이프.
+  script.textContent = JSON.stringify(payload).replace(/</g, '\\u003c');
   document.head.appendChild(script);
 }
 
 function render(root, data) {
-  const shadow = root.attachShadow({ mode: 'open' });
+  // 스크립트가 두 번 로드돼 boot 가 동시에 돌아도(둘 다 fetch 대기 통과) throw 없이 마지막 렌더가 이긴다.
+  const shadow = root.shadowRoot || root.attachShadow({ mode: 'open' });
+  shadow.textContent = '';
   const style = document.createElement('style'); style.textContent = CSS; shadow.appendChild(style);
   const box = document.createElement('div'); box.className = 'box'; shadow.appendChild(box);
 
@@ -76,7 +83,7 @@ function render(root, data) {
   head.appendChild(title);
   if (data.summary.count) {
     const avg = document.createElement('span'); avg.className = 'avg'; avg.textContent = `★ ${data.summary.average}`;
-    const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = `실제 수강 후기 ${data.summary.count}건`;
+    const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = `실제 수강 후기 ${data.totalCount || data.summary.count}건`;
     head.append(avg, cnt);
   }
   box.appendChild(head);
@@ -132,7 +139,7 @@ function render(root, data) {
       if (review.photos.length) {
         const shots = document.createElement('div'); shots.className = 'shots';
         for (const photo of review.photos.slice(0, 6)) {
-          if (!/^https:\/\/ewiekbmjvgktwsbbxrzw\.supabase\.co\//.test(photo)) continue;
+          if (!photo.startsWith(SUPABASE_HOST + '/')) continue;
           const link = document.createElement('a'); link.href = photo; link.target = '_blank'; link.rel = 'noopener noreferrer';
           const img = document.createElement('img'); img.loading = 'lazy'; img.src = photo; img.alt = `${review.instructorName} 강사 강습 후기 사진`;
           link.appendChild(img); shots.appendChild(link);
@@ -155,13 +162,15 @@ async function boot() {
       const response = await fetch(`${ENDPOINT}?brand=${brand}`);
       if (!response.ok) continue;
       const data = await response.json();
+      if (container.shadowRoot && container.shadowRoot.childNodes.length) continue;
       render(container, data);
-      injectJsonLd(data.brandName, data.summary, data.reviews);
+      injectJsonLd(brand, data.brandName, data.summary, data.reviews);
     } catch (error) {
       try { console.warn('[gonjiam-reviews]', error); } catch {}
     }
   }
 }
+window.gonjiamReviewsScan = boot;
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
 })();
