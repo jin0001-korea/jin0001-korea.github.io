@@ -240,6 +240,21 @@ function bindReviewPublish(){
     const [scoreId,brand]=button.dataset.reviewUnpublish.split(':');
     void act(button,()=>reviewsAction('remove',{scoreId,brand}),'사이트에서 내렸습니다.');
   });
+  app.querySelectorAll('[data-praise-view]').forEach(button=>button.onclick=()=>{
+    const scoreId=button.dataset.praiseView;
+    const info=reviewPublish.byScoreId?.[scoreId];if(!info?.praise)return;
+    const row=(state.scores||[]).find(item=>item.id===scoreId)||{};
+    const names=new Map((state.roster||[]).map(person=>[person.user_id,person.display_name]));
+    let node=document.querySelector('#review-praise-dialog');
+    if(!node){node=document.createElement('dialog');node.id='review-praise-dialog';node.className='score-praise-dialog';document.body.append(node);}
+    node.textContent='';
+    const box=document.createElement('div');box.className='score-praise-dialog-box';
+    const title=document.createElement('h3');title.textContent=`${names.get(row.instructor_user_id)||'강사'} · ${'★'.repeat(Math.min(5,Math.max(1,Number(row.overall)||5)))}`;
+    const meta=document.createElement('p');meta.className='score-praise-dialog-meta';meta.textContent=`응답일 ${String(row.submitted_at||'').slice(0,10)}`;
+    const body=document.createElement('p');body.className='score-praise-dialog-body';body.textContent=info.praise;
+    const close=document.createElement('button');close.type='button';close.className='btn-ghost';close.textContent='닫기';close.onclick=()=>node.close();
+    box.append(title,meta,body,close);node.append(box);node.showModal();
+  });
   app.querySelectorAll('[data-review-jsonld]').forEach(button=>button.onclick=async()=>{
     button.disabled=true;
     try{

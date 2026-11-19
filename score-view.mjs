@@ -83,8 +83,8 @@ export function renderScorePage({ role, profile = {}, scores = [], roster = [], 
     if (!publishInfo) return '';
     const info = publishInfo.byScoreId?.[row.id];
     const praise = info?.praise || '';
-    const shortPraise = praise.length > 24 ? praise.slice(0, 24) + '…' : praise;
-    return `<td class="score-praise" title="${escape(praise)}">${praise ? escape(shortPraise) : '<span class="score-unavailable">—</span>'}</td><td class="score-publish">${publishCell(escape, info ? { ...info, scoreId: row.id } : null)}</td>`;
+    // 한 줄 미리보기 + [전체보기] 버튼 — 전문은 모달에서 본다(2026-11-20 사용자 확정).
+    return `<td class="score-praise">${praise ? `<span class="score-praise-text">${escape(praise)}</span><button type="button" class="score-praise-view" data-praise-view="${escape(row.id)}">전체보기</button>` : '<span class="score-unavailable">—</span>'}</td><td class="score-publish">${publishCell(escape, info ? { ...info, scoreId: row.id } : null)}</td>`;
   };
   const publishNotice = publishInfo ? `<div class="score-publish-foot">${publishInfo.error ? `<span class="score-publish-error">${escape(publishInfo.error)}</span>` : publishInfo.notice ? `<span class="score-publish-ok">${escape(publishInfo.notice)}</span>` : ''}<span class="score-publish-hint">공개 버튼을 누르면 고객이 쓴 그대로 사이트 후기 위젯에 게시됩니다.</span><button type="button" class="btn-ghost" data-review-jsonld="catchski">캐치 JSON-LD 복사</button><button type="button" class="btn-ghost" data-review-jsonld="risenski">라이즌 JSON-LD 복사</button></div>` : '';
   const recentRatings = `<section class="panel score-recent"><div class="panel-head"><div><h2 class="panel-title">최근 고객 평가</h2><p class="score-panel-description">${recent.length ? `최근 ${recent.length}건의 항목별 점수입니다.` : '고객이 응답한 강습 평가가 이곳에 표시됩니다.'}</p></div><span class="score-scale">총 ${rows.length}건</span></div>${recent.length ? `<div class="table-wrap"><table class="score-table"><thead><tr>${admin ? '<th>담당 강사</th>' : ''}<th>강습일</th><th>응답일</th><th>종합</th>${categories.map(([, label]) => `<th>${label}</th>`).join('')}${publishColumns}</tr></thead><tbody>${recent.map(row => {

@@ -14,3 +14,16 @@
 .score-publish-foot .btn-ghost{border:1px solid #d7dbe2;background:#fff;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;color:#374151}
 .score-publish-error{color:#dc2626}
 .score-publish-ok{color:#059669}
+
+/* 후기 전체보기 모달(2026-11-20) */
+.score-praise{display:flex;align-items:center;gap:8px}
+.score-praise-text{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-praise-view{border:1px solid #d7dbe2;background:#fff;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;color:#374151;flex:0 0 auto}
+.score-praise-dialog{border:0;border-radius:14px;padding:0;max-width:520px;width:calc(100vw - 40px);box-shadow:0 18px 50px rgba(15,23,42,.25)}
+.score-praise-dialog::backdrop{background:rgba(15,23,42,.45)}
+.score-praise-dialog-box{padding:22px}
+.score-praise-dialog-box h3{margin:0 0 4px;font-size:16px}
+.score-praise-dialog-box h3,.score-praise-dialog-meta{color:#111827}
+.score-praise-dialog-meta{margin:0 0 12px;font-size:12px;color:#6b7280}
+.score-praise-dialog-body{margin:0 0 16px;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:#1f2937}
+.score-praise-dialog .btn-ghost{border:1px solid #d7dbe2;background:#fff;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer}
