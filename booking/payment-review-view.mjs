@@ -1377,8 +1377,14 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
       if(active()&&completed&&!filled&&!u.reviewError)u.notice=`원본 사진 ${completed}/${ids.length}장을 새로 분석했습니다. 상담 출처 또는 입금 내역을 확인해야 하는 결과는 아래에 표시했습니다.`;
     }finally{u.busy=false;u.uploadAnalysisRunningIds=[];if(active()){paint();if(filled)scrollSection('intake');else root.querySelector('[data-pr-upload-analysis]')?.scrollIntoView?.({block:'start',behavior:'smooth'});}}
   };
-  root.querySelector('[data-pr-upload-reanalyze]')?.addEventListener('click',()=>reanalyzeCaptures([u.detail?.upload?.id]));
-  root.querySelector('[data-pr-reanalyze-batch]')?.addEventListener('click',()=>reanalyzeCaptures(u.selectedUploadIds));
+  // AI 다시 분석(2026-11-19 사용자 확정): 미리보기(upload-reanalyze)가 아니라 저장되는
+  // 재생성(배치 rescan) 경로를 탄다 — 수정된 서버 분석이 검토 초안에 실제로 반영된다.
+  root.querySelector('[data-pr-upload-reanalyze]')?.addEventListener('click',()=>{
+    const id=u.detail?.upload?.id;if(!id||!current()||blocked())return;
+    u.selectedUploadIds=[id];if(u.detail?.upload)u.selectedUploads[id]={...u.selectedUploads[id],...u.detail.upload};
+    return runBatch({refreshAnalysis:true});
+  });
+  root.querySelector('[data-pr-reanalyze-batch]')?.addEventListener('click',()=>runBatch({refreshAnalysis:true}));
   root.querySelector('[data-pr-upload-analysis-row]')?.addEventListener('change',event=>{
     if(!current()||blocked())return;const preview=u.uploadAnalysisPreviews?.[u.detail?.upload?.id],index=Number(event.target.value);
     if(!preview||!Number.isSafeInteger(index)||!preview.proposals[index])return;preview.selectedIndex=index;u.latestUploadAnalysis=preview;paint();
