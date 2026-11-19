@@ -481,6 +481,35 @@ export async function callInboxAction(action,payload={}){
 }
 
 /** Bank screenshots and AI drafts are isolated from live reservation writes. */
+// 강사 후기(slope-reviews Edge) — 공개 GET 도 데스크에서는 세션으로 호출하고,
+// 대기열·등록·공개·삭제는 서버가 JWT 로 운영진을 재검증한다. invoke 는 GET/DELETE 의
+// 쿼리를 함수명 문자열에 실어야 한다(invoke 자체에 query 옵션이 없음).
+export async function reviewsAction(kind,payload={}){
+  if(!payload||typeof payload!=='object'||Array.isArray(payload))throw issue('후기 요청을 확인해 주세요.','INPUT_REQUIRED');
+  await requireBookingOperator();
+  const call=async(path,options)=>{
+    const response=await supabase.functions.invoke(path,options);
+    if(response.error){
+      let body;try{body=await response.error.context?.clone().json();}catch{}
+      const message=typeof body?.message==='string'&&/[가-힣]/u.test(body.message)?body.message.slice(0,300):'후기 서버에 연결하지 못했습니다. 다시 시도해 주세요.';
+      const code=body?.error==='UNAUTHORIZED'?'AUTH_REQUIRED':body?.error==='FORBIDDEN'?'BOOKING_ACCESS_REQUIRED':body?.error||'REQUEST_FAILED';
+      throw issue(message,code);
+    }
+    if(response.data?.error)throw issue(response.data.message||'후기를 처리하지 못했습니다.',response.data.error);
+    return response.data;
+  };
+  if(kind==='list'){
+    if(!['catchski','risenski'].includes(payload.brand))throw issue('브랜드를 확인해 주세요.','INPUT_REQUIRED');
+    return call(`slope-reviews?brand=${payload.brand}&t=${Date.now()}`,{method:'GET'});
+  }
+  if(kind==='queue')return call(`slope-reviews?queue=1&t=${Date.now()}`,{method:'GET'});
+  if(kind==='create'||kind==='publish')return call('slope-reviews',{method:'POST',body:payload});
+  if(kind==='remove'){
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(payload.id||'')))throw issue('삭제할 후기를 확인해 주세요.','INPUT_REQUIRED');
+    return call(`slope-reviews?id=${payload.id}`,{method:'DELETE'});
+  }
+  throw issue('후기 요청을 확인해 주세요.','INPUT_REQUIRED');
+}
 export async function paymentReviewAction(action,payload={}){
   const allowed=['upload-prepare','upload-complete','upload-list','upload-detail','upload-analyze','upload-analyze-extract','upload-analyze-match','upload-analyze-poll','upload-delete','upload-done','upload-reanalyze','review-reanalyze','review-save','review-approve','link-code','connect-code','link-status','link-revoke','find-candidates','conversation-detail','review-status','external-threads','external-thread-detail'];
   if(!allowed.includes(action)||!payload||typeof payload!=='object'||Array.isArray(payload))throw issue('입금 검토 요청을 확인해 주세요.','INPUT_REQUIRED');
