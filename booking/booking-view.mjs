@@ -860,7 +860,9 @@ function rawFinancial(draft,escape,{rowId=null,review=false,history=null}={}) {
 }
 function sessionFinancialForm(form,rowId){
   const block=[...form.querySelectorAll('[data-bk-session-financial]')].find(node=>node.dataset.bkSessionFinancial===String(rowId||'primary'));
-  return {elements:{namedItem:name=>form.elements.namedItem(rowId?`date_${rowId}_${name}`:name)},querySelector:selector=>block?.querySelector(selector)||null};
+  // closest('form') 는 실제 폼을 돌려준다 — 없으면 rentalStudentCount 가 인원수(raw_M)를
+  // 못 찾아 회차별 장비 자동금액이 1인분으로 계산된다(2026-11-20 사용자 신고: 2회차 1.3만원 부족).
+  return {elements:{namedItem:name=>form.elements.namedItem(rowId?`date_${rowId}_${name}`:name)},querySelector:selector=>block?.querySelector(selector)||null,closest:selector=>selector==='form'?form:form.closest?.(selector)||null};
 }
 function sessionFinancialTarget(target){
   const block=target.closest?.('[data-bk-session-financial]');if(!block)return null;
