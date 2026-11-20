@@ -820,15 +820,21 @@ function renderTeamConditions(draft,context,escape,{review=false}={}) {
       <label class="check-field bk-reorder-check"><input name="isReorder" type="checkbox" ${draft.isReorder?'checked':''}> 이전 강사가 마음에 들어 재등록한 리오더</label>
     </div>
     ${review?'':`<div data-bk-customer-history ${wantsSameInstructor(draft)?'':'hidden'}>${renderCustomerHistory(draft,context,escape)}</div>`}
-    <div class="bk-season-fields">${packageRows.length?selectField('seasonId','이어서 등록할 시즌 묶음',draft.seasonId||'',[['','새로 구매한 강습'],...packageRows.map(pack=>[pack.id,seasonPackageLabel(pack,draft,context)])],escape):''}<div class="field"><span class="field-label">구매 총회차 · 자동</span><strong data-bk-season-total>${escape(String(automaticBookingSeason(draft,context).seasonTotal||bookingDateRows(draft).length||1))}회</strong></div><p class="bk-field-note">회차 수만큼 자동 계산합니다. 2회 이상이면 시즌강습으로 묶여 강사 배정 때 모든 회차에 같은 강사를 배정합니다. 횟수만 사고 날짜는 나중에 정하면 [날짜 미정 · 수강권으로 발급]을 쓰세요.</p></div>
+    <div class="bk-season-fields">${packageRows.length?selectField('seasonId','이어서 등록할 시즌 묶음',draft.seasonId||'',[['','새로 구매한 강습'],...packageRows.map(pack=>[pack.id,seasonPackageLabel(pack,draft,context)])],escape):''}<div class="field"><span class="field-label" title="시즌 묶음 → 상담 내용 → 이번에 넣은 날짜 수 순서로 자동 계산">구매 총회차(시즌 전체) · 자동</span><strong data-bk-season-total>${escape(String(automaticBookingSeason(draft,context).seasonTotal||bookingDateRows(draft).length||1))}회</strong></div><p class="bk-field-note">고객이 구매한 전체 회차입니다(이번 등록 일정 수와 다를 수 있음). 시즌 묶음 → 상담 내용 → 이번에 넣은 날짜 수 순서로 자동 계산하며, 2회 이상이면 시즌강습으로 묶여 모든 회차에 같은 강사를 배정합니다. 횟수만 사고 날짜는 나중에 정하면 [날짜 미정 · 수강권으로 발급]을 쓰세요.</p></div>
     <div class="bk-team-learner-fields">
       ${selectField('raw_D','종목',raw.D,[['','종목 선택'],['스키','스키'],['보드','보드']],escape,'required')}
       ${inputField('M','강습인원수',raw.M,escape,'type="number" min="1" max="1000" step="1" required')}
       <label class="field"><span class="field-label">이전 강습 경험 <b>*</b></span><span class="bk-suffixed"><input name="experienceCount" type="number" min="0" max="999" step="1" required value="${escape(draft.experienceCount??'')}" placeholder="미확인"><span>회</span></span></label>
-      ${selectField('raw_K','관계',raw.K,[['','선택'],['가족','가족'],['자녀','자녀'],['성인','성인'],['단체','단체']],escape)}<div class="field"><span class="field-label">횟수 · 자동</span><strong class="bk-auto-count" data-bk-auto-count>${escape(raw.J||String(bookingDateRows(draft).length)+'회')}</strong><input type="hidden" name="raw_J" value="${escape(raw.J||'')}"></div>${inputField('O','수준',raw.O,escape,'maxlength="200"')}
+      ${selectField('raw_K','관계',raw.K,[['','선택'],['가족','가족'],['자녀','자녀'],['성인','성인'],['단체','단체']],escape)}${(()=>{
+        // 이번 등록 일정 수(2026-11-20 사용자 신고: 프리필된 raw.J('1회')가 날짜를 추가해도
+        // 고착). 새 초안은 항상 날짜 줄 수로 계산하고 hidden raw_J 도 같이 동기화한다.
+        // 저장된 예약 수정은 그 행의 회차 기록(raw.J)을 그대로 보여준다.
+        const autoCount=draft.id?(raw.J||'1회'):`${bookingDateRows(draft).length||1}회`;
+        return `<div class="field"><span class="field-label" title="날짜를 추가한 만큼 자동으로 셉니다. 구매 총회차와 다를 수 있습니다.">이번 등록 일정 수 · 자동</span><strong class="bk-auto-count" data-bk-auto-count>${escape(autoCount)}</strong><input type="hidden" name="raw_J" value="${escape(draft.id?(raw.J||''):autoCount)}"></div>`;
+      })()}${inputField('O','수준',raw.O,escape,'maxlength="200"')}
     </div>
     <div class="bk-team-ability-fields">${renderParticipantFields(draft,escape,context,{review})}${renderSportSkillFields(draft,escape)}<label class="check-field bk-junior-preparation"><input type="checkbox" name="juniorPreparation" ${draft.juniorPreparation?'checked':''}> 주니어 기술등급제 준비</label></div>
-    <div class="bk-requirement" data-bk-requirement>${renderRequirement(draft,context,escape)}</div>${rawTextarea('G','특이사항·요청사항',raw.G,escape,1)}
+    <div class="bk-requirement" data-bk-requirement>${renderRequirement(draft,context,escape)}</div>${rawTextarea('G','특이사항·요청사항',raw.G,escape,4)}
   </div>`;
 }
 

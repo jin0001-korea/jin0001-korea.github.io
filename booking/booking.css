@@ -831,3 +831,7 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 .bk-bulk-result{margin:10px 0 0;font-size:12px;background:#fff7ed;border:1px solid #fcd9a8;border-radius:8px;padding:9px 11px}
 .bk-bulk-result ul{margin:6px 0 0;padding-left:16px}
 .bk-bulk-result li{color:#9a4b12;line-height:1.5}
+
+/* 특이사항·요청사항 textarea 는 4줄 보이게(2026-11-20 사용자 지시) — compact 34px 강제 높이 예외. */
+.bk-onepage-intake .bk-field-G textarea{min-height:104px;height:auto}
+.bk-compact-layout .bk-onepage-intake .bk-field-G textarea{min-height:96px;height:auto}
