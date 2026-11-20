@@ -344,6 +344,17 @@ export async function deleteLessonPass(payload){
   if(result?.id!==payload.id||result.deleted!==true)throw issue('수강권 삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_DELETE_UNCONFIRMED');
   return result;
 }
+/** 발급된 수강권의 시간권(2시간/4시간)만 수정한다 — 고객·횟수는 서버 트리거가 불변 보장(관리자 전용). */
+export async function updateLessonPass(payload){
+  await requireBookingOperator();
+  const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if(!payload||!uuid(payload.id))throw issue('수정할 수강권을 다시 선택해 주세요.','INPUT_REQUIRED');
+  if(typeof payload.expectedUpdatedAt!=='string'||!Number.isFinite(Date.parse(payload.expectedUpdatedAt)))throw issue('수강권의 최신 정보를 다시 불러와 주세요.','INPUT_REQUIRED');
+  if(![120,240].includes(payload.lessonMinutes))throw issue('시간권은 2시간 또는 4시간만 선택할 수 있습니다.','INPUT_REQUIRED');
+  const result=await rpc('slope_update_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,lessonMinutes:payload.lessonMinutes}});
+  if(result?.id!==payload.id)throw issue('수강권 수정 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_UPDATE_UNCONFIRMED');
+  return result;
+}
 
 const lessonId=value=>{
   if(typeof value!=='string'||!value||value.length>120||value.trim()!==value||['.','..'].includes(value)||/[\u0000-\u001f/\\]/u.test(value))throw issue('연결할 강습 일정을 확인해 주세요.','INPUT_REQUIRED');
