@@ -10,15 +10,15 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=22';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=98';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=99';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=79';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=28';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
 import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
-import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=48';
-import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=37';
+import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=49';
+import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=38';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
 import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=36';
 import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=35';
@@ -76,7 +76,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=91').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=92').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -106,7 +106,7 @@ const renderSoon=()=>{if(typingInApp()){renderPending=true;return;}render();};
 const flushRender=()=>{if(renderPending&&!typingInApp()){renderPending=false;render();}};
 app.addEventListener('compositionstart',()=>{composingInApp=true;});
 app.addEventListener('compositionend',()=>{composingInApp=false;setTimeout(flushRender,0);});
-app.addEventListener('focusout',()=>{setTimeout(flushRender,0);});
+app.addEventListener('focusout',()=>{composingInApp=false;setTimeout(flushRender,0);});
 function render(){
   // 조합 중 하드가드: renderSoon을 못 거친 경로(뷰 내부 update 등)도 조합 파괴만은 막는다.
   if(composingInApp){renderPending=true;return;}
@@ -189,6 +189,7 @@ function render(){
               if(values.rentalAmount!==null)changes.rentalAmount=values.rentalAmount;
             }
             if(values.paidAmount!==null)changes.paidAmount=values.paidAmount;
+            if(values.sport&&values.sport!=='keep')changes.sport=values.sport;
             const payload=buildQuickAmountChange(row,ctxNow,changes);
             const saved=await api.changeReservation(payload,'예약표 그룹 수정',{});
             if(saved?.discarded)throw new Error('세션이 바뀌어 중단했습니다.');
@@ -513,11 +514,13 @@ async function updatePass(payload){
   if(ui.booking.demo){
     context();const row=(ui.booking.demoData.lessonPasses||[]).find(item=>item.id===payload.id);
     if(!row)throw new Error('수강권을 찾지 못했습니다. 목록을 새로고침해 주세요.');
-    row.lesson_minutes=payload.lessonMinutes;row.updated_at=new Date().toISOString();
-    toast('체험 수강권 시간권을 수정했습니다.');return {id:payload.id,lessonMinutes:payload.lessonMinutes};
+    if([120,240].includes(payload.lessonMinutes))row.lesson_minutes=payload.lessonMinutes;
+    if(['스키','보드'].includes(payload.sport))row.sport=payload.sport;
+    row.updated_at=new Date().toISOString();
+    toast('체험 수강권을 수정했습니다.');return {id:payload.id,lessonMinutes:row.lesson_minutes,sport:row.sport};
   }
   mustBeOperator();
-  const result=await writeOperation(()=>api.updateLessonPass(payload),'수강권 시간권을 수정했습니다.');
+  const result=await writeOperation(()=>api.updateLessonPass(payload),'수강권을 수정했습니다.');
   if(result?.discarded)throw new Error('로그인이 바뀌었습니다. 수강권 목록에서 처리 결과를 확인해 주세요.');
   return result;
 }
