@@ -30,3 +30,12 @@
 .lp-delete-confirm footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .lp-danger{background:#b3543f!important;border-color:#b3543f!important}
 .lp-danger:disabled{opacity:.5}
+/* 그룹 선택 바 + 체크 열(2026-11-20) */
+.lp-bulk-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 14px;margin-bottom:10px}
+.lp-bulk-bar strong{color:#2c4a55}
+.lp-bulk-field{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#44656e}
+.lp-bulk-field select{padding:4px 8px;border:1px solid #c8d6da;border-radius:6px}
+.lp-bulk-help{font-size:11px;color:#8ba0a8}
+.lp-bulk-cell{width:34px;text-align:center}
+.lp-bulk-cell input{width:15px;height:15px;accent-color:#2c6e7f;cursor:pointer}
+.lp-delete-confirm footer .lp-danger{margin-right:auto}

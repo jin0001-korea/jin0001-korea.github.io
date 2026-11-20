@@ -52,7 +52,7 @@ export function selectPassBalances(context={}){
 
 function configuration(ui={}){
   const current=ui.passes||{};
-  return {query:'',sport:'all',issuing:false,draft:null,error:'',deleteRequest:null,editRequest:null,...current};
+  return {query:'',sport:'all',issuing:false,draft:null,error:'',deleteRequest:null,editRequest:null,bulkSelected:[],bulkNotice:'',...current};
 }
 // 발급 취소(삭제) 확인 상태. 서버가 연결 기록을 재검증하므로 여기 요약은 안내용이다.
 export function passDeletionPayload(pass){
@@ -82,7 +82,7 @@ function renderEditConfirm(settings,context,escape){
   const request=settings.editRequest;if(!request)return '';
   const pass=selectPassBalances(context).find(row=>row.id===request.id);
   if(!pass)return '';
-  return `<div class="lp-delete-layer" data-pass-edit-backdrop><section class="lp-delete-confirm" role="dialog" aria-modal="true" aria-labelledby="lp-edit-title"><h3 id="lp-edit-title">수강권 변경</h3><dl><div><dt>고객 · 강습생</dt><dd>${escape(pass.customerName||'고객 확인')} · ${escape(pass.learnerName||'강습생 확인')}</dd></div><div><dt>종목 · 총 횟수</dt><dd>${escape(pass.sport||'종목')} · ${pass.total===null?'—':`${pass.total}회`}</dd></div><div><dt>발급일</dt><dd>${escape(dateLabel(pass.created_at||pass.createdAt))}</dd></div></dl><label class="field"><span class="field-label">시간권</span><select data-pass-edit-minutes ${request.saving?'disabled':''}>${options([['120','2시간권'],['240','4시간권']],String(request.lessonMinutes||pass.lessonMinutes||120),escape)}</select></label><p class="lp-delete-note">고객명·총 횟수·고정 강사는 변경할 수 없습니다. 잘못 발급된 수강권은 삭제 후 다시 발급해 주세요.</p><p class="lp-form-error" data-pass-edit-error role="alert" ${request.error?'':'hidden'}>${escape(request.error||'')}</p><footer><button type="button" class="btn secondary" data-pass-edit-cancel ${request.saving?'disabled':''}>닫기</button><button type="button" class="btn primary" data-pass-edit-confirm ${request.saving?'disabled':''}>${request.saving?'저장 중…':'변경 저장'}</button></footer></section></div>`;
+  return `<div class="lp-delete-layer" data-pass-edit-backdrop><section class="lp-delete-confirm" role="dialog" aria-modal="true" aria-labelledby="lp-edit-title"><h3 id="lp-edit-title">수강권 변경</h3><dl><div><dt>고객 · 강습생</dt><dd>${escape(pass.customerName||'고객 확인')} · ${escape(pass.learnerName||'강습생 확인')}</dd></div><div><dt>종목 · 총 횟수</dt><dd>${escape(pass.sport||'종목')} · ${pass.total===null?'—':`${pass.total}회`}</dd></div><div><dt>발급일</dt><dd>${escape(dateLabel(pass.created_at||pass.createdAt))}</dd></div></dl><label class="field"><span class="field-label">시간권</span><select data-pass-edit-minutes ${request.saving?'disabled':''}>${options([['120','2시간권'],['240','4시간권']],String(request.lessonMinutes||pass.lessonMinutes||120),escape)}</select></label><p class="lp-delete-note">고객명·총 횟수·고정 강사는 변경할 수 없습니다. 잘못 발급된 수강권은 삭제 후 다시 발급해 주세요.</p><p class="lp-form-error" data-pass-edit-error role="alert" ${request.error?'':'hidden'}>${escape(request.error||'')}</p><footer><button type="button" class="btn ghost lp-danger" data-pass-edit-delete ${request.saving?'disabled':''}>이 수강권 삭제</button><button type="button" class="btn secondary" data-pass-edit-cancel ${request.saving?'disabled':''}>닫기</button><button type="button" class="btn primary" data-pass-edit-confirm ${request.saving?'disabled':''}>${request.saving?'저장 중…':'변경 저장'}</button></footer></section></div>`;
 }
 
 function renderIssue(settings,context,escape,preview){
@@ -112,8 +112,11 @@ export function renderPasses({state={},ui={},escapeHTML=escapeFallback,icon=()=>
   const stats=[['총 발급 횟수',purchased,`조회된 수강권 ${rows.length}개 / 전체 ${all.length}개`, ''],['강습완료',completed,unverified?'완료 집계 확인 필요':'종료 인증이 확인된 강습', 'completed'],['예약·진행중',pending,'일정 등록 후 완료 확인 전', 'pending'],['미예약 잔여',available,'아직 날짜·시간을 정하지 않은 횟수', 'available']];
   // 시간권(2시간/4시간) 열(2026-11-20 사용자 지시) — 수정은 행의 [변경] 버튼 → 변경 창에서.
   const minutesCell=pass=>`<td data-pass-minutes>${pass.lessonMinutes===240?'4시간':pass.lessonMinutes===120?'2시간':'—'}</td>`;
-  const rowHTML=pass=>`<tr data-pass-row="${escape(pass.id)}"><th scope="row"><strong>${escape(pass.customerName||'고객 확인 필요')}</strong><span>${escape(pass.learnerName||'강습생 확인 필요')}</span>${pass.phone?`<small>${escape(pass.phone)}</small>`:''}</th><td data-pass-company>${escape(normalizeBookingCompany(pass.company)||'센터 미등록')}</td><td><span class="lp-sport ${pass.sport==='보드'?'board':''}">${escape(pass.sport||'종목 확인')}</span></td>${minutesCell(pass)}<td data-pass-total>${pass.total===null?'—':`${pass.total}회`}</td><td data-pass-completed class="lp-completed">${pass.completed}회${!preview&&!pass.completionVerified?'<small class="lp-count-unverified">집계 확인 필요</small>':''}</td><td data-pass-pending data-pass-scheduled="${pass.scheduled}">${pass.pending}회<small>일정 등록 ${pass.scheduled}회 중</small></td><td data-pass-available class="lp-available ${pass.available===0?'used':''}">${pass.available===null?'—':`${pass.available}회`}${pass.scheduled===0?'<small>전체 날짜 미정</small>':''}${pass.overbooked?'<small class="lp-overbooked">연결 내역 확인 필요</small>':''}</td><td><strong>${escape(pass.instructorName)}</strong><small>${pass.fixedInstructorId?'전 회차 동일 강사':'첫 강습 배정 시 담당 확정'}</small></td><td class="lp-note-cell"><span>${escape(dateLabel(pass.created_at||pass.createdAt))}</span>${pass.notes?`<small>${escape(pass.notes)}</small>`:''}</td><td class="lp-actions-cell"><div class="lp-pass-actions"><button type="button" class="btn secondary small" data-pass-schedule="${escape(pass.id)}" ${!pass.id||pass.available===null||pass.available<1||pass.status!=='active'?'disabled':''}>일정 등록 →</button><button type="button" class="btn ghost small" data-pass-edit="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 수강권 변경" ${pass.id?'':'disabled'}>변경</button><button type="button" class="btn ghost small lp-customer-link" data-pass-customer-link="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 고객용 상태 링크" ${pass.id?'':'disabled'}>고객용 상태 링크</button><button type="button" class="btn ghost small lp-delete" data-pass-delete="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 수강권 삭제" ${pass.id?'':'disabled'}>삭제</button></div></td></tr>`;
-  return `<section class="pass-page" aria-label="수강권 관리"><div class="lp-heading"><div><span class="lp-eyebrow">LESSON PASSES</span><h1>수강권</h1><p>날짜 미정 수강권부터 강습 완료까지, 횟수와 고객용 상태 링크를 관리하세요.</p></div><button type="button" class="btn primary" data-pass-new>${icon('plus')}수강권 발급</button></div><div class="lp-mode-note"><span class="lp-mode ${preview?'preview':'operational'}">${preview?'체험 수강권':'운영 수강권'}</span><span>${preview?'가상 데이터로 발급과 일정 연결을 체험합니다.':'발급한 수강권과 연결된 예약의 진행 상태를 확인합니다.'}</span></div><div class="lp-summary">${stats.map(([label,value,note,style])=>`<article class="${style}"><span>${label}</span><strong>${value}<small>회</small></strong><p>${note}</p></article>`).join('')}</div><section class="panel lp-filter-panel"><form class="lp-filter-form"><label><span>고객·강습생 검색</span><input name="query" type="search" value="${escape(settings.query)}" placeholder="고객명 · 강습생 · 연락처"></label><label><span>종목</span><select name="sport">${options([['all','전체 종목'],['스키','스키'],['보드','보드']],settings.sport,escape)}</select></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-pass-reset>초기화</button></form></section><p class="lp-action-status" data-pass-action-status role="status" aria-live="polite" hidden></p><section class="panel lp-table-panel"><div class="lp-table-heading"><div><h2>발급 수강권 <span>${rows.length}개</span></h2><p>총 횟수 = 강습완료 + 예약·진행중 + 미예약 잔여입니다. 고객용 링크에서도 같은 상태를 확인합니다.</p></div></div><div class="lp-table-scroll" tabindex="0" role="region" aria-label="수강권별 완료·예약·미예약 횟수 및 고객용 상태 링크"><table class="lp-table"><caption class="lp-sr-only">수강권 총 횟수, 강습완료, 예약·진행중과 미예약 잔여</caption><thead><tr><th scope="col">고객 · 강습생</th><th scope="col">강습센터</th><th scope="col">종목</th><th scope="col">시간권</th><th scope="col">총 횟수</th><th scope="col">강습완료</th><th scope="col">예약·진행중</th><th scope="col">미예약 잔여</th><th scope="col">담당 강사</th><th scope="col">발급일 · 메모</th><th scope="col">예약 · 고객 안내</th></tr></thead><tbody>${rows.map(rowHTML).join('')||`<tr><td colspan="11" class="lp-empty"><strong>${all.length?'조회 조건에 맞는 수강권이 없습니다.':'아직 발급한 수강권이 없습니다.'}</strong><p>${all.length?'고객명이나 종목을 바꾸어 조회해 주세요.':'날짜와 시간 없이 먼저 발급할 수 있습니다. 횟수는 자유 입력입니다.'}</p>${all.length?'':'<button type="button" class="btn secondary" data-pass-new>첫 수강권 발급</button>'}</td></tr>`}</tbody></table></div></section><p class="lp-footer-note">강습완료는 종료 인증이 확인된 횟수입니다. 확인 전 일정은 예약·진행중에 포함됩니다. 미예약 잔여는 아직 예약에 연결하지 않은 횟수입니다. 일정 등록 횟수는 강습 완료 횟수를 뜻하지 않습니다.</p>${renderIssue(settings,state,escape,preview)}${renderDeleteConfirm(settings,state,escape)}${renderEditConfirm(settings,state,escape)}</section>`;
+  // 그룹 수정(2026-11-20 사용자 지시): 예약표처럼 행 맨 왼쪽 체크 → 묶어서 시간권 변경·삭제.
+  const bulkSelected=list(settings.bulkSelected).filter(id=>rows.some(row=>row.id===id));
+  const bulkCell=pass=>`<td class="lp-bulk-cell"><input type="checkbox" data-pass-bulk="${escape(pass.id)}" ${bulkSelected.includes(pass.id)?'checked':''} aria-label="${escape(pass.customerName||'고객')} · ${escape(pass.learnerName||'기본팀')} 선택"></td>`;
+  const rowHTML=pass=>`<tr data-pass-row="${escape(pass.id)}">${bulkCell(pass)}<th scope="row"><strong>${escape(pass.customerName||'고객 확인 필요')}</strong><span>${escape(pass.learnerName||'강습생 확인 필요')}</span>${pass.phone?`<small>${escape(pass.phone)}</small>`:''}</th><td data-pass-company>${escape(normalizeBookingCompany(pass.company)||'센터 미등록')}</td><td><span class="lp-sport ${pass.sport==='보드'?'board':''}">${escape(pass.sport||'종목 확인')}</span></td>${minutesCell(pass)}<td data-pass-total>${pass.total===null?'—':`${pass.total}회`}</td><td data-pass-completed class="lp-completed">${pass.completed}회${!preview&&!pass.completionVerified?'<small class="lp-count-unverified">집계 확인 필요</small>':''}</td><td data-pass-pending data-pass-scheduled="${pass.scheduled}">${pass.pending}회<small>일정 등록 ${pass.scheduled}회 중</small></td><td data-pass-available class="lp-available ${pass.available===0?'used':''}">${pass.available===null?'—':`${pass.available}회`}${pass.scheduled===0?'<small>전체 날짜 미정</small>':''}${pass.overbooked?'<small class="lp-overbooked">연결 내역 확인 필요</small>':''}</td><td><strong>${escape(pass.instructorName)}</strong><small>${pass.fixedInstructorId?'전 회차 동일 강사':'첫 강습 배정 시 담당 확정'}</small></td><td class="lp-note-cell"><span>${escape(dateLabel(pass.created_at||pass.createdAt))}</span>${pass.notes?`<small>${escape(pass.notes)}</small>`:''}</td><td class="lp-actions-cell"><div class="lp-pass-actions"><button type="button" class="btn secondary small" data-pass-schedule="${escape(pass.id)}" ${!pass.id||pass.available===null||pass.available<1||pass.status!=='active'?'disabled':''}>일정 등록 →</button><button type="button" class="btn ghost small" data-pass-edit="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 수강권 변경" ${pass.id?'':'disabled'}>변경</button><button type="button" class="btn ghost small lp-customer-link" data-pass-customer-link="${escape(pass.id)}" aria-label="${escape(pass.customerName)} · ${escape(pass.learnerName||'기본팀')} 고객용 상태 링크" ${pass.id?'':'disabled'}>고객용 상태 링크</button></div></td></tr>`;
+  return `<section class="pass-page" aria-label="수강권 관리"><div class="lp-heading"><div><span class="lp-eyebrow">LESSON PASSES</span><h1>수강권</h1><p>날짜 미정 수강권부터 강습 완료까지, 횟수와 고객용 상태 링크를 관리하세요.</p></div><button type="button" class="btn primary" data-pass-new>${icon('plus')}수강권 발급</button></div><div class="lp-mode-note"><span class="lp-mode ${preview?'preview':'operational'}">${preview?'체험 수강권':'운영 수강권'}</span><span>${preview?'가상 데이터로 발급과 일정 연결을 체험합니다.':'발급한 수강권과 연결된 예약의 진행 상태를 확인합니다.'}</span></div><div class="lp-summary">${stats.map(([label,value,note,style])=>`<article class="${style}"><span>${label}</span><strong>${value}<small>회</small></strong><p>${note}</p></article>`).join('')}</div><section class="panel lp-filter-panel"><form class="lp-filter-form"><label><span>고객·강습생 검색</span><input name="query" type="search" value="${escape(settings.query)}" placeholder="고객명 · 강습생 · 연락처"></label><label><span>종목</span><select name="sport">${options([['all','전체 종목'],['스키','스키'],['보드','보드']],settings.sport,escape)}</select></label><button type="submit" class="btn secondary">조회</button><button type="button" class="btn ghost" data-pass-reset>초기화</button></form></section><p class="lp-action-status" data-pass-action-status role="status" aria-live="polite" ${settings.bulkNotice?'':'hidden'}>${escape(settings.bulkNotice||'')}</p>${bulkSelected.length?`<section class="panel lp-bulk-bar" data-pass-bulk-bar><strong>선택 ${bulkSelected.length}개</strong><label class="lp-bulk-field">시간권 <select data-pass-bulk-minutes>${options([['120','2시간'],['240','4시간']],'120',escape)}</select></label><button type="button" class="btn secondary small" data-pass-bulk-apply>선택 시간권 변경</button><button type="button" class="btn ghost small lp-danger" data-pass-bulk-delete>선택 삭제</button><button type="button" class="btn ghost small" data-pass-bulk-clear>선택 해제</button><span class="lp-bulk-help">예약·입금이 연결된 수강권은 삭제되지 않습니다.</span></section>`:''}<section class="panel lp-table-panel"><div class="lp-table-heading"><div><h2>발급 수강권 <span>${rows.length}개</span></h2><p>총 횟수 = 강습완료 + 예약·진행중 + 미예약 잔여입니다. 고객용 링크에서도 같은 상태를 확인합니다.</p></div></div><div class="lp-table-scroll" tabindex="0" role="region" aria-label="수강권별 완료·예약·미예약 횟수 및 고객용 상태 링크"><table class="lp-table"><caption class="lp-sr-only">수강권 총 횟수, 강습완료, 예약·진행중과 미예약 잔여</caption><thead><tr><th scope="col" class="lp-bulk-cell" title="그룹 변경·삭제 선택"><input type="checkbox" data-pass-bulk-all aria-label="표시된 수강권 전체 선택" ${rows.length&&rows.every(row=>bulkSelected.includes(row.id))?'checked':''}></th><th scope="col">고객 · 강습생</th><th scope="col">강습센터</th><th scope="col">종목</th><th scope="col">시간권</th><th scope="col">총 횟수</th><th scope="col">강습완료</th><th scope="col">예약·진행중</th><th scope="col">미예약 잔여</th><th scope="col">담당 강사</th><th scope="col">발급일 · 메모</th><th scope="col">예약 · 고객 안내</th></tr></thead><tbody>${rows.map(rowHTML).join('')||`<tr><td colspan="12" class="lp-empty"><strong>${all.length?'조회 조건에 맞는 수강권이 없습니다.':'아직 발급한 수강권이 없습니다.'}</strong><p>${all.length?'고객명이나 종목을 바꾸어 조회해 주세요.':'날짜와 시간 없이 먼저 발급할 수 있습니다. 횟수는 자유 입력입니다.'}</p>${all.length?'':'<button type="button" class="btn secondary" data-pass-new>첫 수강권 발급</button>'}</td></tr>`}</tbody></table></div></section><p class="lp-footer-note">강습완료는 종료 인증이 확인된 횟수입니다. 확인 전 일정은 예약·진행중에 포함됩니다. 미예약 잔여는 아직 예약에 연결하지 않은 횟수입니다. 일정 등록 횟수는 강습 완료 횟수를 뜻하지 않습니다.</p>${renderIssue(settings,state,escape,preview)}${renderDeleteConfirm(settings,state,escape)}${renderEditConfirm(settings,state,escape)}</section>`;
 }
 
 function draftFromForm(form,previous={}){
@@ -157,6 +160,56 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,
   view.querySelector('[data-pass-reset]')?.addEventListener('click',()=>update({query:'',sport:'all'}));
   view.querySelector('.lp-filter-form')?.addEventListener('submit',event=>{event.preventDefault();const values=new FormData(event.currentTarget);update({query:text(values.get('query')),sport:text(values.get('sport'))||'all'});});
   view.querySelectorAll('[data-pass-schedule]').forEach(button=>button.onclick=()=>{if(!busy()&&!button.disabled)onSchedule?.(button.dataset.passSchedule);});
+  // 그룹 선택(2026-11-20 사용자 지시): 행 체크 → 묶어서 시간권 변경·삭제. 결과는 bulkNotice 로 남는다.
+  view.querySelectorAll('[data-pass-bulk]').forEach(box=>box.addEventListener('change',()=>{
+    const current=new Set(list(configuration(ui).bulkSelected));
+    if(box.checked)current.add(box.dataset.passBulk);else current.delete(box.dataset.passBulk);
+    update({bulkSelected:[...current],bulkNotice:''});
+  }));
+  view.querySelector('[data-pass-bulk-all]')?.addEventListener('change',event=>{
+    const ids=[...view.querySelectorAll('[data-pass-bulk]')].map(box=>box.dataset.passBulk);
+    update({bulkSelected:event.currentTarget.checked?ids:[],bulkNotice:''});
+  });
+  view.querySelector('[data-pass-bulk-clear]')?.addEventListener('click',()=>{if(!busy())update({bulkSelected:[],bulkNotice:''});});
+  view.querySelector('[data-pass-bulk-apply]')?.addEventListener('click',async()=>{
+    if(busy())return;
+    const selected=list(configuration(ui).bulkSelected);
+    const minutes=Number(view.querySelector('[data-pass-bulk-minutes]')?.value);
+    if(!selected.length||![120,240].includes(minutes))return;
+    if(typeof onUpdate!=='function'){linkStatus('수강권 변경 연결을 확인해 주세요.',true);return;}
+    const label=minutes===240?'4시간':'2시간';
+    if(globalThis.confirm?.(`선택한 수강권 ${selected.length}개의 시간권을 ${label}으로 변경할까요?`)!==true)return;
+    deleting=true;const restore=lockButtons();
+    let ok=0,skipped=0;const failures=[];
+    try{
+      for(const id of selected){
+        const pass=selectPassBalances(state).find(row=>row.id===id);
+        if(!pass){failures.push({id,message:'수강권을 찾지 못했습니다. 목록을 새로고침해 주세요.'});continue;}
+        if(pass.lessonMinutes===minutes){skipped++;continue;}
+        try{await onUpdate({id,expectedUpdatedAt:pass.updatedAt,lessonMinutes:minutes});ok++;}
+        catch(issue){failures.push({id,message:issue?.message||'변경하지 못했습니다.'});}
+      }
+    }finally{deleting=false;restore();}
+    update({bulkSelected:failures.map(row=>row.id),bulkNotice:`시간권 그룹 변경(${label}): 성공 ${ok}개${skipped?` · 이미 ${label} ${skipped}개`:''}${failures.length?` · 실패 ${failures.length}개 — ${failures[0].message}`:''}`});
+  });
+  view.querySelector('[data-pass-bulk-delete]')?.addEventListener('click',async()=>{
+    if(busy())return;
+    const selected=list(configuration(ui).bulkSelected);
+    if(!selected.length)return;
+    if(typeof onDelete!=='function'){linkStatus('수강권 삭제 연결을 확인해 주세요.',true);return;}
+    if(globalThis.confirm?.(`선택한 수강권 ${selected.length}개를 삭제할까요?\n예약·입금 배분·일정 신청이 연결된 수강권은 서버가 삭제를 거부합니다. 삭제는 되돌릴 수 없습니다.`)!==true)return;
+    deleting=true;const restore=lockButtons();
+    let ok=0;const failures=[];
+    try{
+      for(const id of selected){
+        const pass=selectPassBalances(state).find(row=>row.id===id);
+        if(!pass){ok++;continue;}
+        try{await onDelete(passDeletionPayload(pass));ok++;}
+        catch(issue){failures.push({id,message:issue?.message||'삭제하지 못했습니다.'});}
+      }
+    }finally{deleting=false;restore();}
+    update({bulkSelected:failures.map(row=>row.id),bulkNotice:`그룹 삭제: 성공 ${ok}개${failures.length?` · 실패 ${failures.length}개 — ${failures[0].message}`:''}`});
+  });
   // 수강권 변경(2026-11-20): 행의 [변경] 버튼 → 변경 창에서 시간권(2시간/4시간)만 고친다.
   view.querySelectorAll('[data-pass-edit]').forEach(button=>button.onclick=()=>{
     if(busy()||button.disabled)return;
@@ -164,6 +217,14 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,
     if(pass)update({editRequest:{id:pass.id,lessonMinutes:pass.lessonMinutes||120,error:'',saving:false}});
   });
   view.querySelector('[data-pass-edit-cancel]')?.addEventListener('click',()=>{if(!busy()&&!configuration(ui).editRequest?.saving)update({editRequest:null});});
+  // 삭제는 변경 창 안에서 진입한다(2026-11-20 사용자 지시: 행 버튼에서 제거).
+  view.querySelector('[data-pass-edit-delete]')?.addEventListener('click',()=>{
+    const request=configuration(ui).editRequest;
+    if(busy()||!request||request.saving)return;
+    const pass=selectPassBalances(state).find(row=>row.id===request.id);
+    if(!pass){update({editRequest:null});return;}
+    update({editRequest:null,deleteRequest:passDeletionPayload(pass)});
+  });
   view.querySelector('[data-pass-edit-backdrop]')?.addEventListener('click',event=>{if(event.target===event.currentTarget&&!busy()&&!configuration(ui).editRequest?.saving)update({editRequest:null});});
   view.querySelector('[data-pass-edit-confirm]')?.addEventListener('click',async()=>{
     const request=configuration(ui).editRequest;
