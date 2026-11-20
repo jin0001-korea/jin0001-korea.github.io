@@ -12,6 +12,7 @@ import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectD
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=35';
 import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=70';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=35';
+import {selectPassBalances} from './pass-view.mjs?v=43';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const SOURCE_URL = 'https://docs.google.com/spreadsheets/d/1SdQoy71Dp2YUTlOYXMjP57gJ6D_fR7SdfWVDhCSk4N4/edit?gid=1274546051#gid=1274546051';
@@ -1293,7 +1294,7 @@ function renderDrawer(settings,context,escape) {
   const draft=settings.draft;if(!draft)return '';
   const pane=settings.tab||'intake',active=activeDraftCard(settings.teamDeck),busy=settings.deckSaving||settings.reviewSaving||settings.deleteSaving||!!settings.deleteRequest||draftDeckSummary(settings.teamDeck).busy;
   const saved=context.reservations.find(row=>row.id===draft.id),deletable=!!saved&&!isCancelled(saved)&&active?.serverId===draft.id;
-  return `<div class="bk-drawer-backdrop" data-bk-backdrop><div class="bk-team-deck"><aside data-bk-active-card="${escape(settings.teamDeck?.activeKey||'')}" class="bk-drawer bk-deck-drawer bk-board-layout bk-compact-layout" data-bk-card-status="${escape(active?.status||'draft')}" role="dialog" aria-modal="true" aria-label="예약 접수와 강사 배정"><header><div><span>${draft.id?'예약 관리':'NEW RESERVATION'}${settings.demo?' · 체험':''}</span><h2 class="bk-active-title"><span data-bk-active-customer>${escape(describeBookingCard(active||{draft}).customer)}</span><small data-bk-active-team>${escape(describeBookingCard(active||{draft}).team)}</small></h2><p data-bk-active-summary>${escape(describeBookingCard(active||{draft}).when)}${describeBookingCard(active||{draft}).contact?` · ${escape(describeBookingCard(active||{draft}).contact)}`:''}</p></div><button type="button" class="btn ghost small bk-window-close" data-bk-close aria-label="입력창 닫기 — 저장하지 않은 내용 삭제" title="입력창 닫기 — 저장하지 않은 내용 삭제" ${busy?'disabled':''}>입력창 닫기 <b aria-hidden="true">×</b></button></header>${renderDeckRail(settings,escape)}<nav class="bk-drawer-tabs" aria-label="예약 입력 위치 바로가기">${[['intake','01 고객 공통'],['team','02 팀 정보'],['financial','03 일정·금액'],['assignment','강사 선택(선택)'],...(draft.id?[['history','변경 이력']]:[])].map(([key,label])=>`<button type="button" data-bk-tab="${key}" class="${pane===key?'active':''}">${label}</button>`).join('')}</nav><form class="bk-reservation-form" ${busy?'data-busy="1"':''} novalidate><div class="bk-drawer-body"><p class="bk-review-saving" data-bk-deck-saving role="status" ${busy?'':'hidden'}>${paymentGroupSaveLabel(settings)?'같은 입금의 모든 팀·회차를 함께 저장하고 있습니다.':'이 팀의 예약을 저장하고 있습니다.'}</p>${renderDeckSaveNotice(settings,escape)}${settings.deckNotice?`<p class="bk-deck-notice" role="status" tabindex="-1" data-bk-existing-draft-notice>${escape(settings.deckNotice)}</p>`:''}${renderCardError(settings,escape)}<div class="bk-onepage-layout">${rawIntake(draft,context,escape,settings)}</div></div><footer><span class="bk-save-scope" data-bk-save-scope title="${escape(bookingSaveScope(settings))}">${escape(bookingSaveScope(settings))}</span><div>${deletable?`<button type="button" class="btn ghost bk-delete-reservation" data-bk-delete-reservation ${busy?'disabled':''}>예약 삭제</button>`:''}<button type="button" class="btn secondary" data-bk-close ${busy?'disabled':''}>입력창 닫기</button><button type="submit" class="btn primary" ${busy||active?.status==='saved'?'disabled':''}>${draft.id?'변경 내용 검토':paymentGroupSaveLabel(settings)|| (bookingDateRows(draft).length>1?`${bookingDateRows(draft).length}회 한 번에 저장`:settings.demo?'체험 예약 저장':'예약 저장')}</button></div></footer></form>${renderPassIssueModal(settings,context,escape)}${renderCardCloseConfirm(settings,escape)}${renderReservationDelete(settings,escape)}</aside></div></div>`;
+  return `<div class="bk-drawer-backdrop" data-bk-backdrop><div class="bk-team-deck"><aside data-bk-active-card="${escape(settings.teamDeck?.activeKey||'')}" class="bk-drawer bk-deck-drawer bk-board-layout bk-compact-layout" data-bk-card-status="${escape(active?.status||'draft')}" role="dialog" aria-modal="true" aria-label="예약 접수와 강사 배정"><header><div><span>${draft.id?'예약 관리':'NEW RESERVATION'}${settings.demo?' · 체험':''}</span><h2 class="bk-active-title"><span data-bk-active-customer>${escape(describeBookingCard(active||{draft}).customer)}</span><small data-bk-active-team>${escape(describeBookingCard(active||{draft}).team)}</small></h2><p data-bk-active-summary>${escape(describeBookingCard(active||{draft}).when)}${describeBookingCard(active||{draft}).contact?` · ${escape(describeBookingCard(active||{draft}).contact)}`:''}</p></div><button type="button" class="btn ghost small bk-window-close" data-bk-close aria-label="입력창 닫기 — 저장하지 않은 내용 삭제" title="입력창 닫기 — 저장하지 않은 내용 삭제" ${busy?'disabled':''}>입력창 닫기 <b aria-hidden="true">×</b></button></header>${renderDeckRail(settings,escape)}<nav class="bk-drawer-tabs" aria-label="예약 입력 위치 바로가기">${[['intake','01 고객 공통'],['team','02 팀 정보'],['financial','03 일정·금액'],['assignment','강사 선택(선택)'],...(draft.id?[['history','변경 이력']]:[])].map(([key,label])=>`<button type="button" data-bk-tab="${key}" class="${pane===key?'active':''}">${label}</button>`).join('')}</nav><form class="bk-reservation-form" ${busy?'data-busy="1"':''} novalidate><div class="bk-drawer-body"><p class="bk-review-saving" data-bk-deck-saving role="status" ${busy?'':'hidden'}>${paymentGroupSaveLabel(settings)?'같은 입금의 모든 팀·회차를 함께 저장하고 있습니다.':'이 팀의 예약을 저장하고 있습니다.'}</p>${renderDeckSaveNotice(settings,escape)}${settings.deckNotice?`<p class="bk-deck-notice" role="status" tabindex="-1" data-bk-existing-draft-notice>${escape(settings.deckNotice)}</p>`:''}${renderCardError(settings,escape)}<div class="bk-onepage-layout">${rawIntake(draft,context,escape,settings)}</div></div><footer><span class="bk-save-scope" data-bk-save-scope title="${escape(bookingSaveScope(settings))}">${escape(bookingSaveScope(settings))}</span><div>${deletable?`<button type="button" class="btn ghost bk-delete-reservation" data-bk-delete-reservation ${busy?'disabled':''}>예약 삭제</button>`:''}<button type="button" class="btn secondary" data-bk-close ${busy?'disabled':''}>입력창 닫기</button>${!draft.id&&draft.passIssueMode?'':`<button type="submit" class="btn primary" ${busy||active?.status==='saved'?'disabled':''}>${draft.id?'변경 내용 검토':paymentGroupSaveLabel(settings)|| (bookingDateRows(draft).length>1?`${bookingDateRows(draft).length}회 한 번에 저장`:settings.demo?'체험 예약 저장':'예약 저장')}</button>`}</div></footer></form>${renderPassIssueModal(settings,context,escape)}${renderCardCloseConfirm(settings,escape)}${renderReservationDelete(settings,escape)}</aside></div></div>`;
 }
 
 function renderSettingsDrawer(settings,context,escape) {
@@ -1562,12 +1563,13 @@ function bookingPayload(draft,context) {
 /** All mutations are passed to authenticated parent callbacks; demo writes remain in memory. */
 export {validationError as validateBookingIntake};
 
-export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,now=new Date()}={}) {
+export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,now=new Date()}={}) {
   bookingRailObservers.get(root)?.disconnect();bookingRailObservers.delete(root);
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return;
   const view=root.querySelector('.booking-page');if(!view)return;
   const settings=bookingState(state,ui,now),context=contextFor(state,settings,now),escape=fallbackEscape;
-  const update=changes=>{Object.assign(settings,ui.booking||{},changes,{candidateRequestToken:null});ui.booking=settings;if(onChange)onChange(settings);else{view.outerHTML=renderBookingPage({state,ui,now});bindBookingPage(root,{state,ui,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,now});}};
+  // soon:true = 비동기 완료 재렌더 — 입력·조합 중이면 보류(onChangeSoon, IME 이름 잘림 방지).
+  const update=(changes,{soon=false}={})=>{Object.assign(settings,ui.booking||{},changes,{candidateRequestToken:null});ui.booking=settings;const emit=soon&&onChangeSoon?onChangeSoon:onChange;if(emit)emit(settings);else{view.outerHTML=renderBookingPage({state,ui,now});bindBookingPage(root,{state,ui,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,now});}};
   const busy=()=>settings.deckSaving||settings.reviewSaving||settings.deleteSaving||!!settings.deleteRequest||draftDeckSummary(settings.teamDeck).busy;
   const preserveDraft=()=>{const form=view.querySelector('.bk-reservation-form');if(settings.draft&&!busy())settings.teamDeck=ensureDraftDeck(settings.teamDeck,settings.draft,{tab:settings.tab});if(form&&settings.draft&&!busy())settings.draft=draftFromForm(form,settings.draft);if(settings.draft&&!busy()){settings.teamDeck=ensureDraftDeck(settings.teamDeck,settings.draft,{tab:settings.tab});settings.teamDeck=preserveActiveDraft(settings.teamDeck,settings.draft,settings.tab);settings.teamDeck=syncCommonCustomerDrafts(settings.teamDeck,settings.draft);settings.draft=clone(activeDraftCard(settings.teamDeck).draft);settings.deckMode??=settings.demo?'demo':'operational';if(ui.booking){ui.booking.teamDeck=settings.teamDeck;ui.booking.draft=settings.draft;}}syncIndicators();};
   const filterCardList=()=>{
@@ -1586,7 +1588,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
     const scope=view.querySelector('[data-bk-save-scope]');if(scope){scope.textContent=bookingSaveScope(settings);scope.title=scope.textContent;}
     const submit=view.querySelector('.bk-reservation-form button[type="submit"]');if(submit)submit.disabled=!!busy()||active.status==='saved';filterCardList();
   };
-  const updatePreservingScroll=changes=>{const scroll=view.querySelector('.bk-drawer-body')?.scrollTop||0,left=view.querySelector('[data-bk-team-board]')?.scrollLeft||0,sessionLeft=view.querySelector('[data-bk-session-list]')?.scrollLeft||0;update(changes);const body=root.querySelector('.bk-drawer-body'),board=root.querySelector('[data-bk-team-board]'),sessions=root.querySelector('[data-bk-session-list]');if(body)body.scrollTop=scroll;if(board)board.scrollLeft=left;if(sessions)sessions.scrollLeft=sessionLeft;};
+  const updatePreservingScroll=(changes,options)=>{const scroll=view.querySelector('.bk-drawer-body')?.scrollTop||0,left=view.querySelector('[data-bk-team-board]')?.scrollLeft||0,sessionLeft=view.querySelector('[data-bk-session-list]')?.scrollLeft||0;update(changes,options);const body=root.querySelector('.bk-drawer-body'),board=root.querySelector('[data-bk-team-board]'),sessions=root.querySelector('[data-bk-session-list]');if(body)body.scrollTop=scroll;if(board)board.scrollLeft=left;if(sessions)sessions.scrollLeft=sessionLeft;};
   const cancelCardClose=()=>{if(busy())return;const key=settings.closeCardKey;updatePreservingScroll({closeCardKey:null,focusCardCloseKey:key});};
   const fold=()=>{if(busy()||!closeBookingDrafts(ui))return;update({...ui.booking});};
 
@@ -1616,7 +1618,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
           state.customerPeople=[...(state.customerPeople||[]),result?.person||{id:row.id,customer_id:customerId,name:row.name,person_type:row.personType,age:row.age??null,experience_count:row.experienceCount??null}];
         }catch{}
       }
-      if(ui.booking)update({});
+      if(ui.booking)update({},{soon:true});
     })();
   };
   const finishSaved=(key,payload,result,requestToken)=>{
@@ -1826,14 +1828,14 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
   view.querySelectorAll('[data-bk-open-saved-date]').forEach(button=>button.addEventListener('click',()=>{if(busy())return;const row=context.reservations.find(item=>item.id===button.dataset.bkOpenSavedDate);if(row)open(clone(row));else onOpenLesson?.(button.dataset.bkOpenSavedDate);}));
   view.querySelectorAll('[data-bk-correction-history]').forEach(button=>button.addEventListener('click',async()=>{
     if(busy())return;preserveDraft();const id=button.dataset.bkCorrectionHistory,token=crypto.randomUUID();
-    const set=value=>updatePreservingScroll({paymentCorrectionHistories:{...(ui.booking?.paymentCorrectionHistories||{}),[id]:value}});
+    const set=(value,options)=>updatePreservingScroll({paymentCorrectionHistories:{...(ui.booking?.paymentCorrectionHistories||{}),[id]:value}},options);
     set({...settings.paymentCorrectionHistories?.[id],loading:true,error:'',token});
     try{
       if(settings.demo)throw new Error('체험 예약에는 실제 정정·발송 기록이 없습니다.');
       if(typeof onLoadPaymentRequestCorrections!=='function')throw new Error('정정 기록 조회 연결을 확인해 주세요.');
       const result=await onLoadPaymentRequestCorrections(id);if(ui.booking?.paymentCorrectionHistories?.[id]?.token!==token)return;
-      set({...result,loading:false,error:'',loadedAt:new Date().toISOString(),token});
-    }catch(error){if(ui.booking?.paymentCorrectionHistories?.[id]?.token===token)set({loading:false,error:error.message||'정정 기록을 불러오지 못했습니다. 다시 조회해 주세요.',token});}
+      set({...result,loading:false,error:'',loadedAt:new Date().toISOString(),token},{soon:true});
+    }catch(error){if(ui.booking?.paymentCorrectionHistories?.[id]?.token===token)set({loading:false,error:error.message||'정정 기록을 불러오지 못했습니다. 다시 조회해 주세요.',token},{soon:true});}
   }));
   view.querySelectorAll('[data-bk-auto]').forEach(button=>button.addEventListener('click',()=>onAutoAssign?.(button.dataset.bkAuto)));
   view.querySelector('[data-bk-autoassign-top]')?.addEventListener('click',()=>{if(!busy())onAutoAssign?.();});
@@ -1937,8 +1939,8 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         if(!Array.isArray(settings.draft.participantPersonIds)&&settings.draft.customerId===selected.customerId&&bookingCustomerSaved(settings.draft)){
           const roster=customerPeopleOf(context,selected.customerId);
           const everyone=participantsFromPeople(roster,roster.map(person=>String(person.id)));
-          update({draft:{...settings.draft,participants:everyone,raw:{...settings.draft.raw,M:String(everyone.length)}}});
-        }else update({});
+          update({draft:{...settings.draft,participants:everyone,raw:{...settings.draft.raw,M:String(everyone.length)}}},{soon:true});
+        }else update({},{soon:true});
       })();
     };
     const mutateDates=change=>{if(busy()||settings.draft.id)return;preserveDraft();try{const draft=change(ensureBookingDates(settings.draft));settings.teamDeck=preserveActiveDraft(settings.teamDeck,draft,settings.tab);updatePreservingScroll({draft,teamDeck:settings.teamDeck});}catch(error){showError(form,error.message);}};
@@ -2000,7 +2002,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
         const personId=personDelete.dataset.bkPersonDelete;personDelete.disabled=true;
         Promise.resolve(onDeleteCustomerPerson(personId)).then(()=>{
           state.customerPeople=(state.customerPeople||[]).filter(person=>String(person.id)!==String(personId));
-          preserveDraft();update({});
+          preserveDraft();update({},{soon:true});
         }).catch(error=>{personDelete.disabled=false;showError(form,error?.message||'명부에서 삭제하지 못했습니다.');});
         return;
       }
@@ -2040,7 +2042,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
             const everyone=participantsFromPeople(roster,roster.map(person=>String(person.id)));
             if(everyone.length){next.participants=everyone;next.raw={...next.raw,M:String(everyone.length)};}
           }
-          update({draft:next});
+          update({draft:next},{soon:true});
         }).catch(error=>{personAdd.disabled=false;if(feedback)feedback.textContent=error?.message||'명부에 저장하지 못했습니다.';});
         return;
       }
@@ -2220,23 +2222,37 @@ export function bindBookingPage(root,{state={},ui={},onChange,onSave,onSaveBatch
       const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:roster.map(person=>String(person.id));
       const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
       const headcount=numeric(raw.M)||participants.length||1;
+      // 같은 전화번호(없으면 같은 고객명)의 미사용 수강권이 이미 있으면 중복 발급인지 확인한다
+      // (2026-11-20 사용자 신고: 발급 완료 표시는 드로어를 닫으면 사라져, 내용을 고쳐 다시
+      //  발급하면 새 발급번호로 2장이 됐다 — 서버 멱등은 같은 번호·같은 내용만 접는다).
+      const phoneKey=canonicalTelephone(String(raw.L||draft.customerContactPhone||'').trim());
+      const nameKey=String(raw.H||'').trim();
+      const doneIds=new Set(configs.map(row=>row.done?.passId).filter(Boolean));
+      const existing=selectPassBalances(context).filter(pass=>!doneIds.has(pass.id)&&(pass.available===null||pass.available>0)&&(phoneKey?canonicalTelephone(pass.phone)===phoneKey:String(pass.customerName||'').trim()===nameKey));
+      if(existing.length&&globalThis.confirm?.(`같은 ${phoneKey?'전화번호':'고객명'}의 미사용 수강권이 이미 ${existing.length}장 있습니다.\n${existing.slice(0,3).map(pass=>`· ${pass.customerName||'고객'} · ${pass.learnerName||'기본 팀'} · ${pass.total===null?'횟수 미정':`${pass.total}회`}`).join('\n')}\n잘못 발급된 수강권은 예약표 아래 수강권 블록에서 삭제할 수 있습니다.\n그래도 새로 발급할까요?`)!==true)return;
       // 고객 디렉터리 연결(2026-11-20): 예약 저장과 같은 계약 — 선택된 고객·팀과 draft 동봉.
-      const directoryLink=draft.customerId&&draft.customerTeamId?{customerId:draft.customerId,teamId:draft.customerTeamId,...(draft.customerDraft?{customerDraft:{...draft.customerDraft,id:draft.customerId,name:String(raw.H||'').trim()}}:{}),...(draft.teamDraft?{teamDraft:{...draft.teamDraft,id:draft.customerTeamId,customerId:draft.customerId,name:String(raw.I||'').trim()}}:{})}:{};
+      // 연결 정보가 비어 있으면(구 초안 등) 그 자리에서 새 id+draft 를 준비해 '무연결 수강권'을 막는다.
+      if(!draft.customerId||!draft.customerTeamId){settings.draft=prepareCustomerIdentity(settings.draft);if(ui.booking)ui.booking.draft=settings.draft;}
+      const linked=settings.draft;
+      const directoryLink=linked.customerId&&linked.customerTeamId?{customerId:linked.customerId,teamId:linked.customerTeamId,...(linked.customerDraft?{customerDraft:{...linked.customerDraft,id:linked.customerId,name:nameKey}}:{}),...(linked.teamDraft?{teamDraft:{...linked.teamDraft,id:linked.customerTeamId,customerId:linked.customerId,name:String(raw.I||'').trim()}}:{})}:{};
       if(errorBox)errorBox.hidden=true;
       const submitButton=form.querySelector('[data-bk-pass-inline-issue]');if(submitButton)submitButton.disabled=true;
-      const nextConfigs=configs.map(row=>({...row}));
+      // 'seed' 폴백 행이 서버로 새어 나가면 uuid 캐스팅으로 하드 실패한다 — 발급 직전 실번호로 치환.
+      const nextConfigs=configs.map(row=>({...row,issueId:row.issueId==='seed'?globalThis.crypto.randomUUID():row.issueId}));
       try{
         for(const row of nextConfigs){
           if(row.done)continue;
           const n=Number(row.sessions);
-          const saved=await onCreatePass({id:row.issueId,customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',...directoryLink,notes:[`총 횟수: ${n}회`,`구성: ${row.minutes}권 ${n}회 · 회당 강습료 ${Number(numeric(row.fee)).toLocaleString('ko-KR')}원`,...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
+          const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||linked.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:linked.preferredInstructorId||'',...directoryLink,notes:[`총 횟수: ${n}회`,`구성: ${row.minutes}권 ${n}회 · 회당 강습료 ${Number(numeric(row.fee)).toLocaleString('ko-KR')}원`,...passIssueCarryLines(linked),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
           row.done={totalSessions:n,passId:saved?.id||null};
         }
-        update({draft:{...settings.draft,passConfigs:nextConfigs,passIssueDone:{totalSessions:nextConfigs.reduce((sum,row)=>sum+(row.done?.totalSessions||0),0),passId:nextConfigs[0]?.done?.passId||null}}});
+        // 전 행 발급 성공: 서버가 고객·팀을 실제로 생성했으므로 미저장 draft 는 비운다 —
+        // 남겨두면 이후 고객명 수정 시 연결 해제가 안 되고 예약 저장이 '고객명이 다릅니다'로 막힌다.
+        update({draft:{...settings.draft,passConfigs:nextConfigs,customerDraft:null,teamDraft:null,passIssueDone:{totalSessions:nextConfigs.reduce((sum,row)=>sum+(row.done?.totalSessions||0),0),passId:nextConfigs[0]?.done?.passId||null}}},{soon:true});
       }catch(error){
         if(submitButton)submitButton.disabled=false;
         // 이미 성공한 행의 done 을 보존해 재클릭 시 그 행은 건너뛴다(부분 실패 안전).
-        update({draft:{...settings.draft,passConfigs:nextConfigs}});
+        update({draft:{...settings.draft,passConfigs:nextConfigs}},{soon:true});
         fail(error?.message||'수강권을 발급하지 못했습니다. 다시 시도해 주세요.');
       }
     };

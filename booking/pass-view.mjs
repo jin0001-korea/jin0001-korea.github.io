@@ -194,6 +194,14 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,
     const draft=draftFromForm(form,configuration(ui).draft),error=validateDraft(draft),box=form.querySelector('.lp-form-error');remember();
     if(error){box.textContent=error;box.hidden=false;box.scrollIntoView({block:'nearest'});return;}
     if(typeof onCreate!=='function'){box.textContent='수강권 발급 연결을 확인해 주세요.';box.hidden=false;return;}
+    // 같은 전화번호(없으면 같은 고객명)의 미사용 수강권이 있으면 중복 발급인지 확인한다(2026-11-20).
+    const phoneKey=canonicalTelephone(draft.phone);
+    const existing=selectPassBalances(state).filter(pass=>pass.id!==draft.id&&(pass.available===null||pass.available>0)&&(phoneKey?canonicalTelephone(pass.phone)===phoneKey:String(pass.customerName||'').trim()===draft.customerName));
+    if(existing.length&&globalThis.confirm?.(`같은 ${phoneKey?'전화번호':'고객명'}의 미사용 수강권이 이미 ${existing.length}장 있습니다.\n${existing.slice(0,3).map(pass=>`· ${pass.customerName||'고객'} · ${pass.learnerName||'기본 팀'} · ${pass.total===null?'횟수 미정':`${pass.total}회`}`).join('\n')}\n잘못 발급된 수강권은 수강권 목록에서 삭제할 수 있습니다.\n그래도 새로 발급할까요?`)!==true)return;
+    // 고객 디렉터리 연결(2026-11-20): 미연결 발급은 고객·팀 탭에서 보이지 않는다 —
+    // 연결 없는 draft 는 새 id+draft 를 동봉해 서버가 고객·팀을 생성·연결한다(예약접수·입금검토와 패리티).
+    if(!draft.customerId){draft.customerId=crypto.randomUUID();draft.customerDraft={id:draft.customerId,name:draft.customerName,contacts:phoneKey?[{label:'고객 연락처',phone:phoneKey}]:[],notes:''};}
+    if(!draft.teamId){draft.teamId=crypto.randomUUID();draft.teamDraft={id:draft.teamId,customerId:draft.customerId,name:draft.learnerName,phone:'',defaults:{}};}
     // Preserve the identity across an uncertain network response or a retry.
     draft.id ||= crypto.randomUUID();ui.passes={...configuration(ui),draft};
     form.dataset.saving='1';box.hidden=true;
