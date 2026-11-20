@@ -13,3 +13,6 @@
 .kk-rooms .kk-room small{display:block;margin-top:4px;color:#8aa0a8}
 .kk-detail header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .kk-detail header strong{font-size:14px;color:#3e646e}
+/* 등록고객 배지 + 통화 차수(2026-11-20) */
+.ci-registered{color:#1f7a4d!important;font-weight:700}
+.ci-seq{display:block;margin-top:2px;font-size:11px;color:#6b8691}
