@@ -74,6 +74,24 @@ export async function fetchScheduleRentalSummaries(scheduleIds) {
   return facts;
 }
 
+/** 고객 연락처 디렉토리 우선 오버레이(2026-11-20): 고객·팀 탭 번호 수정이 강사 웹에 바로 보이게.
+ *  표시 전용 — slope_schedules.phone/raw.L 스냅샷은 건드리지 않는다. 카카오ID 등 비전화 문자열 허용. */
+export async function fetchScheduleCustomerPhones(scheduleIds) {
+  const ids=[...new Set(scheduleIds)],facts=new Map();
+  for(let offset=0;offset<ids.length;offset+=PAGE_SIZE){
+    const requested=ids.slice(offset,offset+PAGE_SIZE),allowed=new Set(requested);
+    const {data,error}=await supabase.rpc('slope_schedule_customer_phones',{p_schedule_ids:requested});
+    fail(error,'고객 연락처를 불러오지 못했습니다. 최신 기록을 다시 불러와 주세요.');
+    if(!Array.isArray(data)||data.length>requested.length)throw new Error('고객 연락처 응답을 확인하지 못했습니다.');
+    for(const row of data){
+      if(!row||!allowed.has(row.schedule_id)||facts.has(row.schedule_id)||typeof row.phone!=='string'||row.phone.length>40)
+        throw new Error('고객 연락처 응답을 확인하지 못했습니다.');
+      facts.set(row.schedule_id,row.phone);
+    }
+  }
+  return facts;
+}
+
 /** Amount correction projection only; never fetch reservation source data for instructors. */
 export async function fetchSchedulePaymentCorrections(scheduleIds) {
   if(!Array.isArray(scheduleIds))throw new Error('조회할 일정 목록을 확인해 주세요.');
@@ -154,16 +172,18 @@ export async function fetchWorkspace(defaultSettings = {}, options = {}) {
   const cancelledIds=new Set(scheduleRows.filter(cancelledSchedule).map(row=>row.id));
   const cancelledAlertIds=new Set(alerts.filter(row=>cancelledIds.has(row.schedule_id)||cancelledIds.has(row.related_schedule_id)).map(row=>row.id));
   const paymentIds=scheduleRows.filter(row=>!cancelledSchedule(row)&&(profile.role==='admin'||row.instructor_user_id===profile.user_id||assignments.some(item=>item.schedule_id===row.id&&item.instructor_user_id===profile.user_id))).map(row=>row.id);
-  const [rentalResult,paymentResult]=await Promise.all([
+  const [rentalResult,paymentResult,phoneResult]=await Promise.all([
     fetchScheduleRentalSummaries(scheduleRows.filter(row=>!cancelledSchedule(row)).map(row=>row.id))
       .then(facts=>({facts,error:null})).catch(error=>({facts:new Map(),error:error.message||'장비 예약기록을 불러오지 못했습니다.'})),
     fetchSchedulePaymentCorrections(paymentIds)
       .then(facts=>({facts,error:null})).catch(error=>({facts:new Map(),error:error.message||'요청금액 정정 기록을 불러오지 못했습니다.'})),
+    fetchScheduleCustomerPhones(scheduleRows.filter(row=>!cancelledSchedule(row)).map(row=>row.id))
+      .then(facts=>({facts,error:null})).catch(()=>({facts:new Map(),error:null})),
   ]);
   const paymentScope=new Set(paymentIds);
   const schedules = scheduleRows.map(row => ({
     id: row.id, updatedAt:row.updated_at, cancelledAt:row.cancelled_at||null, status:cancelledSchedule(row)?'cancelled':'active', instructor: currentScheduleInstructorName(row,assignments,roster), instructorUserId: row.instructor_user_id, instructorUserIds:[...new Set([row.instructor_user_id,...assignments.filter(a=>a.schedule_id===row.id).map(a=>a.instructor_user_id)].filter(Boolean))],
-    customer: row.customer_name, phone: row.phone || '', start: row.start_at, end: row.end_at,
+    customer: row.customer_name, phone: phoneResult.facts.get(row.id) ?? (row.phone || ''), start: row.start_at, end: row.end_at,
     level: row.level || '', location: row.location || '', checkIn: null, checkOut: null,
     report: null, responses: {}, reviews: {}, sample: false,
     rental:rentalResult.error?{available:false}:rentalResult.facts.get(row.id)||{paymentStatus:'unknown',bookedHours:null,useHours:null,available:true},
