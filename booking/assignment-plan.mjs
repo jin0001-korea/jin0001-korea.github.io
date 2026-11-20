@@ -32,9 +32,10 @@ const fixed = (row, passes = []) => Boolean(passTeacher(passes.find(item => Stri
   || pick(row, 'isReorder', 'is_reorder') === true
   || pick(row, 'designated', 'is_designated') === true;
 const safeTime = value => Number.isFinite(Date.parse(value)) ? Date.parse(value) : Infinity;
-const rowCustomer = row => {
+const rowCustomer = (row, context = null) => {
   const raw = row?.raw || row?.raw_data || {};
-  return String(raw.H || raw.I ? bookingTeamLabel(row) : row?.customer || row?.customer_name || '예약');
+  // 팀명 변경이 자동배정안에도 반영되게 디렉토리 컨텍스트를 전달한다(2026-11-20).
+  return String(raw.H || raw.I ? bookingTeamLabel(row, context) : row?.customer || row?.customer_name || '예약');
 };
 const normKey = value => String(value ?? '').normalize('NFKC').replace(/\s+/gu, '').toLowerCase();
 // 고객 단위 식별: 고객 ID가 있으면 그것을, 없으면 연락처+고객명을 쓴다.
@@ -125,7 +126,7 @@ export function buildAssignmentPlan(rows = [], context = {}, options = {}) {
         && !isCancelled(schedulesById.get(idOf(peer))) && !assignedIds(peer, schedulesById).length).map(idOf).filter(Boolean)
       : [];
     const base = {
-      id, customer: rowCustomer(row), start: interval.start, end: interval.end,
+      id, customer: rowCustomer(row, context), start: interval.start, end: interval.end,
       lessonMinutes:interval.lessonMinutes, breakMinutes:interval.breakMinutes, busySegments:interval.busySegments,
       instructorId: null, instructorName: '', instructorIds: [], eligible: false,
       recommended: false, reasonCodes: [], reasons: [], conditionLabels: [],

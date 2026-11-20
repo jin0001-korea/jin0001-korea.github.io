@@ -1,4 +1,4 @@
-import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference} from './booking-view.mjs?v=91';
+import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference} from './booking-view.mjs?v=92';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=70';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
@@ -109,7 +109,16 @@ export function createPaymentPassDraft(approvedDraft={},context={}){
   ].filter(Boolean);
   const draft={id:newId(),customerName:text(approvedDraft.customerName),learnerName:text(approvedDraft.teamName),phone,company:text(approvedDraft.company),sport:['스키','보드'].includes(approvedDraft.sport)?approvedDraft.sport:'',totalSessions:Number.isSafeInteger(sessions)&&sessions>=1&&sessions<=100?sessions:'',lessonMinutes:[120,240].includes(approvedDraft.lessonMinutes)?approvedDraft.lessonMinutes:'',studentCount:Number.isInteger(approvedDraft.studentCount)&&approvedDraft.studentCount>=1&&approvedDraft.studentCount<=20?approvedDraft.studentCount:'',fixedInstructorId,notes:[...carryLines,appliedProposalNotes(approvedDraft)].filter(Boolean).join('\n').slice(0,2000),paymentReviewId:approvedDraft.paymentReviewId,paymentReviewVersion:approvedDraft.paymentReviewVersion,paymentAllocationAmount:allocation,paymentCommitRequestId:newId()};
   if(approvedDraft.paymentDepositId!==undefined){if(!UUID.test(approvedDraft.paymentDepositId||''))fail('연결된 입금 내역을 다시 확인해 주세요.');draft.paymentDepositId=approvedDraft.paymentDepositId;}
-  if(UUID.test(approvedDraft.customerId||'')&&UUID.test(approvedDraft.teamId||'')){draft.customerId=approvedDraft.customerId;draft.teamId=approvedDraft.teamId;}
+  // 고객 디렉터리 연결(2026-11-20, 예약 직행과 패리티): 선택된 고객·팀은 그대로 잇고,
+  // 없는 쪽은 새 id+draft 를 동봉해 서버가 생성·연결한다(수강권만 등록된 고객이
+  // 고객·팀 탭에 안 보이던 비대칭 + '승인한 고객 연결이 바뀌었습니다' 차단 해소).
+  {
+    const hasCustomer=UUID.test(approvedDraft.customerId||''),hasTeam=UUID.test(approvedDraft.teamId||'');
+    draft.customerId=hasCustomer?approvedDraft.customerId:newId();
+    draft.teamId=hasTeam?approvedDraft.teamId:newId();
+    if(!hasCustomer)draft.customerDraft={id:draft.customerId,name:draft.customerName,contacts:phone?[{label:'고객 연락처',phone}]:[],notes:''};
+    if(!hasTeam)draft.teamDraft={id:draft.teamId,customerId:draft.customerId,name:draft.learnerName,phone:'',defaults:{}};
+  }
   return draft;
 }
 

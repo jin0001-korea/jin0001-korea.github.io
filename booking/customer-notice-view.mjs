@@ -1,4 +1,5 @@
 import {activeNoticeReservationIds,selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
+import {directoryDisplayNames} from './customer-teams.mjs?v=27';
 import {parseLessonInterval,normalizeInstructorIds} from './booking-rules.mjs?v=35';
 import {bookingStaffLinks} from './booking-access.mjs?v=27';
 import {CUSTOMER_PORTAL} from './customer-links.mjs?v=17';
@@ -17,12 +18,13 @@ export function customerNoticeMessage(notice,context={},url=''){
   const ids=new Set(notice.subjectIds||[]);
   if(notice.kind==='pass'){
     const passes=(context.lessonPasses||[]).filter(row=>ids.has(row.id));
-    return ['[SLOPE 수강권 등록 안내]',...passes.map(row=>`${row.customer_name||row.customerName||'고객'}님 · ${row.learner_name||row.learnerName||'기본 팀'}\n${row.sport||'강습'} ${row.total_sessions??row.totalSessions}회 수강권\n날짜·시간은 추후 예약할 수 있습니다.`),'날짜 미정인 잔여 회차도 링크에서 새 일정을 신청할 수 있습니다. 희망 강습 시작까지 7일 이상 남은 일정을 선택해 주세요. 신규 예약은 관리자 승인 후 확정됩니다. 날짜가 정해진 회차는 '+changePolicy,url?`수강권 상태 확인: ${url}`:'수강권 상태 확인 링크를 생성해 주세요.'].join('\n\n');
+    // 디렉터리 연결 수강권은 최신 고객·팀 이름으로 안내한다(2026-11-20).
+    return ['[SLOPE 수강권 등록 안내]',...passes.map(row=>{const d=directoryDisplayNames({customerId:row.customer_id??row.customerId,customerTeamId:row.customer_team_id??row.customerTeamId},context);return `${d.customerName||row.customer_name||row.customerName||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||row.learner_name||row.learnerName||'기본 팀'}\n${row.sport||'강습'} ${row.total_sessions??row.totalSessions}회 수강권\n날짜·시간은 추후 예약할 수 있습니다.`;}),'날짜 미정인 잔여 회차도 링크에서 새 일정을 신청할 수 있습니다. 희망 강습 시작까지 7일 이상 남은 일정을 선택해 주세요. 신규 예약은 관리자 승인 후 확정됩니다. 날짜가 정해진 회차는 '+changePolicy,url?`수강권 상태 확인: ${url}`:'수강권 상태 확인 링크를 생성해 주세요.'].join('\n\n');
   }
   const active=activeNoticeReservationIds(context);
   const rows=(context.reservations||[]).filter(row=>ids.has(row.id)&&active.has(row.id)).sort((a,b)=>Date.parse(parseLessonInterval(a).start)-Date.parse(parseLessonInterval(b).start));
   if(!rows.length)return '';
-  return ['[SLOPE 예약 접수 안내]',...rows.slice(0,3).map(row=>{const raw=row.raw||{},interval=parseLessonInterval(row);const time=interval.error?'일정 확인 필요':`${date.format(new Date(interval.start))}\n${clock.format(new Date(interval.start))}–${date.format(new Date(interval.start))!==date.format(new Date(interval.end))?'다음 날 ':''}${clock.format(new Date(interval.end))}${interval.breakMinutes?` · 중간 ${interval.breakMinutes/60}시간 휴식`:''}`;return `${raw.H||'고객'}님 · ${raw.I||'기본 팀'}\n${time}\n${raw.E||'장소 확인 필요'} · ${raw.D||'종목 확인 필요'}\n강습 구성: ${compositionLabel(row)}\n담당 강사: ${raw.F&&raw.F!=='미배정'?raw.F:'배정 후 안내'}`;}),...(rows.length>3?[`외 ${rows.length-3}건 · 전체 ${rows.length}건의 일정은 아래 링크에서 확인해 주세요.`]:[]),confirmationNotice,changePolicy,url?`예약 내용 확인: ${url}`:'예약 확인 링크를 생성해 주세요.'].join('\n\n');
+  return ['[SLOPE 예약 접수 안내]',...rows.slice(0,3).map(row=>{const raw=row.raw||{},interval=parseLessonInterval(row);const time=interval.error?'일정 확인 필요':`${date.format(new Date(interval.start))}\n${clock.format(new Date(interval.start))}–${date.format(new Date(interval.start))!==date.format(new Date(interval.end))?'다음 날 ':''}${clock.format(new Date(interval.end))}${interval.breakMinutes?` · 중간 ${interval.breakMinutes/60}시간 휴식`:''}`;const d=directoryDisplayNames(row,context);return `${d.customerName||raw.H||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||raw.I||'기본 팀'}\n${time}\n${raw.E||'장소 확인 필요'} · ${raw.D||'종목 확인 필요'}\n강습 구성: ${compositionLabel(row)}\n담당 강사: ${raw.F&&raw.F!=='미배정'?raw.F:'배정 후 안내'}`;}),...(rows.length>3?[`외 ${rows.length-3}건 · 전체 ${rows.length}건의 일정은 아래 링크에서 확인해 주세요.`]:[]),confirmationNotice,changePolicy,url?`예약 내용 확인: ${url}`:'예약 확인 링크를 생성해 주세요.'].join('\n\n');
 }
 export function demoCustomerNotices(context={}){
   const active=activeNoticeReservationIds(context);

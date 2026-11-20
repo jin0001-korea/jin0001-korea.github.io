@@ -38,13 +38,15 @@ export function smsThreadKey(sourceId,phone){
   const normalized=normalizeSmsPhone(phone);
   return text(sourceId)&&normalized?JSON.stringify([text(sourceId),normalized]):'';
 }
-export function matchingSmsCustomers(phone,customers=[]){
+export function matchingSmsCustomers(phone,customers=[],customerTeams=[]){
   const normalized=canonicalTelephone(normalizeSmsPhone(phone));
   if(!normalized)return [];
+  // 팀 별도 연락처(teamPhoneMode=separate)로 온 문자도 그 고객에게 연결한다(2026-11-20).
+  const teamPhoneCustomerIds=new Set(list(customerTeams).filter(team=>canonicalTelephone(team?.phone)===normalized).map(team=>team?.customer_id??team?.customerId).filter(Boolean));
   const seen=new Set();
   return list(customers).filter(customer=>{
     if(!customer?.id||isDeletedCustomer(customer)||seen.has(customer.id))return false;
-    const matches=list(customer.contacts).some(contact=>canonicalTelephone(contact?.phone)===normalized);
+    const matches=list(customer.contacts).some(contact=>canonicalTelephone(contact?.phone)===normalized)||teamPhoneCustomerIds.has(customer.id);
     if(matches)seen.add(customer.id);
     return matches;
   });
@@ -259,14 +261,14 @@ function messagesMarkup(messages,u){
     return `${divider}<li class="si-message si-${message.direction}"><article><span class="si-message-direction">${message.direction==='sent'?'보낸 문자':'받은 문자'}${message.transport==='mms'?' · MMS':''}</span>${message.subject?`<h3 class="si-message-subject">${esc(message.subject)}</h3>`:''}${message.body?`<p>${esc(message.body)}</p>`:''}${attachmentMarkup(message,u)}<time datetime="${esc(message.occurredAt)}">${esc(stamp(message.occurredAt))}</time></article></li>`;
   }).join('');
 }
-function detailMarkup(sources,threads,u,customers,busy){
+function detailMarkup(sources,threads,u,customers,busy,customerTeams){
   const selected=u.selected;
   if(!selected)return '<section class="si-chat si-chat-empty"><strong>전화번호를 선택하세요</strong><p>고객과 주고받은 문자를 시간순으로 볼 수 있습니다.</p></section>';
   const source=sources.find(row=>row.id===selected.sourceId),key=smsThreadKey(selected.sourceId,selected.phone);
   if(!source||!key)return '<section class="si-chat si-chat-empty"><p>이 문자 대화에 접근할 수 없습니다.</p><button type="button" class="btn secondary" data-si-close>목록으로</button></section>';
   const detail=u.detail&&smsThreadKey(u.detail.sourceId,u.detail.phone)===key?u.detail:null;
   const messages=list(detail?.messages).filter(message=>normalizeSmsPhone(message.phone)===normalizeSmsPhone(selected.phone));
-  const matches=matchingSmsCustomers(selected.phone,customers);
+  const matches=matchingSmsCustomers(selected.phone,customers,customerTeams);
   const customerId=matches.some(customer=>customer.id===u.customerId)?u.customerId:(matches.length===1?matches[0].id:'');
   const latest=threads.find(thread=>smsThreadKey(thread.sourceId,thread.phone)===key);
   const lastDisplayed=messages.reduce((latestAt,message)=>Math.max(latestAt,time(message.occurredAt)),0);
@@ -287,7 +289,7 @@ function detailMarkup(sources,threads,u,customers,busy){
   </section>`;
 }
 
-export function renderSmsInbox({profile,data,ui={},customers=[],loading=false,error='',busy=false}={}){
+export function renderSmsInbox({profile,data,ui={},customers=[],customerTeams=[],loading=false,error='',busy=false}={}){
   if(!canUse(profile)){clearSmsMediaViews(ui);return '<section class="si-access"><h2>문자 대화</h2><p>관리자·상담사 로그인 후 이용할 수 있습니다.</p></section>';}
   const u=stateOf(ui),sources=allowedSources(profile,data),threads=visibleThreads(data,sources,u.sourceId);
   u.visibleSourceIds=sources.map(source=>source.id);
@@ -305,15 +307,15 @@ export function renderSmsInbox({profile,data,ui={},customers=[],loading=false,er
     ${error||u.error?`<p class="si-error" role="alert">${esc(error||u.error)}</p>`:''}${loading?'<p class="si-loading" role="status">문자 목록을 확인하고 있습니다.</p>':''}
     <div class="si-layout ${u.selected?'has-detail':''}"><section class="si-thread-list" aria-label="전화번호별 문자 목록"><header><strong>전화번호별 대화 ${total}개</strong><span>${allThreadsVisible?'':'이 페이지 '}문자 ${pageMessageCount}건 · 최근 문자순</span></header>
       <div class="si-threads">${threads.map(thread=>{
-        const key=smsThreadKey(thread.sourceId,thread.phone),matches=matchingSmsCustomers(thread.phone,customers),source=sources.find(row=>row.id===thread.sourceId);
+        const key=smsThreadKey(thread.sourceId,thread.phone),matches=matchingSmsCustomers(thread.phone,customers,customerTeams),source=sources.find(row=>row.id===thread.sourceId);
         const customer=matches.length===1?matches[0].name:matches.length>1?`같은 번호의 고객 ${matches.length}명`:'';
         return `<button type="button" class="si-thread ${key===selectedKey?'selected':''}" data-si-open data-si-source-id="${esc(thread.sourceId)}" data-si-phone="${esc(thread.phone)}" aria-pressed="${key===selectedKey}"><span class="si-thread-top"><strong>${esc(formatTelephone(thread.phone))}</strong><time>${esc(stamp(thread.lastMessageAt))}</time></span><span class="si-thread-meta"><span>${esc(source?.label||thread.sourceLabel)}</span>${customer?`<strong>${esc(customer)}</strong>`:''}<span>문자 ${Math.max(0,Number(thread.messageCount)||0)}개</span></span><span class="si-thread-preview"><span>${thread.lastDirection==='sent'?'보냄':'받음'}</span>${esc(threadPreview(thread))}</span></button>`;
       }).join('')||(!loading&&!error&&!u.error?`<div class="si-empty"><strong>${sources.length?'이 조건의 문자 대화가 없습니다.':'공유된 문자 수신함이 없습니다.'}</strong><p>${sources.length?'Tasker에서 문자 권한과 연결 설정을 확인한 뒤 동기화해 주세요.':profile.role==='admin'?'휴대폰 연결 설정을 확인해 주세요.':'사장님이 수신함을 공유하면 확인할 수 있습니다.'}</p></div>`:'')}</div>
       <nav class="si-pagination" aria-label="문자 목록 페이지"><button type="button" class="btn ghost small" data-si-page="previous" ${disabled(loading||!u.offset)}>이전</button><span>${total?`${Math.min(total,u.offset+1)}–${Math.min(total,u.offset+threads.length)}`:'0'} / ${total}</span><button type="button" class="btn ghost small" data-si-page="next" ${disabled(loading||!data?.hasMore)}>다음</button></nav>
-    </section>${detailMarkup(sources,threads,u,customers,busy)}</div></section>`;
+    </section>${detailMarkup(sources,threads,u,customers,busy,customerTeams)}</div></section>`;
 }
 
-export function bindSmsInbox(root,{profile,data,ui={},customers=[],onChange,onRefresh,onAction,onCreateBooking,onError,onOpenPhoneSetup,isCurrent=()=>true,busy=false}={}){
+export function bindSmsInbox(root,{profile,data,ui={},customers=[],customerTeams=[],onChange,onRefresh,onAction,onCreateBooking,onError,onOpenPhoneSetup,isCurrent=()=>true,busy=false}={}){
   if(!canUse(profile))return;
   const u=stateOf(ui),sources=allowedSources(profile,data),sourcesById=new Map(sources.map(source=>[source.id,source]));
   bindSmsHistory(root,{profile,data,ui,sources,onChange,onRefresh,onAction,isCurrent,busy});
@@ -438,7 +440,7 @@ export function bindSmsInbox(root,{profile,data,ui={},customers=[],onChange,onRe
   root.querySelector('[data-si-customer]')?.addEventListener('change',event=>{if(current()){u.customerId=event.currentTarget.value;paint();}});
   root.querySelector('[data-si-booking]')?.addEventListener('click',()=>{
     if(!current()||blocked()||!u.selected||!sourcesById.has(u.selected.sourceId)||!canonicalTelephone(u.selected.phone))return;
-    const matches=matchingSmsCustomers(u.selected.phone,customers),customer=matches.length===1?matches[0]:matches.find(row=>row.id===u.customerId);
+    const matches=matchingSmsCustomers(u.selected.phone,customers,customerTeams),customer=matches.length===1?matches[0]:matches.find(row=>row.id===u.customerId);
     if(matches.length>1&&!customer)return;
     onCreateBooking?.({...u.selected,sourceLabel:sourcesById.get(u.selected.sourceId).label},{matchedCustomer:customer||null});
   });

@@ -40,7 +40,9 @@ export function selectPassBalances(context={}){
     const person=list(context.roster).find(row=>row.user_id===fixedInstructorId);
     return {...pass,pass,id,total,scheduled,available,totalSessions:total,scheduledSessions:scheduled,availableSessions:available,
       completed,pending,remaining,unbooked:available,completedSessions:completed,pendingSessions:pending,remainingSessions:remaining,completionVerified,
-      customerName:text(first(pass,'customer_name','customerName')),learnerName:text(first(pass,'learner_name','learnerName')),
+      // 디렉터리 연결 수강권은 최신 고객·팀 이름을 표시·검색에 쓴다(발급 스냅샷은 폴백, 2026-11-20).
+      customerName:(()=>{const linkedCustomer=list(context.customers).find(row=>row?.id===(pass.customer_id??pass.customerId));return text(linkedCustomer?.name)||text(first(pass,'customer_name','customerName'));})(),
+      learnerName:(()=>{const linkedTeam=list(context.customerTeams).find(row=>row?.id===(pass.customer_team_id??pass.customerTeamId));const teamName=linkedTeam?text(linkedTeam.name):'';return teamName||text(first(pass,'learner_name','learnerName'));})(),
       phone:text(pass.phone),company:text(pass.company),sport:text(pass.sport),fixedInstructorId,
       instructorName:fixedInstructorId?(person?.display_name||'담당 계정 확인 필요'):'강사 미정',
       status:pass.status||'active',overbooked:total!==null&&scheduled>total};
@@ -105,6 +107,11 @@ export function renderPasses({state={},ui={},escapeHTML=escapeFallback,icon=()=>
 function draftFromForm(form,previous={}){
   const values=new FormData(form);
   const linkage=Object.fromEntries(['paymentReviewId','paymentReviewVersion','paymentAllocationAmount','paymentDepositId','paymentCommitRequestId','customerId','teamId','customerDraft','teamDraft'].filter(key=>previous[key]!==undefined).map(key=>[key,previous[key]]));
+  // 아직 저장 전인 새 고객·팀 draft 는 폼에서 고친 이름·연락처를 따라간다(2026-11-20) —
+  // 서버의 '선택한 고객과 수강권 고객명이 다릅니다' 불일치 차단을 막는다.
+  const formCustomerName=text(values.get('customerName')),formLearnerName=text(values.get('learnerName')),formPhone=text(values.get('phone'));
+  if(linkage.customerDraft)linkage.customerDraft={...linkage.customerDraft,name:formCustomerName,contacts:formPhone?[{label:'고객 연락처',phone:formPhone}]:(linkage.customerDraft.contacts||[])};
+  if(linkage.teamDraft)linkage.teamDraft={...linkage.teamDraft,name:formLearnerName};
   return {...linkage,id:previous?.id||null,customerName:text(values.get('customerName')),learnerName:text(values.get('learnerName')),phone:text(values.get('phone')),company:text(previous.company)&&normalizeBookingCompany(previous.company)===text(values.get('company'))?previous.company:text(values.get('company')),sport:text(values.get('sport')),totalSessions:values.get('totalSessions')===''?'':Number(values.get('totalSessions')),lessonMinutes:values.get('lessonMinutes')?Number(values.get('lessonMinutes')):'',studentCount:values.get('studentCount')===''||values.get('studentCount')===null?'':Number(values.get('studentCount')),lessonRatio:(()=>{const n=Number(values.get('studentCount'));return Number.isInteger(n)&&n>=1&&n<=20?`1:${n}`:'';})(),participants:Array.isArray(previous.participants)?previous.participants:[],fixedInstructorId:text(values.get('fixedInstructorId')),notes:text(values.get('notes'))};
 }
 function validateDraft(draft){
