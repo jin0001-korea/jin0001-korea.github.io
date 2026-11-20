@@ -344,6 +344,15 @@ export async function deleteLessonPass(payload){
   if(result?.id!==payload.id||result.deleted!==true)throw issue('수강권 삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_DELETE_UNCONFIRMED');
   return result;
 }
+/** 예약·수강권이 연결되지 않은 팀만 삭제한다(관리자 전용). 서버가 연결 건수를 재검증한다. */
+export async function deleteCustomerTeam(payload){
+  await requireBookingOperator();
+  const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  if(!payload||!uuid(payload.id))throw issue('삭제할 팀을 다시 선택해 주세요.','INPUT_REQUIRED');
+  const result=await rpc('slope_delete_customer_team',{p_payload:{id:payload.id}});
+  if(result?.id!==payload.id||result.deleted!==true)throw issue('팀 삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','TEAM_DELETE_UNCONFIRMED');
+  return result;
+}
 /** 발급된 수강권의 시간권(2시간/4시간)·종목(스키/보드)만 수정한다 — 고객·횟수는 서버 트리거가 불변 보장(관리자 전용). */
 export async function updateLessonPass(payload){
   await requireBookingOperator();

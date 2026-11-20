@@ -42,3 +42,7 @@
 .cd-pass-counts strong{color:#2c6e7f}
 .cd-pass-counts strong.used{color:#8ba0a8}
 .cd-pass-card small{font-size:11px;color:#8ba0a8}
+
+/* 팀 카드 수정·삭제 버튼 묶음(2026-11-20) */
+.cd-team-actions{display:inline-flex;gap:6px;align-items:center}
+.cd-team-actions .cd-delete-button{color:#b3543f;background:transparent!important;border-color:#e3c3ba!important}

@@ -18,7 +18,7 @@ import {buildAssignmentPlan} from './assignment-plan.mjs?v=28';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
 import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
 import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=49';
-import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=38';
+import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=39';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
 import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=36';
 import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=35';
@@ -76,7 +76,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=92').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=93').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -234,7 +234,7 @@ function render(){
       onChange:()=>{dirty=false;render();},onRefresh:()=>loadCallInbox(),onAction:callInboxAction,
       onCreateBooking:createCallReservation,onError:toast,onSetupDownload:downloadCallSetup,isCurrent});
   }
-  if(ui.view==='customers')bindCustomers(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onSaveCustomer:saveCustomer,onSaveTeam:saveCustomerTeam,onDeleteCustomer:deleteCustomer,onNewReservation:createCustomerReservation,onOpenReservation:openReservation,onQuickAmounts:async(id,changes)=>{mustBeOperator();const row=state.reservations.find(item=>item.id===id);if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');const payload=buildQuickAmountChange(row,getBookingContext(state,ui,new Date()),changes);await writeOperation(()=>api.changeReservation(payload,'고객관리 금액 빠른 수정',{}),'금액을 저장했습니다.');}});
+  if(ui.view==='customers')bindCustomers(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onSaveCustomer:saveCustomer,onSaveTeam:saveCustomerTeam,onDeleteCustomer:deleteCustomer,onDeleteTeam:deleteCustomerTeamRow,onNewReservation:createCustomerReservation,onOpenReservation:openReservation,onQuickAmounts:async(id,changes)=>{mustBeOperator();const row=state.reservations.find(item=>item.id===id);if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');const payload=buildQuickAmountChange(row,getBookingContext(state,ui,new Date()),changes);await writeOperation(()=>api.changeReservation(payload,'고객관리 금액 빠른 수정',{}),'금액을 저장했습니다.');}});
   const rentalReadIdentity=authVersion;
   bindRentalBridgePanels(app,{demo,lookup:async id=>{mustBeOperator();const value=await api.lookupRentalStatus(id);return rentalReadIdentity===authVersion&&hasOperator()&&!ui.booking.demo?value:{discarded:true};},isCurrent:()=>rentalReadIdentity===authVersion&&hasOperator()&&!ui.booking.demo});
 }
@@ -543,6 +543,20 @@ async function saveCustomerTeam(payload){
   const team={...old,...value,customer_id:value.customerId,updated_at:new Date().toISOString()};delete team.expectedUpdatedAt;delete team.customerId;
   demo.customerTeams=old?rows.map(row=>row.id===team.id?team:row):[...rows,team];
   toast('체험 팀 정보를 저장했습니다.');return {team};
+}
+// 예약·수강권이 없는 팀만 삭제(2026-11-20 사용자 지시). 서버가 연결 건수를 재검증한다.
+async function deleteCustomerTeamRow(id){
+  if(ui.booking.demo){
+    context();const demo=ui.booking.demoData;
+    if((demo.lessonPasses||[]).some(row=>(row.customer_team_id||row.customerTeamId)===id))throw new Error('수강권이 연결된 팀은 삭제할 수 없습니다.');
+    if((demo.rows||[]).some(row=>(row.customerTeamId||row.customer_team_id)===id))throw new Error('예약이 연결된 팀은 삭제할 수 없습니다.');
+    demo.customerTeams=(demo.customerTeams||[]).filter(row=>row.id!==id);
+    toast('체험 팀을 삭제했습니다.');return {id,deleted:true};
+  }
+  mustBeOperator();
+  const result=await writeOperation(()=>api.deleteCustomerTeam({id}),'팀을 삭제했습니다.');
+  if(result?.discarded)throw new Error('로그인이 바뀌었습니다. 고객·팀 목록에서 처리 결과를 확인해 주세요.');
+  return result;
 }
 async function deleteCustomer(payload){
   if(pendingBookingDrafts())throw new Error('작성 중인 예약을 저장하거나 비운 뒤 고객을 삭제해 주세요.');
