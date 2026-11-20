@@ -1,4 +1,4 @@
-import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference} from './booking-view.mjs?v=99';
+import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference,applyLevel2InstructorPreference} from './booking-view.mjs?v=100';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=70';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
@@ -42,6 +42,7 @@ function applyReviewedRegistration(draft,approvedDraft){
   // 여자/영어 강사 요청은 특이사항(G)의 표준 문구로 동일하게 전달한다(접수 폼과 패리티).
   if(['','prefer','require'].includes(values.femalePreference))draft.raw.G=applyFemaleInstructorPreference(draft.raw.G,values.femalePreference);
   if(['','prefer','require'].includes(values.englishPreference))draft.raw.G=applyEnglishInstructorPreference(draft.raw.G,values.englishPreference);
+  if(['','prefer','require'].includes(values.level2Preference))draft.raw.G=applyLevel2InstructorPreference(draft.raw.G,values.level2Preference);
   if(typeof values.ability==='string')draft.raw.O=values.ability.slice(0,200);
   if(typeof values.lessonCount==='string')draft.raw.J=values.lessonCount.slice(0,30);
   if(['single','reorder','season'].includes(values.kind))draft.kind=values.kind;

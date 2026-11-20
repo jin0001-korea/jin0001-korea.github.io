@@ -642,6 +642,18 @@ export function applyEnglishInstructorPreference(noteText,pref){
   if(ENGLISH_PREF_LINES[pref])keep.unshift(ENGLISH_PREF_LINES[pref]);
   return keep.join('\n').replace(/^\n+|\n+$/g,'');
 }
+// 레벨2 강사 요청(2026-11-20 사용자 지시): 여자·영어와 동일 — 특이사항(G) 표준 문구 한 줄.
+// 수강권 발급 메모에도 특이사항이 실리므로 수강권 경로에서도 그대로 전달된다.
+const LEVEL2_PREF_LINES=Object.freeze({prefer:'레벨2 강사 선호',require:'레벨2 강사 필수'});
+export function level2InstructorPreference(noteText){
+  const lines=String(noteText||'').split('\n').map(line=>line.trim());
+  return lines.includes(LEVEL2_PREF_LINES.require)?'require':lines.includes(LEVEL2_PREF_LINES.prefer)?'prefer':'';
+}
+export function applyLevel2InstructorPreference(noteText,pref){
+  const keep=String(noteText||'').split('\n').filter(line=>!Object.values(LEVEL2_PREF_LINES).includes(line.trim()));
+  if(LEVEL2_PREF_LINES[pref])keep.unshift(LEVEL2_PREF_LINES[pref]);
+  return keep.join('\n').replace(/^\n+|\n+$/g,'');
+}
 function renderPeoplePicker(draft,context,escape){
   const people=bookingRosterPeople(draft,context);
   if(!people.length)return '';
@@ -804,7 +816,7 @@ function renderTeamConditions(draft,context,escape,{review=false}={}) {
   return `<div class="bk-condition-panel">
     <div class="bk-team-reservation-fields">
       <div class="bk-kind-field"><span class="field-label">예약 구분 · 자동</span><strong data-bk-automatic-kind>${draft.kind==='season'?'시즌강습 · 같은 팀 모든 회차에 같은 강사':draft.isReorder?'리오더':'일반 강습'}</strong></div>
-      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}${review?selectField('femalePreference','여자 강사',femaleInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-female-pref"><span class="field-label">여자 강사</span><div class="bk-female-pref-options" role="group" aria-label="여자 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${femaleInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-female-pref="${value}" aria-pressed="${femaleInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}${review?selectField('englishPreference','영어 강사',englishInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-english-pref"><span class="field-label">영어 강사</span><div class="bk-female-pref-options" role="group" aria-label="영어 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${englishInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-english-pref="${value}" aria-pressed="${englishInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}</div>
+      <div class="bk-preference"><label class="check-field"><input name="designated" type="checkbox" ${draft.designated?'checked':''}> 같은 강사 지정</label>${selectField('preferredInstructorId','지정 강사',preferred,[['','선택해 주세요'],...(context.roster||[]).filter(person=>person.active&&person.role==='instructor').map(person=>[person.user_id,person.display_name])],escape)}${review?selectField('femalePreference','여자 강사',femaleInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-female-pref"><span class="field-label">여자 강사</span><div class="bk-female-pref-options" role="group" aria-label="여자 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${femaleInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-female-pref="${value}" aria-pressed="${femaleInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}${review?selectField('englishPreference','영어 강사',englishInstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-english-pref"><span class="field-label">영어 강사</span><div class="bk-female-pref-options" role="group" aria-label="영어 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${englishInstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-english-pref="${value}" aria-pressed="${englishInstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}${review?selectField('level2Preference','레벨2 강사',level2InstructorPreference(raw.G),[['','무관'],['prefer','선호'],['require','필수']],escape):`<div class="field bk-level2-pref"><span class="field-label">레벨2 강사</span><div class="bk-female-pref-options" role="group" aria-label="레벨2 강사 요청">${[['','무관'],['prefer','선호'],['require','필수']].map(([value,label])=>`<button type="button" class="btn small ${level2InstructorPreference(raw.G)===value?'primary':'secondary'}" data-bk-level2-pref="${value}" aria-pressed="${level2InstructorPreference(raw.G)===value}">${label}</button>`).join('')}</div></div>`}</div>
       <label class="check-field bk-reorder-check"><input name="isReorder" type="checkbox" ${draft.isReorder?'checked':''}> 이전 강사가 마음에 들어 재등록한 리오더</label>
     </div>
     ${review?'':`<div data-bk-customer-history ${wantsSameInstructor(draft)?'':'hidden'}>${renderCustomerHistory(draft,context,escape)}</div>`}
@@ -1973,6 +1985,11 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
         if(busy())return;preserveDraft();
         const draft=settings.draft;
         update({draft:{...draft,raw:{...draft.raw,G:applyEnglishInstructorPreference(draft.raw.G,englishPref.dataset.bkEnglishPref)}}});return;
+      }
+      const level2Pref=event.target.closest?.('[data-bk-level2-pref]');if(level2Pref){
+        if(busy())return;preserveDraft();
+        const draft=settings.draft;
+        update({draft:{...draft,raw:{...draft.raw,G:applyLevel2InstructorPreference(draft.raw.G,level2Pref.dataset.bkLevel2Pref)}}});return;
       }
       const personAll=event.target.closest?.('[data-bk-person-all]');if(personAll){
         if(busy())return;preserveDraft();
