@@ -1,5 +1,5 @@
 import {isDeletedCustomer} from './customer-delete.mjs?v=2';
-import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
+import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
 import {renderSmsHistory,bindSmsHistory,isSmsHistoryOpen} from './sms-history-view.mjs?v=12';
 
 const list=value=>Array.isArray(value)?value:[];

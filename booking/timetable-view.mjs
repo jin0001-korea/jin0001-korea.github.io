@@ -1,6 +1,6 @@
 import {scheduleRentalSummary,scheduleRentalLabel,renderScheduleRental} from './schedule-rental.mjs?v=1';
 import {parseKstDate,parseLessonTime,lessonTimeLabel,parseLessonInterval,normalizeInstructorIds,bookingLocation} from './booking-rules.mjs?v=35';
-import {bookingTeamLabel} from './customer-teams.mjs?v=26';
+import {bookingTeamLabel} from './customer-teams.mjs?v=27';
 import {bookingFinancialSummary} from './booking-financial.mjs?v=12';
 
 const DAY=86400000;
@@ -69,7 +69,7 @@ export function normalizeTimetableAppointments(state={}){
     return {id,lessonPassId,reservation:!!reservation,start:interval.start,end:interval.end,startAt:Date.parse(interval.start),endAt:Date.parse(interval.end),
       lessonMinutes:interval.lessonMinutes??null,breakMinutes:interval.breakMinutes||0,
       lessonSegments:interval.lessonSegments||[{start:interval.start,end:interval.end}],busySegments:interval.busySegments||[{start:interval.start,end:interval.end}],breakSegment:interval.breakSegment||null,
-      customer:clean(raw.H||raw.I)?bookingTeamLabel(reservation):clean(first(schedule,'customer','customer_name')||first(reservation,'customer','customer_name'))||'강습생 확인 필요',
+      customer:clean(raw.H||raw.I)?bookingTeamLabel(reservation,state):clean(first(schedule,'customer','customer_name')||first(reservation,'customer','customer_name'))||'강습생 확인 필요',
       company:clean(raw.E||reservation?.company||schedule?.company),location:clean(reservation?.location||schedule?.location||bookingLocation({raw})),sport:clean(raw.D||reservation?.sport||schedule?.sport),
       notes:[clean(raw.G||reservation?.notes||''),planNeedsReview?'강습 시간 설정 확인 필요':''].filter(Boolean).join(' · '),level:clean(raw.O||schedule?.level||''),people:asNumber(raw.M??reservation?.people),
       paymentCorrection:paymentCorrection(reservation),rental:scheduleRentalSummary(reservation||schedule||{}),kind,reorder,designated,seasonId,sessionNumber:first(reservation,'sessionNumber','session_number'),assignedIds,heldIds,preferredInstructorId:preferred};

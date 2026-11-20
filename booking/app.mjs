@@ -1,23 +1,23 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=98';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=99';
 import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=82';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=18';
 import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=23';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
 import {hasSmsHistoryWork,isSmsHistoryOpen,clearSmsHistory} from './sms-history-view.mjs?v=12';
 import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.mjs?v=14';
-import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
+import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
 import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=22';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=89';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=90';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=79';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=27';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
-import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=27';
-import {renderPasses,renderPaymentPassIssue,bindPasses,selectPassBalances} from './pass-view.mjs?v=40';
+import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
+import {renderPasses,renderPaymentPassIssue,bindPasses,selectPassBalances} from './pass-view.mjs?v=41';
 import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=36';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
 import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=35';
@@ -716,7 +716,7 @@ function issuePassFromBooking(draft){
   if(activeWrite||ui.booking.deckSaving){toast('저장 작업을 마친 뒤 발급해 주세요.');return;}
   if(ui.passes?.issuing){toast('작성 중인 수강권을 먼저 저장하거나 닫아 주세요.');return;}
   const raw=draft?.raw||{};
-  ui.passes={...(ui.passes||{}),issuing:true,error:'',draft:{id:null,bookingIssue:true,customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim(),phone:String(raw.L||draft?.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:'',lessonRatio:/^[1-9]\d?$/.test(String(raw.M||'').trim())?`1:${String(raw.M).trim()}`:'',participants:Array.isArray(draft?.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[],fixedInstructorId:draft?.preferredInstructorId||'',notes:String(raw.G||'').trim()}};
+  ui.passes={...(ui.passes||{}),issuing:true,error:'',draft:{id:null,bookingIssue:true,...(draft?.customerId&&draft?.customerTeamId?{customerId:draft.customerId,teamId:draft.customerTeamId,...(draft.customerDraft?{customerDraft:draft.customerDraft}:{}),...(draft.teamDraft?{teamDraft:draft.teamDraft}:{})}:{}),customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim(),phone:String(raw.L||draft?.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:'',lessonRatio:/^[1-9]\d?$/.test(String(raw.M||'').trim())?`1:${String(raw.M).trim()}`:'',participants:Array.isArray(draft?.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[],fixedInstructorId:draft?.preferredInstructorId||'',notes:String(raw.G||'').trim()}};
   dirty=false;render();
 }
 function openReservation(id){if(activeWrite||ui.booking.deckSaving)return;const ctx=context(),row=ctx.reservations.find(item=>item.id===id&&!['cancelled','canceled'].includes(item.status));if(!row){if(hasOperator()&&!ui.booking.demo&&state.schedules.some(item=>item.id===id))return openExistingAssignment(id);toast('최신 예약 정보를 다시 확인해 주세요.');return;}closePlan();suspendBookingDrafts(app,ui);

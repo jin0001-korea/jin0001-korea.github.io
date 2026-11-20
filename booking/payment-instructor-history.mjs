@@ -1,4 +1,4 @@
-import {canonicalTelephone,normalizeCustomerText} from './customer-teams.mjs?v=26';
+import {canonicalTelephone,normalizeCustomerText} from './customer-teams.mjs?v=27';
 import {parseKstDate,parseLessonInterval} from './booking-rules.mjs?v=35';
 
 // Read-only preference proposals. No identity link, assignment, availability

@@ -1,7 +1,7 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=4';
 import {kakaoContactId,kakaoContactValue} from './kakao-contact.mjs?v=1';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields,bookingRosterPeople,participantsFromPeople} from './booking-view.mjs?v=89';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields,bookingRosterPeople,participantsFromPeople} from './booking-view.mjs?v=90';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=8';
 import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=81';
 import {BOOKING_COMPANIES} from './company-options.mjs?v=31';
@@ -1028,6 +1028,13 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
     }
   }
   const paint=()=>{if(current()){keepScroll();onChange?.();}};
+  // 이름 절단 수정(2026-11-20 실사례 '이소영'→'이소'): 검토 양식에 텍스트를 입력하는
+  // 동안 백그라운드 조회 완료가 전체 재렌더를 일으키면 한글 IME 조합 중 글자가
+  // 사라지고 포커스가 날아간다. 입력 중에는 재렌더를 보류했다가 입력이 끝나면 소화한다.
+  let paintPending=false,composingInForm=false;
+  const typingInForm=()=>{const el=globalThis.document?.activeElement;return composingInForm||!!(el&&root.contains?.(el)&&el.closest?.('[data-pr-review-form]')&&el.matches?.('input:not([type=checkbox]):not([type=radio]):not([type=button]),textarea'));};
+  const paintSoon=()=>{if(typingInForm()){paintPending=true;return;}paint();};
+  const flushPaint=()=>{if(paintPending&&!typingInForm()){paintPending=false;paint();}};
   const safeError=(error,fallback)=>typeof error?.message==='string'?error.message:fallback;
   const dirty=()=>Object.values(u.edits).some(edit=>edit.dirty);
   root.querySelectorAll('[data-pr-panel]').forEach(panel=>panel.addEventListener('toggle',()=>{if(!current()||panel.isConnected===false)return;u.openPanels??={};u.openPanels[panel.dataset.prPanel]=panel.open===true;}));
@@ -1119,20 +1126,20 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
       }
       return loaded;
     }catch(error){if(current()&&u.activeKey===key&&request===u.comparisonRequest)u.comparisonError=safeError(error,'상담 원문을 불러오지 못했습니다.');}
-    finally{if(current()&&request===u.comparisonRequest){u.comparisonLoading='';paint();}}
+    finally{if(current()&&request===u.comparisonRequest){u.comparisonLoading='';paintSoon();}}
   };
   const checkSourceFreshness=async()=>{
     const selectedEdit=activeEdit(u),key=freshnessKey(selectedEdit);
     if(!current()||blocked()||!key||selectedEdit.status!=='draft'||!selectedEdit.payerName.trim())return;
     u.sourceFreshness??={};if(u.sourceFreshness[key])return;
-    u.sourceFreshness[key]={status:'loading'};paint();
+    u.sourceFreshness[key]={status:'loading'};paintSoon();
     try{
       const result=await onAction('find-candidates',{payerName:selectedEdit.payerName.trim(),amount:selectedEdit.amount,...(phoneKey(selectedEdit.draft.phone)?{phone:selectedEdit.draft.phone}:{})});
       if(!current())return;
       if(!Array.isArray(result?.candidates))throw Error('문자 후보를 확인하지 못했습니다.');
       u.sourceFreshness[key]={status:'ready',candidates:result.candidates};
     }catch{if(current())u.sourceFreshness[key]={status:'failed'};}
-    finally{if(current()&&selectedEdit===activeEdit(u))paint();}
+    finally{if(current()&&selectedEdit===activeEdit(u))paintSoon();}
   };
   // 상담 원문 자동 표시(2026-11-15): 분석이 근거를 못 붙인 검토(예약 변경·날짜 미정 수강권 등)도
   // 입금자·금액·번호로 후보를 자동 조회하고, 검토 번호와 같은 번호의 최근 대화는 바로 불러온다.
@@ -1153,8 +1160,8 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
       u.candidates=result.candidates;u.candidateSearched=true;u.selectedCandidate=null;
       u.openPanels??={};u.openPanels.conversation=true;if(result.candidates.length)u.openPanels.candidate=true;
       const sources=originalSources(u,selectedEdit);
-      if(sources.length){u.comparisonActiveIndex=0;paint();await loadComparisonOriginals(0);}
-      else paint();
+      if(sources.length){u.comparisonActiveIndex=0;paintSoon();await loadComparisonOriginals(0);}
+      else paintSoon();
     }catch{}
   };
   const scrollSection=section=>{
@@ -1644,6 +1651,12 @@ export function bindPaymentReview(root,{profile,ui={},data={},bookingContext={},
   root.querySelector('[data-pr-copy-code]')?.addEventListener('click',async()=>{if(!current()||!u.connectionCode)return;try{await navigator.clipboard.writeText(u.connectionCode.code);if(current()){u.notice='연결 코드를 복사했습니다. 현재 ChatGPT 대화에 입력하세요.';paint();}}catch{if(current()){u.error='자동 복사가 차단되었습니다. 표시된 연결 코드를 직접 복사해 주세요.';paint();}}});
   root.querySelector('[data-pr-hide-code]')?.addEventListener('click',()=>{if(current()){u.connectionCode=null;paint();}});
   const form=root.querySelector('[data-pr-review-form]'),edit=activeEdit(u),reviewBlocked=()=>blocked()||u.detail?.upload?.analysisStatus==='running'||!!u.detail?.upload?.deletingAt;
+  if(form){
+    // 입력(특히 한글 조합) 중 보류된 재렌더는 입력이 끝난 순간 소화한다.
+    form.addEventListener('compositionstart',()=>{composingInForm=true;});
+    form.addEventListener('compositionend',()=>{composingInForm=false;});
+    form.addEventListener('focusout',()=>{composingInForm=false;setTimeout(flushPaint,0);});
+  }
   if(form&&!paymentFormBaselines.has(form)){const baseline=paymentFormSignature(form,true);if(baseline!==null)paymentFormBaselines.set(form,baseline);}
   for(const card of form?.querySelectorAll?.('[data-pr-intake-team-id][data-pr-intake-prefix]')||[]){if(!card?.dataset?.prIntakeTeamId||typeof card.dataset.prIntakePrefix!=='string')continue;const scoped=scopedPaymentIntakeForm(form,card);if(!paymentFormBaselines.has(scoped)){const baseline=paymentFormSignature(scoped,true);if(baseline!==null)paymentFormBaselines.set(scoped,baseline);}}
   const teamBoard=root.querySelector('.pr-intake-team-board'),activeCard=root.querySelector('.pr-intake-team-card.is-active'),sessionBoard=root.querySelector('.pr-intake-session-board');

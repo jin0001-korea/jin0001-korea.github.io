@@ -29,8 +29,22 @@ export function formatTelephone(value){
   return `${phone.slice(0,prefix)}-${phone.slice(prefix,-4)}${phone.length===8?'':'-'}${phone.slice(-4)}`.replace('--','-');
 }
 
-export function bookingTeamLabel(row={}){
-  const raw=rawOf(row),customer=normalizeCustomerText(raw.H),team=normalizeCustomerText(raw.I);
+// 표시 전용 디렉토리 우선(2026-11-20): 고객·팀 탭에서 이름을 고치면 연결된 예약의
+// 표시도 즉시 따라가야 한다. raw.H/raw.I 는 시트형 스냅샷으로 보존하고(매칭 키인
+// customerIdentity 는 절대 건드리지 않는다) '보여줄 이름'만 디렉토리에서 가져온다.
+export function directoryDisplayNames(row={},context={}){
+  const customerId=row?.customerId??row?.customer_id,teamId=row?.customerTeamId??row?.customer_team_id;
+  const customers=Array.isArray(context?.customers)?context.customers:[];
+  const teams=Array.isArray(context?.customerTeams)?context.customerTeams:[];
+  const customer=customerId?customers.find(item=>item?.id===customerId):null;
+  const team=teamId?teams.find(item=>item?.id===teamId):null;
+  return {customerName:normalizeCustomerText(customer?.name)||null,teamName:team?normalizeCustomerText(team.name)||'':null};
+}
+export function bookingTeamLabel(row={},context=null){
+  const raw=rawOf(row);
+  const directory=context?directoryDisplayNames(row,context):{customerName:null,teamName:null};
+  const customer=directory.customerName||normalizeCustomerText(raw.H);
+  const team=directory.teamName!==null?directory.teamName:normalizeCustomerText(raw.I);
   if(customer&&!team)return `${customer} · 기본팀`;
   if(customer&&team&&customer!==team)return `${customer} · ${team}`;
   return team||customer||'예약';

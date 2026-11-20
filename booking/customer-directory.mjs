@@ -1,6 +1,6 @@
 import {isDeletedCustomer} from './customer-delete.mjs?v=2';
 import {participantValidationError,participantSummary} from './booking-participants.mjs?v=34';
-import {canonicalTelephone,formatTelephone,normalizeCustomerText} from './customer-teams.mjs?v=26';
+import {canonicalTelephone,formatTelephone,normalizeCustomerText} from './customer-teams.mjs?v=27';
 
 const list=value=>Array.isArray(value)?value:[];
 const text=value=>normalizeCustomerText(value);

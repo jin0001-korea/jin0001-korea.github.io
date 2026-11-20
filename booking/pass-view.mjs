@@ -1,5 +1,5 @@
 import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=31';
-import {canonicalTelephone} from './customer-teams.mjs?v=26';
+import {canonicalTelephone} from './customer-teams.mjs?v=27';
 
 const escapeFallback=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const list=value=>Array.isArray(value)?value:[];
@@ -104,7 +104,7 @@ export function renderPasses({state={},ui={},escapeHTML=escapeFallback,icon=()=>
 
 function draftFromForm(form,previous={}){
   const values=new FormData(form);
-  const linkage=Object.fromEntries(['paymentReviewId','paymentReviewVersion','paymentAllocationAmount','paymentDepositId','paymentCommitRequestId','customerId','teamId'].filter(key=>previous[key]!==undefined).map(key=>[key,previous[key]]));
+  const linkage=Object.fromEntries(['paymentReviewId','paymentReviewVersion','paymentAllocationAmount','paymentDepositId','paymentCommitRequestId','customerId','teamId','customerDraft','teamDraft'].filter(key=>previous[key]!==undefined).map(key=>[key,previous[key]]));
   return {...linkage,id:previous?.id||null,customerName:text(values.get('customerName')),learnerName:text(values.get('learnerName')),phone:text(values.get('phone')),company:text(previous.company)&&normalizeBookingCompany(previous.company)===text(values.get('company'))?previous.company:text(values.get('company')),sport:text(values.get('sport')),totalSessions:values.get('totalSessions')===''?'':Number(values.get('totalSessions')),lessonMinutes:values.get('lessonMinutes')?Number(values.get('lessonMinutes')):'',studentCount:values.get('studentCount')===''||values.get('studentCount')===null?'':Number(values.get('studentCount')),lessonRatio:(()=>{const n=Number(values.get('studentCount'));return Number.isInteger(n)&&n>=1&&n<=20?`1:${n}`:'';})(),participants:Array.isArray(previous.participants)?previous.participants:[],fixedInstructorId:text(values.get('fixedInstructorId')),notes:text(values.get('notes'))};
 }
 function validateDraft(draft){

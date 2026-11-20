@@ -1,5 +1,5 @@
 import {isDeletedCustomer} from './customer-delete.mjs?v=2';
-import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=26';
+import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
 import {CALL_TASKER_SETUP_STEPS,CALL_TASKER_SETUP_LIMITATION} from './call-tasker-setup.mjs?v=14';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
