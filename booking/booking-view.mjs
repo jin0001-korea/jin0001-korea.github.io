@@ -12,7 +12,7 @@ import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectD
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=35';
 import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=70';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=35';
-import {selectPassBalances} from './pass-view.mjs?v=47';
+import {selectPassBalances} from './pass-view.mjs?v=48';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const SOURCE_URL = 'https://docs.google.com/spreadsheets/d/1SdQoy71Dp2YUTlOYXMjP57gJ6D_fR7SdfWVDhCSk4N4/edit?gid=1274546051#gid=1274546051';
@@ -2239,11 +2239,32 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
       const submitButton=form.querySelector('[data-bk-pass-inline-issue]');if(submitButton)submitButton.disabled=true;
       // 'seed' 폴백 행이 서버로 새어 나가면 uuid 캐스팅으로 하드 실패한다 — 발급 직전 실번호로 치환.
       const nextConfigs=configs.map(row=>({...row,issueId:row.issueId==='seed'?globalThis.crypto.randomUUID():row.issueId}));
+      // 금액 라인은 행 값으로 직접 계산한다(2026-11-20 사용자 신고: 발급 모드에는 받아야 할
+      // 금액 입력칸이 없어 passIssueCarryLines 가 낡은 회당 요청액 스냅샷(raw.X)을 총액으로
+      // 적었다 — 허정환 164,000/정령희 119,000). 받은 금액(raw.Y)은 고객 단위 합계다.
+      const rentalPerSession=linked.rentalPaymentStatus==='paid'?(numeric(String(linked.rentalAmount??''))??0):0;
+      const received=numeric(raw.Y);
+      const rentalLine=linked.rentalPaymentStatus?`장비: ${rentalStatusLabel(linked.rentalPaymentStatus)||linked.rentalPaymentStatus}${[4,6].includes(linked.rentalHours)?` · ${linked.rentalHours}시간`:''}${Number.isInteger(linked.rentalAmount)?` · ${money(linked.rentalAmount)}원`:''}`:null;
+      const multiConfig=nextConfigs.length>1;
+      const totalExpectedAll=nextConfigs.reduce((sum,row)=>sum+((numeric(row.fee)??0)+rentalPerSession)*(Number(row.sessions)||0),0);
       try{
         for(const row of nextConfigs){
           if(row.done)continue;
           const n=Number(row.sessions);
-          const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||linked.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:linked.preferredInstructorId||'',...directoryLink,notes:[`총 횟수: ${n}회`,`구성: ${row.minutes}권 ${n}회 · 회당 강습료 ${Number(numeric(row.fee)).toLocaleString('ko-KR')}원`,...passIssueCarryLines(linked),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
+          const fee=numeric(row.fee)??0;
+          const expected=(fee+rentalPerSession)*n;
+          const due=received!==null?(multiConfig?totalExpectedAll:expected)-received:0;
+          const noteLines=[
+            `총 횟수: ${n}회`,
+            `회당 강습시간: ${row.minutes}`,
+            `회당 강습료: ${money(fee)}원`,
+            rentalLine,
+            `받아야 할 금액: ${money(expected)}원 (총액)`,
+            received!==null?(multiConfig?`받은 금액(전체 구성 합계): ${money(received)}원`:`받은 금액: ${money(received)}원`):null,
+            received!==null&&due>0?(multiConfig?`미수금(전체 구성 기준): ${money(due)}원`:`미수금: ${money(due)}원`):null,
+            String(raw.G||'').trim(),
+          ].filter(Boolean);
+          const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||linked.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:linked.preferredInstructorId||'',...directoryLink,notes:noteLines.join('\n').slice(0,2000)});
           row.done={totalSessions:n,passId:saved?.id||null};
         }
         // 전 행 발급 성공: 서버가 고객·팀을 실제로 생성했으므로 미저장 draft 는 비운다 —
