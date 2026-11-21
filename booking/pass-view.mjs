@@ -76,13 +76,41 @@ function renderDeleteConfirm(settings,context,escape){
 }
 const options=(values,selected,escape)=>values.map(([value,label])=>`<option value="${escape(value)}" ${String(value)===String(selected)?'selected':''}>${escape(label)}</option>`).join('');
 
-// 수강권 변경 창(2026-11-20 사용자 지시): 시간권(2시간/4시간)만 바꾼다.
+// 수강권 변경 창(2026-11-20/21 사용자 지시): 시간권·종목과 금액(메모 표준 줄)을 바꾼다.
 // 고객·횟수·고정 강사는 서버 트리거가 불변 보장 — 잘못 발급이면 삭제 후 재발급.
+const noteAmount=(notes,prefix)=>{const line=String(notes||'').split('\n').map(row=>row.trim()).find(row=>row.startsWith(prefix));const match=line&&/([0-9][0-9,]*)\s*원/.exec(line);return match?Number(match[1].replace(/,/g,'')):null;};
+// 금액 표준 줄 재계산: 회당 강습료·받은 금액을 받아 받아야 할(=(강습료+장비결제완료)×총횟수)·미수금을 다시 쓴다.
+export function rebuildPassMoneyNotes(pass,fee,received){
+  const lines=String(pass?.notes||'').split('\n');
+  const isMoney=row=>{const t=row.trim();return t.startsWith('회당 강습료:')||t.startsWith('받아야 할 금액:')||t.startsWith('받은 금액')||t.startsWith('미수금');};
+  const kept=lines.filter(row=>!isMoney(row));
+  const trimmed=kept.map(row=>row.trim());
+  const rentalLine=trimmed.find(row=>row.startsWith('장비:'))||'';
+  const rentalMatch=/([0-9][0-9,]*)\s*원/.exec(rentalLine);
+  const rentalPer=rentalLine.includes('결제완료')&&rentalMatch?Number(rentalMatch[1].replace(/,/g,'')):0;
+  const total=Number.isInteger(pass?.total)?pass.total:Number.isInteger(pass?.total_sessions)?pass.total_sessions:null;
+  const won=value=>Number(value).toLocaleString('ko-KR');
+  const expected=fee!==null&&Number.isInteger(total)?(fee+rentalPer)*total:null;
+  const feeLine=fee!==null?`회당 강습료: ${won(fee)}원`:null;
+  const afterLines=[
+    expected!==null?`받아야 할 금액: ${won(expected)}원 (총액)`:null,
+    received!==null?`받은 금액: ${won(received)}원`:null,
+    expected!==null&&received!==null&&expected-received>0?`미수금: ${won(expected-received)}원`:null,
+  ].filter(Boolean);
+  const feeAt=(()=>{const i=trimmed.findIndex(row=>row.startsWith('회당 강습시간:'));if(i>=0)return i+1;const j=trimmed.findIndex(row=>row.startsWith('총 횟수:'));return j>=0?j+1:0;})();
+  let next=feeLine?[...kept.slice(0,feeAt),feeLine,...kept.slice(feeAt)]:[...kept];
+  const rentalAt=next.findIndex(row=>row.trim().startsWith('장비:'));
+  const insertAt=rentalAt>=0?rentalAt+1:(feeLine?feeAt+1:feeAt);
+  next=[...next.slice(0,insertAt),...afterLines,...next.slice(insertAt)];
+  return next.join('\n').replace(/\n{3,}/g,'\n\n').replace(/^\n+|\n+$/g,'').slice(0,2000);
+}
 function renderEditConfirm(settings,context,escape){
   const request=settings.editRequest;if(!request)return '';
   const pass=selectPassBalances(context).find(row=>row.id===request.id);
   if(!pass)return '';
-  return `<div class="lp-delete-layer" data-pass-edit-backdrop><section class="lp-delete-confirm" role="dialog" aria-modal="true" aria-labelledby="lp-edit-title"><h3 id="lp-edit-title">수강권 변경</h3><dl><div><dt>고객 · 강습생</dt><dd>${escape(pass.customerName||'고객 확인')} · ${escape(pass.learnerName||'강습생 확인')}</dd></div><div><dt>종목 · 총 횟수</dt><dd>${escape(pass.sport||'종목')} · ${pass.total===null?'—':`${pass.total}회`}</dd></div><div><dt>발급일</dt><dd>${escape(dateLabel(pass.created_at||pass.createdAt))}</dd></div></dl><label class="field"><span class="field-label">시간권</span><select data-pass-edit-minutes ${request.saving?'disabled':''}>${options([['120','2시간권'],['240','4시간권']],String(request.lessonMinutes||pass.lessonMinutes||120),escape)}</select></label><label class="field"><span class="field-label">종목</span><select data-pass-edit-sport ${request.saving?'disabled':''}>${options([['스키','스키'],['보드','보드']],String(request.sport||pass.sport||'스키'),escape)}</select></label><p class="lp-delete-note">고객명·총 횟수·고정 강사는 변경할 수 없습니다. 잘못 발급된 수강권은 삭제 후 다시 발급해 주세요.</p><p class="lp-form-error" data-pass-edit-error role="alert" ${request.error?'':'hidden'}>${escape(request.error||'')}</p><footer><button type="button" class="btn ghost lp-danger" data-pass-edit-delete ${request.saving?'disabled':''}>이 수강권 삭제</button><button type="button" class="btn secondary" data-pass-edit-cancel ${request.saving?'disabled':''}>닫기</button><button type="button" class="btn primary" data-pass-edit-confirm ${request.saving?'disabled':''}>${request.saving?'저장 중…':'변경 저장'}</button></footer></section></div>`;
+  const fee=request.fee??noteAmount(pass.notes,'회당 강습료:');
+  const received=request.received??noteAmount(pass.notes,'받은 금액');
+  return `<div class="lp-delete-layer" data-pass-edit-backdrop><section class="lp-delete-confirm" role="dialog" aria-modal="true" aria-labelledby="lp-edit-title"><h3 id="lp-edit-title">수강권 변경</h3><dl><div><dt>고객 · 강습생</dt><dd>${escape(pass.customerName||'고객 확인')} · ${escape(pass.learnerName||'강습생 확인')}</dd></div><div><dt>종목 · 총 횟수</dt><dd>${escape(pass.sport||'종목')} · ${pass.total===null?'—':`${pass.total}회`}</dd></div><div><dt>발급일</dt><dd>${escape(dateLabel(pass.created_at||pass.createdAt))}</dd></div></dl><label class="field"><span class="field-label">시간권</span><select data-pass-edit-minutes ${request.saving?'disabled':''}>${options([['120','2시간권'],['240','4시간권']],String(request.lessonMinutes||pass.lessonMinutes||120),escape)}</select></label><label class="field"><span class="field-label">종목</span><select data-pass-edit-sport ${request.saving?'disabled':''}>${options([['스키','스키'],['보드','보드']],String(request.sport||pass.sport||'스키'),escape)}</select></label><label class="field"><span class="field-label">회당 강습료 <small>받아야 할 금액은 자동 재계산</small></span><span class="lp-number-input"><input data-pass-edit-fee type="number" min="0" step="1" inputmode="numeric" value="${escape(fee??'')}" placeholder="메모에 기록" ${request.saving?'disabled':''}><span>원</span></span></label><label class="field"><span class="field-label">받은 금액</span><span class="lp-number-input"><input data-pass-edit-received type="number" min="0" step="1" inputmode="numeric" value="${escape(received??'')}" placeholder="메모에 기록" ${request.saving?'disabled':''}><span>원</span></span></label><p class="lp-delete-note">고객명·총 횟수·고정 강사는 변경할 수 없습니다. 금액은 메모의 표준 줄(회당 강습료·받아야 할·받은·미수)로 기록됩니다. 잘못 발급된 수강권은 삭제 후 다시 발급해 주세요.</p><p class="lp-form-error" data-pass-edit-error role="alert" ${request.error?'':'hidden'}>${escape(request.error||'')}</p><footer><button type="button" class="btn ghost lp-danger" data-pass-edit-delete ${request.saving?'disabled':''}>이 수강권 삭제</button><button type="button" class="btn secondary" data-pass-edit-cancel ${request.saving?'disabled':''}>닫기</button><button type="button" class="btn primary" data-pass-edit-confirm ${request.saving?'disabled':''}>${request.saving?'저장 중…':'변경 저장'}</button></footer></section></div>`;
 }
 
 function renderIssue(settings,context,escape,preview){
@@ -247,12 +275,23 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,
     if(typeof onUpdate!=='function'){update({editRequest:{...request,error:'수강권 변경 연결을 확인해 주세요.'}});return;}
     const minutes=Number(view.querySelector('[data-pass-edit-minutes]')?.value);
     const sport=String(view.querySelector('[data-pass-edit-sport]')?.value||pass.sport||'');
+    const feeText=String(view.querySelector('[data-pass-edit-fee]')?.value??'').trim();
+    const receivedText=String(view.querySelector('[data-pass-edit-received]')?.value??'').trim();
+    const fee=feeText===''?null:Number(feeText);
+    const received=receivedText===''?null:Number(receivedText);
     if(![120,240].includes(minutes)){update({editRequest:{...request,error:'2시간 또는 4시간을 선택해 주세요.'}});return;}
     if(!['스키','보드'].includes(sport)){update({editRequest:{...request,error:'종목(스키·보드)을 선택해 주세요.'}});return;}
-    if(minutes===pass.lessonMinutes&&sport===pass.sport){update({editRequest:null});return;}
-    ui.passes={...configuration(ui),editRequest:{...request,lessonMinutes:minutes,sport,saving:true,error:''}};onChange?.(ui.passes);
-    try{await onUpdate({id:pass.id,expectedUpdatedAt:pass.updatedAt,...(minutes!==pass.lessonMinutes?{lessonMinutes:minutes}:{}),...(sport!==pass.sport?{sport}:{})});update({editRequest:null});}
-    catch(issue){update({editRequest:{...request,lessonMinutes:minutes,sport,saving:false,error:issue?.message||'수강권을 변경하지 못했습니다. 다시 시도해 주세요.'}});}
+    if(fee!==null&&(!Number.isSafeInteger(fee)||fee<0)){update({editRequest:{...request,error:'회당 강습료를 확인해 주세요. 무료면 0.'}});return;}
+    if(received!==null&&(!Number.isSafeInteger(received)||received<0)){update({editRequest:{...request,error:'받은 금액을 확인해 주세요.'}});return;}
+    // 금액이 메모의 기존 값과 달라졌을 때만 메모 표준 줄을 재계산해 교체한다.
+    const currentFee=noteAmount(pass.notes,'회당 강습료:');
+    const currentReceived=noteAmount(pass.notes,'받은 금액');
+    const moneyChanged=fee!==currentFee||received!==currentReceived;
+    const nextNotes=moneyChanged?rebuildPassMoneyNotes(pass,fee,received):null;
+    if(minutes===pass.lessonMinutes&&sport===pass.sport&&!moneyChanged){update({editRequest:null});return;}
+    ui.passes={...configuration(ui),editRequest:{...request,lessonMinutes:minutes,sport,fee,received,saving:true,error:''}};onChange?.(ui.passes);
+    try{await onUpdate({id:pass.id,expectedUpdatedAt:pass.updatedAt,...(minutes!==pass.lessonMinutes?{lessonMinutes:minutes}:{}),...(sport!==pass.sport?{sport}:{}),...(nextNotes!==null?{notes:nextNotes}:{})});update({editRequest:null});}
+    catch(issue){update({editRequest:{...request,lessonMinutes:minutes,sport,fee,received,saving:false,error:issue?.message||'수강권을 변경하지 못했습니다. 다시 시도해 주세요.'}});}
   });
   view.querySelectorAll('[data-pass-customer-link]').forEach(button=>button.onclick=async()=>{
     if(busy()||button.disabled)return;

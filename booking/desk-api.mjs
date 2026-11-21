@@ -361,10 +361,12 @@ export async function updateLessonPass(payload){
   if(typeof payload.expectedUpdatedAt!=='string'||!Number.isFinite(Date.parse(payload.expectedUpdatedAt)))throw issue('수강권의 최신 정보를 다시 불러와 주세요.','INPUT_REQUIRED');
   const hasMinutes=payload.lessonMinutes!==undefined&&payload.lessonMinutes!==null&&payload.lessonMinutes!=='';
   const hasSport=payload.sport!==undefined&&payload.sport!==null&&payload.sport!=='';
-  if(!hasMinutes&&!hasSport)throw issue('변경할 항목(시간권 또는 종목)을 선택해 주세요.','INPUT_REQUIRED');
+  const hasNotes=typeof payload.notes==='string';
+  if(!hasMinutes&&!hasSport&&!hasNotes)throw issue('변경할 항목(시간권·종목·금액)을 선택해 주세요.','INPUT_REQUIRED');
   if(hasMinutes&&![120,240].includes(payload.lessonMinutes))throw issue('시간권은 2시간 또는 4시간만 선택할 수 있습니다.','INPUT_REQUIRED');
   if(hasSport&&!['스키','보드'].includes(payload.sport))throw issue('종목은 스키 또는 보드만 선택할 수 있습니다.','INPUT_REQUIRED');
-  const result=await rpc('slope_update_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,...(hasMinutes?{lessonMinutes:payload.lessonMinutes}:{}),...(hasSport?{sport:payload.sport}:{})}});
+  if(hasNotes&&payload.notes.length>2000)throw issue('메모는 2000자 이내여야 합니다.','INPUT_REQUIRED');
+  const result=await rpc('slope_update_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,...(hasMinutes?{lessonMinutes:payload.lessonMinutes}:{}),...(hasSport?{sport:payload.sport}:{}),...(hasNotes?{notes:payload.notes}:{})}});
   if(result?.id!==payload.id)throw issue('수강권 수정 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_UPDATE_UNCONFIRMED');
   return result;
 }
