@@ -494,8 +494,15 @@ function directoryCustomer(draft,context){return (context.customers||[]).find(cu
 // 예약폼 값 그대로 담는다. 수강권 테이블에 별도 열이 없어 notes에 표준 줄로 적는다.
 export function passIssueCarryLines(draft){
   const raw=draft?.raw||{};const lines=[];
-  if(String(raw.N||'').trim())lines.push(`회당 강습시간: ${String(raw.N).trim()}`);
-  if(numeric(raw.T))lines.push(`회당 강습료: ${money(numeric(raw.T))}원`);
+  // 구성 행이 있으면 시간권·강습료는 행 값이 원천(2026-11-21 사용자 신고: raw.N 스냅샷이
+  // '구성: 4시간권'과 모순된 '회당 강습시간: 2시간'을 찍음). raw.N/raw.T 는 구성 없는 폴백.
+  const configs=Array.isArray(draft?.passConfigs)?draft.passConfigs.filter(row=>['2시간','4시간'].includes(row?.minutes)):[];
+  if(configs.length){
+    for(const row of configs)lines.push(`구성: ${row.minutes}권 ${Number(row.sessions)||'?'}회${numeric(row.fee)!==null?` · 회당 강습료 ${money(numeric(row.fee))}원`:''}`);
+  }else{
+    if(String(raw.N||'').trim())lines.push(`회당 강습시간: ${String(raw.N).trim()}`);
+    if(numeric(raw.T))lines.push(`회당 강습료: ${money(numeric(raw.T))}원`);
+  }
   if(draft?.rentalPaymentStatus){
     const label=rentalStatusLabel(draft.rentalPaymentStatus)||draft.rentalPaymentStatus;
     lines.push(`장비: ${label}${[4,6].includes(draft.rentalHours)?` · ${draft.rentalHours}시간`:''}${Number.isInteger(draft.rentalAmount)?` · ${money(draft.rentalAmount)}원`:''}`);
