@@ -225,6 +225,12 @@ export function createSameCustomerTeamDraft(source,context={},now=new Date(),{co
   if(copyConditions){for(const key of ['age','ageBand','juniorPreparation','experienceCount','parallelLongTurn','snowboardNoviceTurn'])draft[key]=normalized[key];draft.participants=normalizeParticipants(normalized.participants,numeric(draft.raw.M));draft.raw.O=raw.O;}
   const scheduleSource=source.savedBatchRows?.length>1?{...source,id:'',submissionId:null,dateBatch:{rows:source.savedBatchRows.map(row=>({id:row.id,date:row.raw.A,startTime:row.raw.B,endTime:row.raw.C,company:row.raw.E||raw.E,duration:row.raw.N||raw.N,lessonMinutes:row.lessonMinutes??row.lesson_minutes??null,breakMinutes:row.breakMinutes??row.break_minutes??0,financial:{...row,raw:{...row.raw}}}))}}:source;
   draft=copyBookingDatesForTeam(scheduleSource,draft,{copyFinancials:copyConditions});draft.sameCustomerNewTeam=true;draft.copiedTeamConditions=copyConditions;draft=linkCommonCustomerDraft(source,draft).draft;
+  // 수강권 발급 모드 승계(2026-11-21 사용자 지시: 고객 단위 발급): A팀을 발급 모드로 작성하다
+  // [다른 팀 추가]를 누르면 B팀도 발급 모드 + 새 구성 행(새 발급번호)으로 시작한다.
+  if(source.passIssueMode&&!normalized.id){
+    draft.passIssueMode=true;
+    draft.passConfigs=[{issueId:crypto.randomUUID(),minutes:'',sessions:'',fee:'',done:null}];
+  }
   return draft;
 }
 
@@ -480,7 +486,8 @@ function renderTeamSchedule(draft,context,escape){
     <p class="bk-field-note">받아야 할 금액(자동) = 각 구성의 (회당 강습료 + 장비 결제완료 금액) × 횟수의 합. 받은 금액과의 차액이 미수금입니다.</p>
     ${done?`<p class="bk-pass-inline-done" role="status">수강권 발급 완료 — 수강권 탭에서 일정 등록·고객 링크를 이어갈 수 있습니다.</p>`:''}
     <p class="bk-form-error" data-bk-pass-inline-error role="alert" hidden></p>
-    <div class="bk-pass-inline-actions"><button type="submit" class="btn primary" data-bk-pass-inline-issue ${done?'disabled':''}>${done?'발급 완료':'이 팀 수강권 발급'}</button></div></section>`;
+    <p class="bk-field-note">발급은 <strong>고객 단위</strong>입니다 — [다른 팀 추가]로 열어 둔 같은 고객의 발급 모드 팀 카드가 모두 한 번에 발급됩니다.</p>
+    <div class="bk-pass-inline-actions"><button type="submit" class="btn primary" data-bk-pass-inline-issue ${done?'disabled':''}>${done?'발급 완료':'이 고객 수강권 발급'}</button></div></section>`;
   }
   return `<section class="bk-team-schedule" data-bk-team-schedule data-bk-pane="financial"><div class="bk-section-label"><span>03</span><h3>회차별 일정·금액</h3><small>${draft.id?'예약된 1회차':`${rows.length}회 접수`}</small></div><p class="bk-session-caption">빠른 날짜부터 왼쪽 → 오른쪽 · 입금액도 해당 회차에 기록합니다.</p>${!draft.id?`<div class="bk-session-toolbar"><div class="bk-schedule-actions"><button type="button" class="btn secondary small" data-bk-calendar-toggle aria-expanded="${!!draft.datePickerOpen}">달력에서 여러 날짜 선택</button><button type="button" class="btn secondary small" data-bk-issue-pass title="날짜를 정하지 않은 구매는 수강권으로 발급합니다">날짜 미정 · 수강권으로 발급 →</button></div>${extra.length?`<div class="bk-bulk-apply"><h4>첫 회차 기준으로 빠르게 입력</h4><p>총 ${rows.length}회차에 적용 · 이후 개별 수정 가능</p><div class="bk-bulk-buttons"><button type="button" class="bk-bulk-button" data-bk-common-dates><span aria-hidden="true">◷</span><span><strong>시간·휴식 같게 적용</strong><small>시작시간 · 강습시간 · 중간 휴식</small></span></button><button type="button" class="bk-bulk-button" data-bk-common-fees><span aria-hidden="true">₩</span><span><strong>${draft.paymentReviewId?'강습료·장비요금 같게 적용':'강습료·장비요금·입금액 같게 적용'}</strong><small>${draft.paymentReviewId?'입금 배분액은 복사하지 않습니다':'1회차 금액을 각 회차에 복사'}</small></span></button></div><div data-bk-bulk-feedback role="status" aria-live="polite"></div></div>`:''}</div>`:''}<div class="bk-session-workspace ${draft.datePickerOpen&&!draft.id?'calendar-open':''}">${renderDateCalendar(draft,escape)}<div class="bk-session-branches">${renderSessionJumps(draft,escape)}<div class="bk-session-list bk-session-board" data-bk-session-list><article class="bk-date-row bk-primary-date" data-bk-date-row="${escape(rows[0].id)}"><div class="bk-date-row-title"><strong>1회차</strong><span data-bk-session-date>${escape(dateText(raw.A))}</span>${!draft.id&&extra.length?`<button type="button" class="btn ghost small" data-bk-date-remove="${escape(rows[0].id)}" aria-label="1회 일정 삭제" title="이 회차 빼기">×</button>`:''}</div><div class="bk-session-body"><div class="bk-session-timing"><div class="bk-form-grid bk-first-date">${inputField('A','날짜',parseKstDate(raw.A)||'',escape,'type="date" required')}${startTimeField('raw_B',raw.B,escape,'required')}</div>${renderLessonPlanFields(draft,escape)}</div>${rawFinancial(draft,escape,{history:context.paymentCorrectionHistories?.[draft.id]})}</div></article>${extra.map((row,index)=>renderExtraDateRow(row,index,escape,context,draft)).join('')}</div><div class="bk-grand-total" data-bk-grand-total hidden aria-live="polite"></div></div></div>${draft.savedBatchRows?.length?`<div class="bk-saved-batch" data-bk-saved-batch><strong>함께 저장한 ${draft.savedBatchRows.length}회</strong>${draft.savedBatchRows.map(row=>`<button type="button" class="btn ghost small" data-bk-open-saved-date="${escape(row.id)}">${escape(dateText(row.raw?.A))} · ${escape(row.raw?.B)}–${escape(row.raw?.C)} <span>예약 변경 →</span></button>`).join('')}</div>`:''}</section>`;
 }
@@ -2232,102 +2239,149 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
     };
     const issueInlinePass=async form=>{
       if(busy())return;preserveDraft();syncPassFinancial(form);preserveDraft();
-      const draft=settings.draft,raw=draft.raw;
       const errorBox=form.querySelector('[data-bk-pass-inline-error]');
       const fail=message=>{if(errorBox){errorBox.textContent=message;errorBox.hidden=false;errorBox.scrollIntoView?.({block:'nearest'});}};
-      // 구성 행(2시간/4시간 × 횟수 × 회당 강습료)마다 수강권 1장을 발급한다(2026-11-20 사용자 확정:
-      // 고객별 발급, 혼합 구성 지원). 발급번호는 행 생성 시 고정 — 연타·재시도에도 중복 없음.
-      const configs=readPassConfigs(form);
-      const pendingRows=configs.filter(row=>!row.done);
-      if(!pendingRows.length)return fail('모든 구성이 이미 발급되었습니다.');
-      for(const row of pendingRows){
-        const n=Number(row.sessions);
-        if(!['2시간','4시간'].includes(row.minutes))return fail('각 구성의 시간권(2시간·4시간)을 선택해 주세요.');
-        if(!Number.isInteger(n)||n<1||n>100)return fail('각 구성의 횟수를 1~100회 정수로 입력해 주세요.');
-        if(numeric(row.fee)===null)return fail('각 구성의 회당 강습료를 입력해 주세요. 무료면 0.');
-      }
-      if(!draft.rentalPaymentStatus)return fail('장비 결제 상태를 선택해 주세요.');
-      if(draft.rentalPaymentStatus==='paid'&&numeric(String(draft.rentalAmount??''))===null)return fail('장비 결제완료 금액을 확인해 주세요.');
-      // 클릭 시점 폼 값이 원본(2026-11-20 사용자 신고: 입력칸엔 '허정환'인데 저장은 '허정' —
-      // draft 스냅샷은 조합·재렌더 틈에 뒤처질 수 있다. 버튼 클릭이 입력을 blur 시켜 조합을
-      // 커밋하므로, 발급 직전에 입력칸 값을 직접 읽는다).
-      const liveValue=(name,fallback)=>{const field=form.elements.namedItem(name);return String((field&&!field.disabled&&'value' in field?field.value:fallback)??'').trim();};
-      const nameKey=liveValue('raw_H',raw.H);
-      const teamKey=liveValue('raw_I',raw.I);
-      const livePhone=liveValue('raw_L',raw.L)||String(draft.customerContactPhone||'').trim();
-      if(!nameKey)return fail('고객명(입금자)을 먼저 입력해 주세요.');
       if(typeof onCreatePass!=='function')return fail('수강권 발급 연결을 확인해 주세요.');
-      const roster=bookingRosterPeople(draft,context);
-      const ids=Array.isArray(draft.participantPersonIds)?draft.participantPersonIds:roster.map(person=>String(person.id));
-      const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
-      const headcount=numeric(raw.M)||participants.length||1;
-      // 같은 전화번호(없으면 같은 고객명)의 미사용 수강권이 이미 있으면 중복 발급인지 확인한다
-      // (2026-11-20 사용자 신고: 발급 완료 표시는 드로어를 닫으면 사라져, 내용을 고쳐 다시
-      //  발급하면 새 발급번호로 2장이 됐다 — 서버 멱등은 같은 번호·같은 내용만 접는다).
+      // ── 고객 단위 발급(2026-11-21 사용자 지시) ──────────────────────────────────
+      // 한 번의 클릭으로 이 고객의 '발급 모드' 팀 카드 전부를 발급한다. 이영옥 사례:
+      // A팀 발급 후 B팀 발급이 중복 confirm 에서 조용히 취소돼 한 팀만 발급됐다 —
+      // 팀마다 따로 누르는 구조 자체를 없애고, 확인창은 발급 전에 한 번만 띄운다.
+      // 클릭 시점 폼 값이 원본(이름 잘림 방어 — 2026-11-20).
+      const liveValue=(name,fallback)=>{const field=form.elements.namedItem(name);return String((field&&!field.disabled&&'value' in field?field.value:fallback)??'').trim();};
+      const nameKey=liveValue('raw_H',settings.draft.raw.H);
+      const livePhone=liveValue('raw_L',settings.draft.raw.L)||String(settings.draft.customerContactPhone||'').trim();
+      if(!nameKey)return fail('고객명(입금자)을 먼저 입력해 주세요.');
       const phoneKey=canonicalTelephone(livePhone);
-      const doneIds=new Set(configs.map(row=>row.done?.passId).filter(Boolean));
+      const teamLabel=d=>String(d.raw?.I||'').trim()||'기본 팀';
+      // 대상: 현재 카드(라이브 폼 값) + 같은 고객의 다른 발급 모드 미저장 카드(보존된 draft 값).
+      const activeKey=settings.teamDeck?.activeKey??null;
+      const activeDraftNow={...clone(settings.draft),raw:{...settings.draft.raw,H:nameKey,I:liveValue('raw_I',settings.draft.raw.I),L:livePhone}};
+      const targets=[{key:activeKey,draft:activeDraftNow,active:true}];
+      for(const card of (settings.teamDeck?.cards||[])){
+        if(card.key===activeKey)continue;
+        const d=card.draft;
+        if(!d||d.id||!d.passIssueMode)continue;
+        if(String(d.raw?.H||'').trim()!==nameKey)continue;
+        targets.push({key:card.key,draft:clone(d),active:false});
+      }
+      // 카드별 구성 행 확정(발급번호 고정) + 검증 — 실패 메시지에 팀명을 붙인다.
+      for(const target of targets){
+        const base=Array.isArray(target.draft.passConfigs)&&target.draft.passConfigs.length?target.draft.passConfigs:[{issueId:'seed',minutes:String(target.draft.raw?.N||'').trim(),sessions:String(target.draft.passTotalSessions||'').trim(),fee:String(target.draft.raw?.T??'').trim(),done:null}];
+        const rows=base.map(row=>({...row}));
+        if(target.active)for(const row of rows){
+          const field=name=>form.elements.namedItem(`passCfg_${row.issueId}_${name}`);
+          row.minutes=String(field('minutes')?.value??row.minutes??'').trim();
+          row.sessions=String(field('sessions')?.value??row.sessions??'').trim();
+          row.fee=String(field('fee')?.value??row.fee??'').trim();
+        }
+        target.configs=rows.map(row=>({...row,issueId:row.issueId==='seed'?globalThis.crypto.randomUUID():row.issueId}));
+        target.pending=target.configs.filter(row=>!row.done);
+        const name=teamLabel(target.draft);
+        for(const row of target.pending){
+          const n=Number(row.sessions);
+          if(!['2시간','4시간'].includes(row.minutes))return fail(`[${name}] 시간권(2시간·4시간)을 선택해 주세요.`);
+          if(!Number.isInteger(n)||n<1||n>100)return fail(`[${name}] 횟수를 1~100회 정수로 입력해 주세요.`);
+          if(numeric(row.fee)===null)return fail(`[${name}] 회당 강습료를 입력해 주세요. 무료면 0.`);
+        }
+        if(target.pending.length){
+          if(!target.draft.rentalPaymentStatus)return fail(`[${name}] 장비 결제 상태를 선택해 주세요.`);
+          if(target.draft.rentalPaymentStatus==='paid'&&numeric(String(target.draft.rentalAmount??''))===null)return fail(`[${name}] 장비 결제완료 금액을 확인해 주세요.`);
+        }
+        const roster=bookingRosterPeople(target.draft,context);
+        const ids=Array.isArray(target.draft.participantPersonIds)?target.draft.participantPersonIds:roster.map(person=>String(person.id));
+        target.participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(target.draft.participants)?target.draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
+        target.headcount=numeric(target.draft.raw?.M)||target.participants.length||1;
+      }
+      const totalPending=targets.reduce((sum,target)=>sum+target.pending.length,0);
+      if(!totalPending)return fail('모든 구성이 이미 발급되었습니다.');
+      // 기존 미사용 수강권 확인 — 이번 클릭의 발급분(이미 done 포함)은 제외하고 1회만 묻는다.
+      const doneIds=new Set(targets.flatMap(target=>target.configs.map(row=>row.done?.passId).filter(Boolean)));
       const existing=selectPassBalances(context).filter(pass=>!doneIds.has(pass.id)&&(pass.available===null||pass.available>0)&&(phoneKey?canonicalTelephone(pass.phone)===phoneKey:String(pass.customerName||'').trim()===nameKey));
-      if(existing.length&&globalThis.confirm?.(`같은 ${phoneKey?'전화번호':'고객명'}의 미사용 수강권이 이미 ${existing.length}장 있습니다.\n${existing.slice(0,3).map(pass=>`· ${pass.customerName||'고객'} · ${pass.learnerName||'기본 팀'} · ${pass.total===null?'횟수 미정':`${pass.total}회`}`).join('\n')}\n잘못 발급된 수강권은 예약표 아래 수강권 블록에서 삭제할 수 있습니다.\n그래도 새로 발급할까요?`)!==true)return;
-      // 같은 전화번호 고객 재사용(2026-11-20 사용자 지시): 번호가 같은 고객이 이미 있으면
-      // 새 고객을 만들지 않고 그 고객에 연결한다. 이름이 다르면 멈춰서 확인(잘림·오타 방어),
-      // 같은 번호 고객이 여럿이면 직접 선택을 요구한다(가족 공유번호 — 자동 추측 금지).
-      const explicitlyLinked=!!draft.customerId&&!draft.customerDraft;
-      if(!explicitlyLinked&&phoneKey){
-        const samePhone=(context.customers||[]).filter(row=>row&&!row.deleted_at&&Array.isArray(row.contacts)&&row.contacts.some(contact=>canonicalTelephone(contact?.phone)===phoneKey));
-        if(samePhone.length>1)return fail('같은 전화번호의 고객이 여러 명 등록돼 있습니다. 위 고객 제안에서 연결할 고객을 직접 선택해 주세요.');
-        if(samePhone.length===1){
-          const found=samePhone[0];
-          if(String(found.name||'').trim()!==nameKey)return fail(`같은 전화번호로 이미 등록된 고객 이름과 다릅니다: 입력 '${nameKey}' ↔ 등록 '${String(found.name||'').trim()}'. 같은 고객이면 이름을 맞추고, 다른 고객이면 연락처를 확인해 주세요.`);
-          const foundTeam=(context.customerTeams||[]).find(team=>(team.customer_id??team.customerId)===found.id&&String(team.name||'').trim()===teamKey);
-          const teamId=foundTeam?.id||globalThis.crypto.randomUUID();
-          settings.draft={...settings.draft,customerId:found.id,customerTeamId:teamId,customerDraft:null,teamDraft:foundTeam?null:{id:teamId,customerId:found.id,name:teamKey,phone:'',defaults:{}}};
-          if(ui.booking)ui.booking.draft=settings.draft;
+      if(existing.length&&globalThis.confirm?.(`이 고객에게 이미 발급된 미사용 수강권이 ${existing.length}장 있습니다.\n${existing.slice(0,3).map(pass=>`· ${pass.learnerName||'기본 팀'} · ${pass.total===null?'횟수 미정':`${pass.total}회`}`).join('\n')}\n지금은 ${targets.length}팀 · 새 수강권 ${totalPending}장을 추가 발급합니다.\n(중복 발급이면 [취소] 후 수강권 블록에서 기존 것을 정리해 주세요.)\n계속할까요?`)!==true)return fail('발급을 중단했습니다. 기존 수강권 확인 후 다시 [이 고객 수강권 발급]을 눌러 주세요.');
+      // 고객 연결은 고객 단위로 1회 해석: 명시 연결 → 같은 번호 기존 고객 → 새 고객 생성.
+      let commonCustomerId=null,commonCustomerDraft=null;
+      const explicitlyLinked=!!settings.draft.customerId&&!settings.draft.customerDraft;
+      if(explicitlyLinked)commonCustomerId=settings.draft.customerId;
+      else{
+        if(phoneKey){
+          const samePhone=(context.customers||[]).filter(row=>row&&!row.deleted_at&&Array.isArray(row.contacts)&&row.contacts.some(contact=>canonicalTelephone(contact?.phone)===phoneKey));
+          if(samePhone.length>1)return fail('같은 전화번호의 고객이 여러 명 등록돼 있습니다. 위 고객 제안에서 연결할 고객을 직접 선택해 주세요.');
+          if(samePhone.length===1){
+            const found=samePhone[0];
+            if(String(found.name||'').trim()!==nameKey)return fail(`같은 전화번호로 이미 등록된 고객 이름과 다릅니다: 입력 '${nameKey}' ↔ 등록 '${String(found.name||'').trim()}'. 같은 고객이면 이름을 맞추고, 다른 고객이면 연락처를 확인해 주세요.`);
+            commonCustomerId=found.id;
+          }
+        }
+        if(!commonCustomerId){
+          const prepared=prepareCustomerIdentity(activeDraftNow);
+          commonCustomerId=prepared.customerId;
+          commonCustomerDraft=prepared.customerDraft?{...prepared.customerDraft,id:commonCustomerId,name:nameKey}:{id:commonCustomerId,name:nameKey,contacts:phoneKey?[{label:'고객 연락처',phone:phoneKey}]:[],notes:''};
         }
       }
-      // 고객 디렉터리 연결(2026-11-20): 예약 저장과 같은 계약 — 선택된 고객·팀과 draft 동봉.
-      // 연결 정보가 비어 있으면(구 초안 등) 그 자리에서 새 id+draft 를 준비해 '무연결 수강권'을 막는다.
-      if(!settings.draft.customerId||!settings.draft.customerTeamId){settings.draft=prepareCustomerIdentity(settings.draft);if(ui.booking)ui.booking.draft=settings.draft;}
-      const linked=settings.draft;
-      const directoryLink=linked.customerId&&linked.customerTeamId?{customerId:linked.customerId,teamId:linked.customerTeamId,...(linked.customerDraft?{customerDraft:{...linked.customerDraft,id:linked.customerId,name:nameKey}}:{}),...(linked.teamDraft?{teamDraft:{...linked.teamDraft,id:linked.customerTeamId,customerId:linked.customerId,name:teamKey}}:{})}:{};
+      // 팀 연결은 카드별: 같은 이름 팀 재사용, 없으면 새 팀 draft 동봉.
+      for(const target of targets){
+        const name=String(target.draft.raw?.I||'').trim();
+        const foundTeam=(context.customerTeams||[]).find(team=>(team.customer_id??team.customerId)===commonCustomerId&&String(team.name||'').trim()===name);
+        target.teamId=foundTeam?.id||(target.draft.customerTeamId&&target.draft.teamDraft?target.draft.customerTeamId:globalThis.crypto.randomUUID());
+        target.teamDraft=foundTeam?null:{id:target.teamId,customerId:commonCustomerId,name,phone:'',defaults:target.draft.teamDraft?.defaults?clone(target.draft.teamDraft.defaults):{}};
+      }
       if(errorBox)errorBox.hidden=true;
       const submitButton=form.querySelector('[data-bk-pass-inline-issue]');if(submitButton)submitButton.disabled=true;
-      // 'seed' 폴백 행이 서버로 새어 나가면 uuid 캐스팅으로 하드 실패한다 — 발급 직전 실번호로 치환.
-      const nextConfigs=configs.map(row=>({...row,issueId:row.issueId==='seed'?globalThis.crypto.randomUUID():row.issueId}));
-      // 금액 라인은 행 값으로 직접 계산한다(2026-11-20 사용자 신고: 발급 모드에는 받아야 할
-      // 금액 입력칸이 없어 passIssueCarryLines 가 낡은 회당 요청액 스냅샷(raw.X)을 총액으로
-      // 적었다 — 허정환 164,000/정령희 119,000). 받은 금액(raw.Y)은 고객 단위 합계다.
-      const rentalPerSession=linked.rentalPaymentStatus==='paid'?(numeric(String(linked.rentalAmount??''))??0):0;
-      const received=numeric(raw.Y);
-      const rentalLine=linked.rentalPaymentStatus?`장비: ${rentalStatusLabel(linked.rentalPaymentStatus)||linked.rentalPaymentStatus}${[4,6].includes(linked.rentalHours)?` · ${linked.rentalHours}시간`:''}${Number.isInteger(linked.rentalAmount)?` · ${money(linked.rentalAmount)}원`:''}`:null;
-      const multiConfig=nextConfigs.length>1;
-      const totalExpectedAll=nextConfigs.reduce((sum,row)=>sum+((numeric(row.fee)??0)+rentalPerSession)*(Number(row.sessions)||0),0);
+      // 발급 상태를 deck 카드에 되쓰는 헬퍼 — 부분 실패 시에도 성공 행 done 을 보존한다.
+      const writeBack=success=>{
+        const cards=(settings.teamDeck?.cards||[]).map(card=>{
+          const target=targets.find(item=>item.key===card.key);
+          if(!target)return card;
+          const nextDraft={...target.draft,passConfigs:target.configs,
+            ...(success||target.configs.some(row=>row.done)?{customerId:commonCustomerId,customerTeamId:target.teamId}:{}),
+            ...(success?{customerDraft:null,teamDraft:null,passIssueDone:{totalSessions:target.configs.reduce((sum,row)=>sum+(row.done?.totalSessions||0),0),passId:target.configs[0]?.done?.passId||null}}:{})};
+          return {...card,draft:nextDraft};
+        });
+        const deck=settings.teamDeck?{...settings.teamDeck,cards}:settings.teamDeck;
+        const activeTarget=targets.find(item=>item.active);
+        const nextActive=activeTarget?{...activeTarget.draft,passConfigs:activeTarget.configs,
+          ...(success||activeTarget.configs.some(row=>row.done)?{customerId:commonCustomerId,customerTeamId:activeTarget.teamId}:{}),
+          ...(success?{customerDraft:null,teamDraft:null,passIssueDone:{totalSessions:activeTarget.configs.reduce((sum,row)=>sum+(row.done?.totalSessions||0),0),passId:activeTarget.configs[0]?.done?.passId||null}}:{})}:settings.draft;
+        return {deck,draft:nextActive};
+      };
       try{
-        for(const row of nextConfigs){
-          if(row.done)continue;
-          const n=Number(row.sessions);
-          const fee=numeric(row.fee)??0;
-          const expected=(fee+rentalPerSession)*n;
-          const due=received!==null?(multiConfig?totalExpectedAll:expected)-received:0;
-          const noteLines=[
-            `총 횟수: ${n}회`,
-            `회당 강습시간: ${row.minutes}`,
-            `회당 강습료: ${money(fee)}원`,
-            rentalLine,
-            `받아야 할 금액: ${money(expected)}원 (총액)`,
-            received!==null?(multiConfig?`받은 금액(전체 구성 합계): ${money(received)}원`:`받은 금액: ${money(received)}원`):null,
-            received!==null&&due>0?(multiConfig?`미수금(전체 구성 기준): ${money(due)}원`:`미수금: ${money(due)}원`):null,
-            String(raw.G||'').trim(),
-          ].filter(Boolean);
-          const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:teamKey||nameKey||'수강권',phone:livePhone,company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:linked.preferredInstructorId||'',...directoryLink,notes:noteLines.join('\n').slice(0,2000)});
-          row.done={totalSessions:n,passId:saved?.id||null};
+        let issuedTotal=0;
+        for(const target of targets){
+          const raw=target.draft.raw||{};
+          const rentalPerSession=target.draft.rentalPaymentStatus==='paid'?(numeric(String(target.draft.rentalAmount??''))??0):0;
+          const received=numeric(raw.Y);
+          const rentalLine=target.draft.rentalPaymentStatus?`장비: ${rentalStatusLabel(target.draft.rentalPaymentStatus)||target.draft.rentalPaymentStatus}${[4,6].includes(target.draft.rentalHours)?` · ${target.draft.rentalHours}시간`:''}${Number.isInteger(target.draft.rentalAmount)?` · ${money(target.draft.rentalAmount)}원`:''}`:null;
+          const multiConfig=target.configs.length>1;
+          const totalExpectedAll=target.configs.reduce((sum,row)=>sum+((numeric(row.fee)??0)+rentalPerSession)*(Number(row.sessions)||0),0);
+          for(const row of target.configs){
+            if(row.done)continue;
+            const n=Number(row.sessions);
+            const fee=numeric(row.fee)??0;
+            const expected=(fee+rentalPerSession)*n;
+            const due=received!==null?(multiConfig?totalExpectedAll:expected)-received:0;
+            const noteLines=[
+              `총 횟수: ${n}회`,
+              `회당 강습시간: ${row.minutes}`,
+              `회당 강습료: ${money(fee)}원`,
+              rentalLine,
+              `받아야 할 금액: ${money(expected)}원 (총액)`,
+              received!==null?(multiConfig?`받은 금액(전체 구성 합계): ${money(received)}원`:`받은 금액: ${money(received)}원`):null,
+              received!==null&&due>0?(multiConfig?`미수금(전체 구성 기준): ${money(due)}원`:`미수금: ${money(due)}원`):null,
+              String(raw.G||'').trim(),
+            ].filter(Boolean);
+            const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||'').trim()||nameKey||'수강권',phone:livePhone,company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:target.headcount>=1&&target.headcount<=99?`1:${target.headcount}`:'',participants:target.participants,fixedInstructorId:target.draft.preferredInstructorId||'',customerId:commonCustomerId,teamId:target.teamId,...(commonCustomerDraft?{customerDraft:commonCustomerDraft}:{}),...(target.teamDraft?{teamDraft:target.teamDraft}:{}),notes:noteLines.join('\n').slice(0,2000)});
+            row.done={totalSessions:n,passId:saved?.id||null};
+            issuedTotal++;
+          }
         }
-        // 전 행 발급 성공: 서버가 고객·팀을 실제로 생성했으므로 미저장 draft 는 비운다 —
-        // 남겨두면 이후 고객명 수정 시 연결 해제가 안 되고 예약 저장이 '고객명이 다릅니다'로 막힌다.
-        update({draft:{...settings.draft,passConfigs:nextConfigs,customerDraft:null,teamDraft:null,passIssueDone:{totalSessions:nextConfigs.reduce((sum,row)=>sum+(row.done?.totalSessions||0),0),passId:nextConfigs[0]?.done?.passId||null}}},{soon:true});
+        // 전 팀 발급 성공: 서버가 고객·팀을 생성했으므로 미저장 draft 는 비운다(고객명 수정 차단 방지).
+        const {deck,draft:nextActive}=writeBack(true);
+        update({teamDeck:deck,draft:nextActive,deckNotice:`수강권 발급 완료 · ${targets.length}팀 ${issuedTotal}장`},{soon:true});
       }catch(error){
         if(submitButton)submitButton.disabled=false;
         // 이미 성공한 행의 done 을 보존해 재클릭 시 그 행은 건너뛴다(부분 실패 안전).
-        update({draft:{...settings.draft,passConfigs:nextConfigs}},{soon:true});
+        const {deck,draft:nextActive}=writeBack(false);
+        update({teamDeck:deck,draft:nextActive},{soon:true});
         fail(error?.message||'수강권을 발급하지 못했습니다. 다시 시도해 주세요.');
       }
     };
