@@ -39,3 +39,8 @@
 .lp-bulk-cell{width:34px;text-align:center}
 .lp-bulk-cell input{width:15px;height:15px;accent-color:#2c6e7f;cursor:pointer}
 .lp-delete-confirm footer .lp-danger{margin-right:auto}
+
+/* 수강권 변경 창 확장 그리드(2026-11-21) */
+.lp-edit-wide{max-width:560px}
+.lp-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-bottom:10px}
+@media(max-width:560px){.lp-edit-grid{grid-template-columns:1fr}}
