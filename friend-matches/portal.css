@@ -1,0 +1,12 @@
+.fm-shell{box-sizing:border-box;width:min(960px,100%);margin:0 auto;padding:24px clamp(14px,4vw,40px) 64px;color:#173e38}
+.fm-shell h1{font-size:clamp(23px,4vw,32px);letter-spacing:-.04em;margin:0}
+.fm-shell .fm-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid #c7d7d1}
+.fm-shell .fm-navlinks{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.fm-shell a{text-decoration:underline;text-underline-offset:3px;color:#15574a}
+.fm-shell .fm-status{padding:12px 14px;border-radius:8px;background:#f1f5ef;color:#2f503e;line-height:1.5}
+.fm-shell h2,.fm-shell h3{line-height:1.35;margin:0 0 8px}
+.fm-shell .panel{border:1px solid #dbe3df;border-radius:12px;padding:14px;background:white;box-shadow:0 2px 8px #193f3510}
+.fm-shell .fm-notes{white-space:pre-line}
+.fm-shell button:focus-visible,.fm-shell summary:focus-visible,.fm-shell a:focus-visible{outline:3px solid #126c57;outline-offset:2px}
+.fm-shell button:disabled{opacity:.5}
+@media(max-width:550px){.fm-shell{padding-top:12px}.fm-shell .fm-bar{align-items:start;flex-direction:column}.fm-shell .fm-navlinks{font-size:14px}}

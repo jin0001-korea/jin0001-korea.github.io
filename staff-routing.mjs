@@ -19,7 +19,7 @@ export function staffMenu(role) {
   const admin = role === 'admin';
   return [
     ['dashboard', 'grid', admin ? '운영 현황' : '나의 홈'],
-    ...(admin ? [['bookings', 'calendar', '예약 · 강사 배정'], ['changes', 'clock', '고객 일정 요청'], ['calls', 'users', '상담 · 전화'], ['payments', 'report', '입금 검토']] : []),
+    ...(admin ? [['bookings', 'calendar', '예약 · 강사 배정'], ['changes', 'clock', '고객 일정 요청'], ['calls', 'users', '상담 · 전화'], ['payments', 'report', '입금 검토'], ['friend-matches', 'users', '친구 매칭']] : []),
     ['overview', 'sheet', '통합 현황표'],
     ['schedules', 'calendar', '강습 일정'],
     ['reports', 'report', '보고서 관리'],
@@ -34,7 +34,7 @@ export function staffMenu(role) {
 export function staffMenuGroups(role, currentPage = '') {
   const menu = new Map(staffMenu(role).map(item => [item[0], item]));
   return [
-    ['booking', '예약 · 고객', 'calendar', ['bookings', 'changes', 'calls', 'payments']],
+    ['booking', '예약 · 고객', 'calendar', ['bookings', 'changes', 'calls', 'payments', 'friend-matches']],
     ['lessons', role === 'admin' ? '강습 운영' : '나의 강습', 'report', ['schedules', 'reports', 'timeoff']],
     ['insights', '확인 · 성과', 'sheet', ['alerts', 'overview', 'scores']],
     ['management', '운영 관리', 'settings', ['cash-receipts', 'instructors', 'settings', 'guide']],

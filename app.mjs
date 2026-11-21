@@ -22,7 +22,7 @@ import { currentSession, signOut, onSessionChange, consumeSetupLink, renderAuthS
 import { fetchWorkspace, saveRemoteReport, saveRemoteProof, getRemotePhoto, saveRemoteResponse, saveRemoteReview, saveRemoteSettings, importRemoteSchedules, accountAction, setMemberStatus, surveyAction, reviewsAction, automationAction, markAlertRead, markReservationChangeNotificationRead } from './workspace-api.mjs?v=36';
 import { requestTimeOff, reviewTimeOff, cancelTimeOff } from './workspace-api.mjs?v=36';
 import {staffDirectoryGroups,canManageInstructor,instructorNameChange,instructorLinkedScheduleCount,renderInstructorDirectoryActions} from './staff-directory.mjs?v=1';
-import {staffDestination, requestedBooking, bookingWorkspaceUrl, staffMenu, staffMenuGroups, staffRoleLabel, canUseAdminGuide} from './staff-routing.mjs?v=40';
+import {staffDestination, requestedBooking, bookingWorkspaceUrl, staffMenu, staffMenuGroups, staffRoleLabel, canUseAdminGuide} from './staff-routing.mjs?v=41';
 import {renderScheduleRental} from './schedule-rental.mjs?v=1';
 import {schedulePaymentNeedsAttention,renderSchedulePayment} from './schedule-payment.mjs?v=2';
 
@@ -350,6 +350,7 @@ function showDialog(title,content,wide=false) {
 function groupedStaffNavigation({mobile=false,pending=0}={}){
   const item=([id,symbol,label])=>{
     const current=ui.page===id,content=`${icon(symbol)}<span>${esc(label)}</span>${id==='alerts'&&pending?`<span class="count">${pending}</span>`:''}`;
+    if(id==='friend-matches')return `<a class="nav-item" href="/friend-matches/">${content}</a>`;
     return mobile?`<button type="button" class="nav-item ${current?'active':''}" data-nav-page="${id}" ${current?'aria-current="page"':''}>${content}</button>`:`<a href="#${id}" class="nav-item ${current?'active':''}" ${current?'aria-current="page"':''}>${content}</a>`;
   };
   const home=staffMenu(ui.role).find(([id])=>id==='dashboard');

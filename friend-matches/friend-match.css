@@ -1,0 +1,16 @@
+.fm-work{max-width:1050px;margin:1.25rem auto;padding:0 1rem;color:inherit}
+.fm-work .panel{padding:1rem;margin:.75rem 0}
+.fm-card header,.fm-nav{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.fm-card header{justify-content:space-between}
+.fm-card h3{font-size:1.05rem;margin:0}
+.fm-person{display:flex;gap:.8rem;flex-wrap:wrap;padding:.65rem 0;border-bottom:1px solid #d8e1de}
+.fm-work details{padding:.6rem 0}
+.fm-work summary{cursor:pointer;font-weight:650}
+.fm-nav button,.fm-work .btn{min-height:40px}
+.fm-work code{overflow-wrap:anywhere}
+@media(max-width:600px){
+  .fm-work{padding:0 .4rem}
+  .fm-person{gap:.25rem .6rem}
+  .fm-person strong{width:100%}
+  .fm-work summary{padding:.3rem 0}
+}
