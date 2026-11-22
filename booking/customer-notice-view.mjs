@@ -9,6 +9,8 @@ const date=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric'
 const changePolicy='링크에서 예약 변경을 요청할 수 있습니다. 기존 강습과 희망 강습 시작까지 모두 7일 이상 남아 있어야 하며, 관리자 승인 후 변경이 확정됩니다.';
 const clock=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const confirmationNotice='신청하신 종목(스키·보드), 강습 구성, 날짜·시간이 맞는지 꼭 확인해 주세요.';
+// 수동 복사·발송될 수 있는 안내문이므로 머리글은 SLOPE 가 아니라 브랜드명으로(2026-11-21 사용자 확인).
+const brandOf=value=>{const text=String(value||'');return text.includes('캐치')?'캐치':text.includes('라이즌')?'라이즌':text.includes('코코넛')?'코코넛렌탈샵':'곤지암 스키스쿨';};
 function compositionLabel(row){
  const raw=String(row.raw?.M??'').trim(),students=/^[0-9]{1,4}$/.test(raw)?Number(raw):0,teachers=normalizeInstructorIds(row).length;
  if(students<1||students>1000)return '강습 구성 확인 필요';
@@ -19,12 +21,12 @@ export function customerNoticeMessage(notice,context={},url=''){
   if(notice.kind==='pass'){
     const passes=(context.lessonPasses||[]).filter(row=>ids.has(row.id));
     // 디렉터리 연결 수강권은 최신 고객·팀 이름으로 안내한다(2026-11-20).
-    return ['[SLOPE 수강권 등록 안내]',...passes.map(row=>{const d=directoryDisplayNames({customerId:row.customer_id??row.customerId,customerTeamId:row.customer_team_id??row.customerTeamId},context);return `${d.customerName||row.customer_name||row.customerName||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||row.learner_name||row.learnerName||'기본 팀'}\n${row.sport||'강습'} ${row.total_sessions??row.totalSessions}회 수강권\n날짜·시간은 추후 예약할 수 있습니다.`;}),'날짜 미정인 잔여 회차도 링크에서 새 일정을 신청할 수 있습니다. 희망 강습 시작까지 7일 이상 남은 일정을 선택해 주세요. 신규 예약은 관리자 승인 후 확정됩니다. 날짜가 정해진 회차는 '+changePolicy,url?`수강권 상태 확인: ${url}`:'수강권 상태 확인 링크를 생성해 주세요.'].join('\n\n');
+    return [`[${brandOf(passes[0]?.company)} 수강권 등록 안내]`,...passes.map(row=>{const d=directoryDisplayNames({customerId:row.customer_id??row.customerId,customerTeamId:row.customer_team_id??row.customerTeamId},context);return `${d.customerName||row.customer_name||row.customerName||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||row.learner_name||row.learnerName||'기본 팀'}\n${row.sport||'강습'} ${row.total_sessions??row.totalSessions}회 수강권\n날짜·시간은 추후 예약할 수 있습니다.`;}),'날짜 미정인 잔여 회차도 링크에서 새 일정을 신청할 수 있습니다. 희망 강습 시작까지 7일 이상 남은 일정을 선택해 주세요. 신규 예약은 관리자 승인 후 확정됩니다. 날짜가 정해진 회차는 '+changePolicy,url?`수강권 상태 확인: ${url}`:'수강권 상태 확인 링크를 생성해 주세요.'].join('\n\n');
   }
   const active=activeNoticeReservationIds(context);
   const rows=(context.reservations||[]).filter(row=>ids.has(row.id)&&active.has(row.id)).sort((a,b)=>Date.parse(parseLessonInterval(a).start)-Date.parse(parseLessonInterval(b).start));
   if(!rows.length)return '';
-  return ['[SLOPE 예약 접수 안내]',...rows.slice(0,3).map(row=>{const raw=row.raw||{},interval=parseLessonInterval(row);const time=interval.error?'일정 확인 필요':`${date.format(new Date(interval.start))}\n${clock.format(new Date(interval.start))}–${date.format(new Date(interval.start))!==date.format(new Date(interval.end))?'다음 날 ':''}${clock.format(new Date(interval.end))}${interval.breakMinutes?` · 중간 ${interval.breakMinutes/60}시간 휴식`:''}`;const d=directoryDisplayNames(row,context);return `${d.customerName||raw.H||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||raw.I||'기본 팀'}\n${time}\n${raw.E||'장소 확인 필요'} · ${raw.D||'종목 확인 필요'}\n강습 구성: ${compositionLabel(row)}\n담당 강사: ${raw.F&&raw.F!=='미배정'?raw.F:'배정 후 안내'}`;}),...(rows.length>3?[`외 ${rows.length-3}건 · 전체 ${rows.length}건의 일정은 아래 링크에서 확인해 주세요.`]:[]),confirmationNotice,changePolicy,url?`예약 내용 확인: ${url}`:'예약 확인 링크를 생성해 주세요.'].join('\n\n');
+  return [`[${brandOf(rows[0]?.raw?.E||rows[0]?.company)} 예약 접수 안내]`,...rows.slice(0,3).map(row=>{const raw=row.raw||{},interval=parseLessonInterval(row);const time=interval.error?'일정 확인 필요':`${date.format(new Date(interval.start))}\n${clock.format(new Date(interval.start))}–${date.format(new Date(interval.start))!==date.format(new Date(interval.end))?'다음 날 ':''}${clock.format(new Date(interval.end))}${interval.breakMinutes?` · 중간 ${interval.breakMinutes/60}시간 휴식`:''}`;const d=directoryDisplayNames(row,context);return `${d.customerName||raw.H||'고객'}님 · ${(d.teamName!==null&&d.teamName!==''?d.teamName:'')||raw.I||'기본 팀'}\n${time}\n${raw.E||'장소 확인 필요'} · ${raw.D||'종목 확인 필요'}\n강습 구성: ${compositionLabel(row)}\n담당 강사: ${raw.F&&raw.F!=='미배정'?raw.F:'배정 후 안내'}`;}),...(rows.length>3?[`외 ${rows.length-3}건 · 전체 ${rows.length}건의 일정은 아래 링크에서 확인해 주세요.`]:[]),confirmationNotice,changePolicy,url?`예약 내용 확인: ${url}`:'예약 확인 링크를 생성해 주세요.'].join('\n\n');
 }
 export function demoCustomerNotices(context={}){
   const active=activeNoticeReservationIds(context);
