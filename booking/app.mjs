@@ -33,7 +33,8 @@ const paths={plus:'M12 5v14M5 12h14',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8
 const icon=name=>`<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.arrow}"/></svg>`;
 const emptyState=()=>({profile:null,roster:[],schedules:[],reservations:[],seasonPackages:[],lessonPasses:[],reservationChanges:[],customers:[],customerTeams:[],capabilities:[],timeOffRequests:[],settings:{},bookingUnavailable:null});
 // 수강권 탭 폐지(2026-11-20 사용자 지시): 수강권 블록은 예약표의 전체 예약·배정표 아래에 함께 렌더된다. 옛 #passes 링크는 예약표로 보낸다.
-const viewFromHash=()=>['timetable','customers','notices','changes','calls','payments'].includes(location.hash.slice(1))?location.hash.slice(1):'reservations';
+import {friendPanel,bindFriendPanel,friendStudentNotes} from './friend-match-view.mjs?v=2';
+const viewFromHash=()=>['timetable','customers','notices','changes','calls','payments','friends'].includes(location.hash.slice(1))?location.hash.slice(1):'reservations';
 const initialUi=()=>({role:null,view:viewFromHash(),communicationTab:'calls',booking:{demo:true},timetable:{},passes:{},customers:{},customerChanges:{status:'pending',notes:{},requests:[],loading:false,error:''}});
 let state=emptyState(),ui=initialUi();
 let api=null,apiPromise=null,operational=false,checkingSession=true,signingIn=false,dirty=false,refreshError='',accessError=null,authVersion=0,writeVersion=0,readPromise=null,activeWrite=null,activePlan=null;
@@ -76,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=95').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=96').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -89,7 +90,7 @@ const pendingBookingDrafts=()=>ui.booking?.teamDeck?.cards?.length?hasUnsavedTea
 function canLeaveBookingMode(){if(hasPaymentReviewInFlight(ui)){toast('사진 전송·저장을 마친 뒤 이동해 주세요.');return false;}if(hasSmsHistoryWork(ui)){toast('과거 문자 가져오기를 마치거나 가져오기 화면을 닫은 뒤 이동해 주세요.');return false;}if(activeWrite||ui.booking?.deckSaving||ui.customers?.saving){toast('현재 저장이 끝난 뒤 이용해 주세요.');return false;}if(hasUnsavedCallDraft(ui)){toast('작성 중인 상담 기록이나 휴대폰 설정을 먼저 저장해 주세요.');return false;}if(pendingBookingDrafts()||hasUnsavedCustomerDraft(ui)){toast('작성 중인 고객·팀 정보를 저장하거나 비운 뒤 전환해 주세요.');return false;}return true;}
 async function exitOperations(){if(!canLeaveBookingMode())return false;clearOperations();if(api)await api.logout().catch(()=>{});return true;}
 function setupDate(ctx){if(!parseKstDate(ui.timetable?.date)){const first=ui.booking.demo?ctx.reservations.map(row=>parseKstDate(row.raw?.A)).filter(Boolean).sort()[0]:null;ui.timetable={...(ui.timetable||{}),date:first||kstDay()};}}
-function modeChanged(){clearPaymentReview(ui);clearReviewsAdmin(ui);delete ui.paymentReview;ui.paymentReviewData=null;ui.paymentReviewLoading=false;ui.paymentReviewError='';ui.paymentReviewLinkStatus=null;clearSmsMediaViews(ui);clearSmsHistory(ui);closePlan();closeCustomerLink();const legacy=$('#desk-assignment-dialog');if(legacy){if(legacy.open)legacy.close();legacy.innerHTML='';}ui.timetable={};ui.customers={};delete ui.callInbox;ui.callInboxData=null;ui.callInboxLoading=false;ui.callInboxError='';ui.communicationTab='calls';delete ui.smsInbox;ui.smsInboxData=null;ui.smsInboxLoading=false;ui.smsInboxError='';delete ui.kakaoInbox;dirty=false;}
+function modeChanged(){delete ui.friendMatches;clearPaymentReview(ui);clearReviewsAdmin(ui);delete ui.paymentReview;ui.paymentReviewData=null;ui.paymentReviewLoading=false;ui.paymentReviewError='';ui.paymentReviewLinkStatus=null;clearSmsMediaViews(ui);clearSmsHistory(ui);closePlan();closeCustomerLink();const legacy=$('#desk-assignment-dialog');if(legacy){if(legacy.open)legacy.close();legacy.innerHTML='';}ui.timetable={};ui.customers={};delete ui.callInbox;ui.callInboxData=null;ui.callInboxLoading=false;ui.callInboxError='';ui.communicationTab='calls';delete ui.smsInbox;ui.smsInboxData=null;ui.smsInboxLoading=false;ui.smsInboxError='';delete ui.kakaoInbox;dirty=false;}
 function renderCommunications(customers,customerTeams){
   const tab=['calls','sms','kakao'].includes(ui.communicationTab)?ui.communicationTab:'calls';
   const tabs=`<nav class="communications-tabs" aria-label="상담 기록 종류"><button type="button" data-communication-tab="calls" aria-pressed="${tab==='calls'}">통화 기록</button><button type="button" data-communication-tab="sms" aria-pressed="${tab==='sms'}">문자 대화</button><button type="button" data-communication-tab="kakao" aria-pressed="${tab==='kakao'}">카카오 채널</button></nav>`;
@@ -114,7 +115,8 @@ function render(){
   invalidateCustomerLink();
   const active=hasOperator(),demo=ui.booking.demo!==false;
   ui.role=active?state.profile.role:null;
-  if(active&&demo&&['changes','calls','payments','reviews'].includes(ui.view))ui.view='reservations';
+  if(active&&demo&&['changes','calls','payments','reviews','friends'].includes(ui.view))ui.view='reservations';
+  const friendTab=$('[data-desk-view="friends"]');if(friendTab)friendTab.hidden=!active||demo;
   const paymentsTab=$('[data-desk-view="payments"]');if(paymentsTab)paymentsTab.hidden=!active||demo;
   const callsTab=$('[data-desk-view="calls"]');if(callsTab)callsTab.hidden=!active||demo;
   const reviewsTab=$('[data-desk-view="reviews"]');if(reviewsTab)reviewsTab.hidden=!active||demo;
@@ -138,16 +140,35 @@ function render(){
   $('#desk-status').textContent=demo?`체험 모드 · ${bookingRoleLabel(state.profile.role)}`:`${state.profile.display_name||bookingRoleLabel(state.profile.role)} · ${bookingRoleLabel(state.profile.role)}`;
   $('#desk-status').classList.toggle('operational',active&&!demo);
   $('#desk-login').hidden=active;$('#desk-logout').hidden=!active;$('#desk-refresh').hidden=!active;
-  $('[data-desk-autoassign]').hidden=['passes','customers','notices','changes','calls','payments','reviews','reservations'].includes(ui.view);
+  $('[data-desk-autoassign]').hidden=['passes','customers','notices','changes','calls','payments','reviews','friends','reservations'].includes(ui.view);
   document.querySelectorAll('[data-desk-view]').forEach(button=>{const selected=button.dataset.deskView===ui.view;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));});
   $('#desk-notice').innerHTML=demo?'<span class="desk-notice-dot"></span><div><strong>예약표와 강사 시간표를 체험해 보세요.</strong><span>가상 데이터입니다. 자동배정으로 배정안을 만들고, 확정하면 체험 화면에만 반영됩니다.</span></div>':`<span class="desk-notice-dot"></span><div><strong>${state.profile.role==='counselor'?'상담·예약 관리':'예약·배정 관리'}</strong><span>고객 접수, 예약 변경, 수강권과 강사 배정을 관리합니다.</span></div>`;
-  if(active&&refreshError&&!demo&&!['calls','payments'].includes(ui.view)&&!ui.booking.drawer&&!hasUnsavedTeamDrafts(ui.booking.teamDeck)){app.innerHTML=`<section class="panel desk-unavailable"><h2>예약 기록을 다시 확인해 주세요.</h2><p>${esc(refreshError)}</p><button type="button" class="btn primary" data-retry>다시 불러오기</button><button type="button" class="btn secondary" data-preview>체험 예약표 보기</button></section>`;app.querySelector('[data-retry]').onclick=()=>refreshDesk({force:true});app.querySelector('[data-preview]').onclick=()=>{modeChanged();ui.booking={...ui.booking,demo:true,drawer:null,draft:null,teamDeck:null,deckMode:'demo'};render();};return;}
+  if(active&&refreshError&&!demo&&!['calls','payments','friends'].includes(ui.view)&&!ui.booking.drawer&&!hasUnsavedTeamDrafts(ui.booking.teamDeck)){app.innerHTML=`<section class="panel desk-unavailable"><h2>예약 기록을 다시 확인해 주세요.</h2><p>${esc(refreshError)}</p><button type="button" class="btn primary" data-retry>다시 불러오기</button><button type="button" class="btn secondary" data-preview>체험 예약표 보기</button></section>`;app.querySelector('[data-retry]').onclick=()=>refreshDesk({force:true});app.querySelector('[data-preview]').onclick=()=>{modeChanged();ui.booking={...ui.booking,demo:true,drawer:null,draft:null,teamDeck:null,deckMode:'demo'};render();};return;}
   if(active&&refreshError&&!demo)$('#desk-notice').innerHTML=`<span class="desk-notice-dot"></span><div><strong>작성 중인 팀 카드는 보관되어 있습니다.</strong><span>최신 목록을 불러오지 못했습니다. 저장 결과를 확인하거나 다시 시도해 주세요. ${esc(refreshError)}</span></div>`;
   const ctx=context();setupDate(ctx);const previousDemo=ui.booking.demo;
   const changes=ui.customerChanges,changeRows=changes.status==='pending'?(state.customerChangeRequests||[]):changes.requests;
   const oldReview=ui.view==='payments'?app.querySelector('[data-pr-review-key]'):null;
   const reviewScroll=oldReview?{key:oldReview.dataset.prReviewKey,panes:['.pr-evidence-pane','.pr-proposals-pane','.pr-form-pane'].map(selector=>({selector,top:oldReview.querySelector(selector)?.scrollTop||0})),name:oldReview.contains(document.activeElement)?document.activeElement?.getAttribute('name'):null,check:oldReview.contains(document.activeElement)?document.activeElement?.dataset?.prCheck:null}:null;
-  app.innerHTML=ui.view==='reviews'?renderReviewsAdmin({profile:state.profile,ui,busy:!!activeWrite}):ui.view==='payments'?renderPaymentReview({profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,loading:ui.paymentReviewLoading,error:ui.paymentReviewError,busy:!!activeWrite})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='calls'?renderCommunications(ctx.customers,ctx.customerTeams)+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='changes'?renderCustomerChanges({profile:state.profile,requests:changeRows,status:changes.status,notes:changes.notes,loading:changes.loading,error:changes.error||(changes.status==='pending'?state.customerChangeRequestsError:''),busy:!!activeWrite})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='notices'?renderCustomerNotices({state:ctx,demo,profile:state.profile,settingsHref:bookingStaffLinks().settings})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='customers'?renderCustomers({state:ctx,ui,escapeHTML:esc,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()})+renderPassDialogs({state:ctx,ui,escapeHTML:esc}):ui.view==='timetable'?renderTimetable({state:ctx,ui,escapeHTML:esc,icon,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):renderBookingPage({state,ui,escapeHTML:esc,icon,now:new Date()})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderPasses({state:ctx,ui,escapeHTML:esc,icon,now:new Date()});
+  app.innerHTML=ui.view==='friends'?friendPanel(ui.friendMatches):ui.view==='reviews'?renderReviewsAdmin({profile:state.profile,ui,busy:!!activeWrite}):ui.view==='payments'?renderPaymentReview({profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,loading:ui.paymentReviewLoading,error:ui.paymentReviewError,busy:!!activeWrite})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='calls'?renderCommunications(ctx.customers,ctx.customerTeams)+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='changes'?renderCustomerChanges({profile:state.profile,requests:changeRows,status:changes.status,notes:changes.notes,loading:changes.loading,error:changes.error||(changes.status==='pending'?state.customerChangeRequestsError:''),busy:!!activeWrite})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='notices'?renderCustomerNotices({state:ctx,demo,profile:state.profile,settingsHref:bookingStaffLinks().settings})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='customers'?renderCustomers({state:ctx,ui,escapeHTML:esc,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()})+renderPassDialogs({state:ctx,ui,escapeHTML:esc}):ui.view==='timetable'?renderTimetable({state:ctx,ui,escapeHTML:esc,icon,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):renderBookingPage({state,ui,escapeHTML:esc,icon,now:new Date()})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderPasses({state:ctx,ui,escapeHTML:esc,icon,now:new Date()});
+  const requestBooking=ui.booking?.draft?.id;
+  if(active&&!demo&&/^friend-match-[a-f0-9-]{36}$/.test(requestBooking||'')){
+    const body=app.querySelector('.bk-drawer-body');
+    if(body){
+      const details=document.createElement('details');details.className='panel fm-booking-contacts';
+      details.innerHTML='<summary>친구찾기 특이사항 · 두 강습생 연락처·나이·목표</summary><div aria-live="polite"></div>';
+      body.prepend(details);
+      const identity=authVersion;
+      details.ontoggle=async()=>{
+        if(!details.open||details.dataset.loaded)return;
+        details.dataset.loaded='1';
+        const result=details.querySelector('div');result.textContent='조회 중입니다.';
+        try{
+          const module=await getApi(),rows=await module.friendMatchBookingContacts(requestBooking);
+          if(identity===authVersion&&hasOperator()&&details.isConnected)result.textContent=friendStudentNotes(rows)||'연결된 신청이 없습니다.';
+        }catch(error){if(identity===authVersion&&details.isConnected){result.textContent=error.message;delete details.dataset.loaded;}}
+      };
+    }
+  }
   const freshReview=reviewScroll?app.querySelector('[data-pr-review-key]'):null;
   if(freshReview&&freshReview.dataset.prReviewKey===reviewScroll.key){for(const {selector,top}of reviewScroll.panes){const pane=freshReview.querySelector(selector);if(pane)pane.scrollTop=top;}const form=freshReview.querySelector('[data-pr-review-form]'),focus=reviewScroll.name?form?.elements?.namedItem(reviewScroll.name):['bank','customer','details'].includes(reviewScroll.check)?freshReview.querySelector(`[data-pr-check="${reviewScroll.check}"]`):null;if(focus&&!focus.disabled)focus.focus?.({preventScroll:true});}
   if(active&&!demo&&ui.view==='reservations')app.insertAdjacentHTML('afterbegin',renderSheetsSync(state.sheetsSync,{error:state.sheetsSyncError,compact:true}));
@@ -207,6 +228,7 @@ function render(){
   if(ui.view==='reservations'||ui.passes?.issuing||ui.passes?.editRequest||ui.passes?.deleteRequest)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass,onUpdate:updatePass});
   if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink});
   if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
+  if(ui.view==='friends')bindFriendOperations();
   if(ui.view==='reviews'){const identity=authVersion,viewUi=ui;bindReviewsAdmin(app,{ui,onChange:()=>{dirty=false;render();},onAction:reviewsAdminAction,onError:toast,isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='reviews'});}
   if(ui.view==='payments'){const identity=authVersion,viewUi=ui;bindPaymentReview(app,{profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,busy:!!activeWrite,onChange:()=>{dirty=false;render();},onRefresh:()=>loadPaymentReviews(),onAction:paymentReviewAction,onOpenBooking:createPaymentReservation,onLoadSavedReservations:loadSavedPaymentReservations,onEditSavedReservation:editSavedPaymentReservation,onError:toast,onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.'),isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='payments'});}
   if(ui.view==='calls'){
@@ -262,6 +284,38 @@ async function reviewsAdminAction(kind,payload={}){
   if(identity!==authVersion||!hasOperator())throw new Error('로그인이 바뀌었습니다. 다시 열어 주세요.');return result;
 }
 
+let friendReadVersion=0;
+async function loadFriendMatches(offset=ui.friendMatches?.offset||0){
+  if(!hasOperator()||ui.booking.demo||ui.view!=='friends')return;
+  const identity=authVersion,viewUi=ui,token=++friendReadVersion;
+  const current=()=>identity===authVersion&&viewUi===ui&&token===friendReadVersion&&ui.view==='friends'&&hasOperator()&&!ui.booking.demo;
+  ui.friendMatches={offset,loading:true};render();
+  try{
+    const module=await getApi(),rows=await module.friendMatchList(offset);
+    if(current())ui.friendMatches={offset,rows};
+  }catch(error){
+    if(current())ui.friendMatches={offset,error:error.message||'매칭 목록을 불러오지 못했습니다.'};
+  }finally{if(current())render();}
+}
+function bindFriendOperations(){
+  const identity=authVersion,viewUi=ui;
+  const current=()=>identity===authVersion&&viewUi===ui&&ui.view==='friends'&&hasOperator()&&!ui.booking.demo;
+  bindFriendPanel(app,{
+    current,error:toast,
+    page:action=>{if(current())return loadFriendMatches(Math.max(0,(ui.friendMatches?.offset||0)+(action==='next'?25:action==='prev'?-25:0)));},
+    async read(action,id){if(!current())return [];const module=await getApi();return current()?module.friendMatchDetails(action,id):[];},
+    async accept(id){
+      if(!current())return;
+      const result=await writeOperation(()=>api.friendMatchAccept(id),'친구 매칭을 예약표에 접수했습니다.');
+      if(current()&&!result?.discarded)await loadFriendMatches();
+    },
+    async guardian(phone){
+      if(!current())return;
+      const result=await writeOperation(()=>api.friendMatchGuardian(phone),'보호자 확인을 등록했습니다. 같은 번호로 24시간 동안 신청할 수 있습니다.');
+      if(current()&&!result?.discarded)app.querySelector('[data-fm-guardian]')?.reset();
+    }
+  });
+}
 async function loadPaymentReviews(){
   if(!hasOperator()||ui.booking.demo||ui.view!=='payments')return {discarded:true};
   const identity=authVersion,viewUi=ui,token={};ui.paymentReviewRequest=token;ui.paymentReviewLoading=true;ui.paymentReviewError='';
@@ -824,16 +878,16 @@ async function applyPlan(items){
 }
 async function openLogin(){if(checkingSession||!canLeaveBookingMode())return;if(isUnifiedBookingLocation()||['BOOKING_ACCESS_REQUIRED','PASSWORD_SETUP_REQUIRED'].includes(accessError?.code)){location.assign(accessError?.code==='BOOKING_ACCESS_REQUIRED'?bookingStaffLinks().home:bookingStaffLinks().login);return;}if(hasOperator()){modeChanged();ui.booking={...ui.booking,demo:false,drawer:null,draft:null,teamDeck:null,deckMode:'operational'};render();return;}loginError('');form.elements.password.value='';if(!dialog.open)dialog.showModal();form.elements.email.focus();}
 function closeLogin(){if(signingIn)return;dialog.close();form.elements.password.value='';loginError('');}
-form.addEventListener('submit',async event=>{event.preventDefault();if(signingIn)return;if(!form.checkValidity()){form.reportValidity();return;}const values=new FormData(form),submit=form.querySelector('[type=submit]'),identity=authVersion;signingIn=true;submit.disabled=true;submit.textContent='운영 계정 확인 중…';loginError('');try{const module=await getApi();await module.login({email:String(values.get('email')).trim(),password:String(values.get('password'))});const value=await module.fetchDesk();if(identity!==authVersion)return;authVersion++;writeVersion++;state=value;operational=true;accessError=null;modeChanged();ui.booking={demo:false,drawer:null,draft:null};refreshError='';dirty=false;form.elements.password.value='';dialog.close();render();if(ui.view==='calls')void loadCommunications();if(ui.view==='payments')void loadPaymentReviews();if(ui.view==='reviews')void loadReviewsAdmin();toast('운영 예약표를 열었습니다.');}catch(error){loginError(error.message||'로그인하지 못했습니다.');}finally{signingIn=false;submit.disabled=false;submit.textContent='운영 예약표 열기';}});
-$('#desk-login').onclick=openLogin;$('#desk-logout').onclick=async()=>{if(await exitOperations())toast('예약 운영에서 로그아웃했습니다.');};$('#desk-refresh').onclick=async()=>{if(ui.view==='payments'){const refresh=app.querySelector('[data-pr-refresh]');if(refresh){if(!refresh.disabled)refresh.click();}else await loadPaymentReviews();return;}if(ui.view==='calls'){await loadCommunications();return;}if(ui.view==='reviews'){await loadReviewsAdmin();return;}await refreshDesk({force:true});if(ui.view==='changes')await loadCustomerChanges();};
+form.addEventListener('submit',async event=>{event.preventDefault();if(signingIn)return;if(!form.checkValidity()){form.reportValidity();return;}const values=new FormData(form),submit=form.querySelector('[type=submit]'),identity=authVersion;signingIn=true;submit.disabled=true;submit.textContent='운영 계정 확인 중…';loginError('');try{const module=await getApi();await module.login({email:String(values.get('email')).trim(),password:String(values.get('password'))});const value=await module.fetchDesk();if(identity!==authVersion)return;authVersion++;writeVersion++;state=value;operational=true;accessError=null;modeChanged();ui.booking={demo:false,drawer:null,draft:null};refreshError='';dirty=false;form.elements.password.value='';dialog.close();render();if(ui.view==='calls')void loadCommunications();if(ui.view==='payments')void loadPaymentReviews();if(ui.view==='friends')void loadFriendMatches();if(ui.view==='reviews')void loadReviewsAdmin();toast('운영 예약표를 열었습니다.');}catch(error){loginError(error.message||'로그인하지 못했습니다.');}finally{signingIn=false;submit.disabled=false;submit.textContent='운영 예약표 열기';}});
+$('#desk-login').onclick=openLogin;$('#desk-logout').onclick=async()=>{if(await exitOperations())toast('예약 운영에서 로그아웃했습니다.');};$('#desk-refresh').onclick=async()=>{if(ui.view==='friends'){await loadFriendMatches();return;}if(ui.view==='payments'){const refresh=app.querySelector('[data-pr-refresh]');if(refresh){if(!refresh.disabled)refresh.click();}else await loadPaymentReviews();return;}if(ui.view==='calls'){await loadCommunications();return;}if(ui.view==='reviews'){await loadReviewsAdmin();return;}await refreshDesk({force:true});if(ui.view==='changes')await loadCustomerChanges();};
 document.querySelectorAll('[data-login-cancel]').forEach(button=>button.onclick=closeLogin);dialog.addEventListener('cancel',event=>{if(signingIn)event.preventDefault();else{form.elements.password.value='';loginError('');}});
-function changeDeskView(view){if(view!==ui.view&&ui.passes?.issuing){toast('작성 중인 수강권을 저장하거나 닫은 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(view!==ui.view&&hasPaymentReviewInFlight(ui)){toast('사진 전송·저장을 마친 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(view!==ui.view&&hasSmsHistoryWork(ui)){toast('과거 문자 가져오기를 마치거나 가져오기 화면을 닫은 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(ui.view==='calls'&&view!==ui.view&&hasUnsavedCallDraft(ui)){toast('작성 중인 상담 기록이나 휴대폰 설정을 먼저 저장해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(['calls','payments','reviews'].includes(view)&&(!hasOperator()||ui.booking.demo))view='reservations';if(view==='changes'&&!canReviewCustomerChanges(state.profile)){toast('고객 일정 요청은 관리자가 검토합니다.');view='reservations';}if(activeWrite||ui.booking.deckSaving||ui.customers?.saving){history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}closePlan();if(ui.view==='payments'&&view!==ui.view)suspendPaymentReview(app,ui);suspendBookingDrafts(app,ui);suspendCustomerEditor(ui);if(view!==ui.view){clearSmsMediaViews(ui);clearSmsHistory(ui);}ui.view=view;dirty=false;history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);render();if(view==='changes')void loadCustomerChanges();if(view==='calls')void loadCommunications();if(view==='payments')void loadPaymentReviews();if(view==='reviews')void loadReviewsAdmin();}
+function changeDeskView(view){if(view!==ui.view&&ui.passes?.issuing){toast('작성 중인 수강권을 저장하거나 닫은 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(view!==ui.view&&hasPaymentReviewInFlight(ui)){toast('사진 전송·저장을 마친 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(view!==ui.view&&hasSmsHistoryWork(ui)){toast('과거 문자 가져오기를 마치거나 가져오기 화면을 닫은 뒤 이동해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(ui.view==='calls'&&view!==ui.view&&hasUnsavedCallDraft(ui)){toast('작성 중인 상담 기록이나 휴대폰 설정을 먼저 저장해 주세요.');history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}if(['calls','payments','reviews','friends'].includes(view)&&(!hasOperator()||ui.booking.demo))view='reservations';if(view==='changes'&&!canReviewCustomerChanges(state.profile)){toast('고객 일정 요청은 관리자가 검토합니다.');view='reservations';}if(activeWrite||ui.booking.deckSaving||ui.customers?.saving){history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);return;}closePlan();if(ui.view==='payments'&&view!==ui.view)suspendPaymentReview(app,ui);suspendBookingDrafts(app,ui);suspendCustomerEditor(ui);if(view!==ui.view){delete ui.friendMatches;clearSmsMediaViews(ui);clearSmsHistory(ui);}ui.view=view;dirty=false;history.replaceState(null,'',`${location.pathname}${location.search}#${ui.view}`);render();if(view==='changes')void loadCustomerChanges();if(view==='calls')void loadCommunications();if(view==='payments')void loadPaymentReviews();if(view==='friends')void loadFriendMatches();if(view==='reviews')void loadReviewsAdmin();}
 document.querySelectorAll('[data-desk-view]').forEach(button=>button.onclick=()=>changeDeskView(button.dataset.deskView));
 $('[data-desk-autoassign]').onclick=()=>openAutoAssign();window.addEventListener('hashchange',()=>changeDeskView(viewFromHash()));
 window.addEventListener('beforeunload',event=>{if(ui.passes?.issuing||hasPaymentReviewWork(ui)||activeWrite||pendingBookingDrafts()||hasUnsavedCustomerDraft(ui)||hasUnsavedCallDraft(ui)||hasSmsHistoryWork(ui)){event.preventDefault();event.returnValue='';}});
 app.addEventListener('input',event=>{if(event.target.closest('form')&&!event.target.closest('[data-call-inbox]')&&!event.target.closest('[data-sms-inbox]')&&!event.target.closest('[data-payment-review]'))dirty=true;});app.addEventListener('change',event=>{if(event.target.closest('form')&&!event.target.closest('[data-call-inbox]')&&!event.target.closest('[data-sms-inbox]')&&!event.target.closest('[data-payment-review]'))dirty=true;});
 const editingCommunicationInput=()=>!!document.activeElement?.matches?.('input,textarea,select')&&!!document.activeElement?.closest?.('[data-call-inbox],[data-sms-inbox],[data-kakao-inbox]');
-const canPoll=()=>ui.view!=='payments'&&!hasPaymentReviewWork(ui)&&!isSmsHistoryOpen(ui)&&hasOperator()&&!ui.booking.demo&&!document.hidden&&!dirty&&!editingCommunicationInput()&&!(ui.view==='calls'&&ui.communicationTab==='sms'&&hasSmsFilterDraft(ui))&&!ui.booking.drawer&&!ui.passes?.issuing&&!(ui.customers?.editor&&!ui.customers?.suspended)&&!hasUnsavedCustomerDraft(ui)&&!hasUnsavedCallDraft(ui)&&!activePlan&&!activeWrite&&!$('#desk-assignment-dialog')?.open;
+const canPoll=()=>ui.view!=='friends'&&ui.view!=='payments'&&!hasPaymentReviewWork(ui)&&!isSmsHistoryOpen(ui)&&hasOperator()&&!ui.booking.demo&&!document.hidden&&!dirty&&!editingCommunicationInput()&&!(ui.view==='calls'&&ui.communicationTab==='sms'&&hasSmsFilterDraft(ui))&&!ui.booking.drawer&&!ui.passes?.issuing&&!(ui.customers?.editor&&!ui.customers?.suspended)&&!hasUnsavedCustomerDraft(ui)&&!hasUnsavedCallDraft(ui)&&!activePlan&&!activeWrite&&!$('#desk-assignment-dialog')?.open;
 const pollDesk=()=>{if(canPoll()){if(ui.view==='calls'){if(!ui.callInboxLoading&&!ui.smsInboxLoading)void loadCommunications({quiet:true});}else void refreshDesk();}};
 window.addEventListener('focus',pollDesk);document.addEventListener('visibilitychange',pollDesk);setInterval(pollDesk,30000);
 async function bootDesk(){
@@ -853,6 +907,7 @@ async function bootDesk(){
     checkingSession=false;render();
     if(hasOperator()&&ui.view==='calls')void loadCommunications();
     if(hasOperator()&&ui.view==='payments')void loadPaymentReviews();
+    if(hasOperator()&&ui.view==='friends')void loadFriendMatches();
     if(hasOperator()&&ui.view==='reviews')void loadReviewsAdmin();
     if(!hasOperator()){
       await openLogin();

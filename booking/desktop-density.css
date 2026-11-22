@@ -32,7 +32,7 @@
  .booking-page>.bk-time-summary{margin-bottom:12px}.booking-page>.bk-time-summary summary{padding:9px 12px}
  .booking-page .bk-table-title{padding:12px 15px}.booking-page .bk-table-title p{margin-top:4px}
  .booking-page .bk-table th,.booking-page .bk-table td{padding:11px 12px}
- .booking-page .bk-table-scroll{max-height:calc(100dvh - 370px);min-height:220px}
+ .booking-page .bk-table-scroll{max-height:calc(calc(100dvh/var(--desk-zoom,1)) - 370px);min-height:220px}
  /* The time axis scale is unchanged: only surrounding chrome is reduced. */
  .tt-heading{margin-bottom:12px;gap:14px}.tt-heading h1{font-size:24px;margin:5px 0}.tt-heading p{line-height:1.55}
  .tt-controls{padding:11px 13px;margin-bottom:10px}.tt-filter-form{gap:10px 12px}.tt-filter-form>label>span,.tt-window-input>span{margin-bottom:5px}

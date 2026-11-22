@@ -135,6 +135,29 @@ export async function fetchDesk() {
   };
 }
 
+export async function friendMatchList(offset=0) {
+  await requireBookingOperator();
+  return rpc('slope_friend_match_list',{p_offset:offset,p_limit:25});
+}
+export async function friendMatchBookingContacts(id) {
+  await requireBookingOperator();
+  return rpc('slope_friend_match_booking_contacts',{p_booking_id:id});
+}
+export async function friendMatchAccept(id) {
+  await requireBookingOperator();
+  return rpc('slope_friend_match_accept',{p_request_id:id});
+}
+export async function friendMatchGuardian(phone) {
+  await requireBookingOperator();
+  return rpc('slope_friend_match_guardian_approve',{p_phone:phone.replace(/[^0-9]/g,''),p_consent:true});
+}
+export async function friendMatchDetails(kind,id) {
+  await requireBookingOperator();
+  if(kind==='orders')return rpc('slope_friend_match_orders',{p_request_id:id});
+  if(kind==='receipts')return rpc('slope_friend_match_cash_receipts',{p_request_id:id});
+  if(kind==='notices')return rpc('slope_friend_match_delivery_status',{p_request_id:id});
+  throw new Error('조회할 항목을 확인해 주세요.');
+}
 async function rpc(name, args) {
   const response = await supabase.rpc(name, args);
   fail(response.error, '예약·배정 조건을 확인하고 다시 시도해 주세요.');

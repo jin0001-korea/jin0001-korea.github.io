@@ -9,27 +9,28 @@
   <meta name="description" content="예약 접수와 강사 배정을 위한 운영 데스크. 발급받은 계정으로 로그인하세요.">
   <title>SLOPE DESK · 예약·강사배정</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23167d8b'/%3E%3Cpath d='M11 10h18v20H11zM11 17h18M11 24h18M19 17v13' fill='none' stroke='%23d2eea4' stroke-width='2'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./style.css?v=13">
-  <link rel="stylesheet" href="./booking.css?v=48">
-  <link rel="stylesheet" href="./desk.css?v=28">
+  <link rel="stylesheet" href="./style.css?v=14">
+  <link rel="stylesheet" href="./booking.css?v=49">
+  <link rel="stylesheet" href="./desk.css?v=29">
   <link rel="stylesheet" href="./assignment.css?v=12">
   <link rel="stylesheet" href="./timetable.css?v=13">
   <link rel="stylesheet" href="./schedule-rental.css?v=1">
-  <link rel="stylesheet" href="./pass.css?v=17">
-  <link rel="stylesheet" href="./customer.css?v=35">
+  <link rel="stylesheet" href="./pass.css?v=18">
+  <link rel="stylesheet" href="./customer.css?v=36">
   <link rel="stylesheet" href="./customer-notice.css?v=12">
   <link rel="stylesheet" href="./customer-change.css?v=20">
-  <link rel="stylesheet" href="./desktop-density.css?v=36">
-  <link rel="stylesheet" href="./call-inbox.css?v=4">
-  <link rel="stylesheet" href="./sms-inbox.css?v=4">
-  <link rel="stylesheet" href="./payment-review.css?v=19">
+  <link rel="stylesheet" href="./desktop-density.css?v=37">
+  <link rel="stylesheet" href="./call-inbox.css?v=5">
+  <link rel="stylesheet" href="./sms-inbox.css?v=5">
+  <link rel="stylesheet" href="./payment-review.css?v=20">
   <link rel="stylesheet" href="./payment-conversation.css?v=1">
   <link rel="stylesheet" href="./sms-history.css?v=3">
-  <script type="module" src="./app.mjs?v=136"></script>
+  <link rel="stylesheet" href="./friend-match.css?v=2">
+  <script type="module" src="./app.mjs?v=138"></script>
 </head>
 <body>
   <header class="desk-header"><a class="desk-brand" href="./"><span class="desk-logo">S</span><span>SLOPE <b>DESK</b><small>예약 접수 · 강사 배정</small></span></a><div class="desk-header-actions"><span id="desk-status" class="desk-mode">계정 확인 중</span><a class="desk-instructor-link" id="desk-admin-home" href="../#dashboard" hidden>전체 관리</a><button type="button" class="btn secondary small" id="desk-refresh" hidden>새로고침</button><button type="button" class="btn primary small" id="desk-login" disabled>운영 로그인</button><button type="button" class="btn ghost small" id="desk-logout" hidden>로그아웃</button></div></header>
-  <main class="desk-content"><div id="desk-notice" class="desk-notice" hidden><span class="desk-notice-dot"></span><div><strong>예약·배정 전용 운영 웹</strong><span>인증된 운영 계정으로 예약 기록을 관리합니다.</span></div></div><nav id="desk-admin-navigation" class="desk-admin-navigation" aria-label="전체 관리 메뉴" hidden></nav><div class="desk-viewbar" hidden><div class="desk-view-tabs" role="group" aria-label="예약 보기 방식"><button type="button" data-desk-view="reservations" class="active" aria-pressed="true">예약표</button><button type="button" data-desk-view="timetable" aria-pressed="false">강사 시간표</button><button type="button" data-desk-view="calls" aria-pressed="false" hidden>상담·전화</button><button type="button" data-desk-view="payments" aria-pressed="false" hidden>입금 검토</button><button type="button" data-desk-view="customers" aria-pressed="false">고객·팀</button><button type="button" data-desk-view="notices" aria-pressed="false">고객 안내</button><button type="button" data-desk-view="changes" aria-pressed="false" hidden>변경 요청</button></div><button type="button" class="btn primary desk-autoassign" data-desk-autoassign>자동배정</button></div><div id="app"><div class="desk-login-loading" role="status">로그인 상태를 확인하고 있습니다…</div></div><footer class="desk-footer"><span>SLOPE DESK · 예약·배정 전용</span><span>한국 시간 기준 · 동기화 상태는 예약표에서 확인</span></footer></main>
+  <main class="desk-content"><div id="desk-notice" class="desk-notice" hidden><span class="desk-notice-dot"></span><div><strong>예약·배정 전용 운영 웹</strong><span>인증된 운영 계정으로 예약 기록을 관리합니다.</span></div></div><nav id="desk-admin-navigation" class="desk-admin-navigation" aria-label="전체 관리 메뉴" hidden></nav><div class="desk-viewbar" hidden><div class="desk-view-tabs" role="group" aria-label="예약 보기 방식"><button type="button" data-desk-view="reservations" class="active" aria-pressed="true">예약표</button><button type="button" data-desk-view="timetable" aria-pressed="false">강사 시간표</button><button type="button" data-desk-view="calls" aria-pressed="false" hidden>상담·전화</button><button type="button" data-desk-view="payments" aria-pressed="false" hidden>입금 검토</button><button type="button" data-desk-view="friends" aria-pressed="false" hidden>친구 매칭 예약 요청</button><button type="button" data-desk-view="customers" aria-pressed="false">고객·팀</button><button type="button" data-desk-view="notices" aria-pressed="false">고객 안내</button><button type="button" data-desk-view="changes" aria-pressed="false" hidden>변경 요청</button></div><button type="button" class="btn primary desk-autoassign" data-desk-autoassign>자동배정</button></div><div id="app"><div class="desk-login-loading" role="status">로그인 상태를 확인하고 있습니다…</div></div><footer class="desk-footer"><span>SLOPE DESK · 예약·배정 전용</span><span>한국 시간 기준 · 동기화 상태는 예약표에서 확인</span></footer></main>
   <dialog id="desk-login-dialog" aria-labelledby="desk-login-title"><form id="desk-login-form"><button type="button" class="desk-login-close" data-login-cancel aria-label="로그인 닫기">×</button><span class="desk-login-eyebrow">RESERVATION OPERATIONS</span><h1 id="desk-login-title">운영 로그인</h1><p>발급받은 운영 계정으로 로그인해 주세요.<br>계정 발급·비밀번호 초기화는 관리자에게 문의해 주세요.</p><div id="desk-login-error" class="desk-login-error" role="alert" hidden></div><label class="field"><span class="field-label">아이디 또는 이메일</span><input type="text" name="email" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="아이디 또는 이메일" required maxlength="254"></label><label class="field"><span class="field-label">비밀번호</span><input type="password" name="password" autocomplete="current-password" required maxlength="128"></label><button type="submit" class="btn primary desk-login-submit">운영 예약표 열기</button><button type="button" class="btn ghost desk-preview-return" data-login-cancel>닫기</button></form></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
   <noscript>예약표를 보려면 자바스크립트를 활성화해 주세요.</noscript>
