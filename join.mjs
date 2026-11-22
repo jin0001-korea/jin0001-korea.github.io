@@ -66,6 +66,7 @@ function emailStep(info, noticeMessage = '') {
 function passwordStep(info, email) {
   screen(`<p class="join-help"><strong>${esc(email)}</strong> 인증이 완료되었습니다. <strong>${esc(info.name)}</strong> 님 계정에서 사용할 비밀번호를 정해 주세요.</p>
   <form id="join-password-form">
+  <label class="field"><span class="field-label">전화번호 *</span><input name="phone" type="tel" required minlength="9" maxlength="20" autocomplete="tel" placeholder="010-0000-0000"></label>
   <label class="field"><span class="field-label">새 비밀번호 (12자 이상) *</span><input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
   <label class="field"><span class="field-label">비밀번호 확인 *</span><input name="confirm" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
   <p class="join-error" data-join-error role="alert" hidden></p>
@@ -78,7 +79,7 @@ function passwordStep(info, email) {
     if (data.get('password') !== data.get('confirm')) { errorBox.textContent = '두 비밀번호가 서로 다릅니다.'; errorBox.hidden = false; return; }
     errorBox.hidden = true; button.disabled = true;
     try {
-      const result = await accounts({ action: 'invite-claim', invite, password: data.get('password') }, true);
+      const result = await accounts({ action: 'invite-claim', invite, password: data.get('password'), phone: String(data.get('phone') || '').trim() }, true);
       try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* 임시 인증 유저는 서버에서 이미 정리됨 */ }
       screen(`<p class="join-done">✔ 계정 설정이 끝났습니다.</p><p class="join-help"><strong>${esc(result.name)}</strong> 님은 이제 <strong>${esc(result.email)}</strong> 이메일과 방금 설정한 비밀번호로 로그인할 수 있습니다.</p><a class="btn primary" href="/">로그인 화면으로 이동</a>`);
     } catch (issue) { errorBox.textContent = issue.message; errorBox.hidden = false; button.disabled = false; }
