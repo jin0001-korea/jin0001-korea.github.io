@@ -56,7 +56,7 @@ function emailStep(info, noticeMessage = '') {
     errorBox.hidden = true; button.disabled = true;
     try {
       const email = new FormData(form).get('email');
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: `${location.origin}/join.html?invite=${encodeURIComponent(invite)}` } });
+      const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: `${location.origin}/join?invite=${encodeURIComponent(invite)}` } });
       if (error) throw new Error(['over_email_send_rate_limit', 'over_request_rate_limit'].includes(error.code) || error.status === 429 ? '인증 메일 발송량 제한에 걸렸습니다. 1시간쯤 뒤 다시 시도해 주세요.' : '인증 메일을 보내지 못했습니다. 이메일 주소를 확인해 주세요.');
       screen(`<p class="join-help"><strong>${esc(email)}</strong> 주소로 인증 메일을 보냈습니다.</p><p class="join-help">메일함(스팸함 포함)에서 <strong>Sign in</strong> 링크를 눌러 주세요. 누르면 이 화면으로 돌아와 비밀번호를 설정합니다.</p>`);
     } catch (issue) { errorBox.textContent = issue.message; errorBox.hidden = false; button.disabled = false; }
