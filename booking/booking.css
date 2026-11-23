@@ -758,7 +758,7 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 /* 2026-11-15 #12 보완: 표 전체화면 + 셀 여백 추가 축소 */
 .bk-table-title-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .bk-table-title-actions .btn{white-space:nowrap}
-.bk-table-panel--full{position:fixed;inset:0;z-index:60;margin:0;border-radius:0;display:flex;flex-direction:column;background:#fff}
+.bk-table-panel--full{position:fixed;top:0;left:0;width:calc(100vw/var(--desk-zoom,1));height:calc(100dvh/var(--desk-zoom,1));z-index:60;margin:0;border-radius:0;display:flex;flex-direction:column;background:#fff}
 .bk-table-panel--full .bk-table-title{padding:10px 16px;border-bottom:1px solid #e9eff1}
 .bk-table-panel--full .bk-table-scroll{max-height:none;flex:1}
 .bk-table-panel--full .bk-table-bottom{padding:8px 16px}
