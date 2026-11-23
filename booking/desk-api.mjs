@@ -255,6 +255,14 @@ export async function saveReservation(payload) {
   const result=await(passId?rpc('slope_save_pass_reservation',{p_payload:value,p_pass_id:passId}):rpc('slope_save_reservation', {p_payload:value}));assertPaymentCorrectionResult(value,result);return result;
 }
 
+/** 전체 예약·배정표에서 특이사항(G)만 바로 저장. 다른 필드는 건드리지 않는다(2026-11-24). */
+export async function updateReservationNotes(id,notes,expectedUpdatedAt){
+  await requireBookingOperator();
+  const bookingId=String(id||'');
+  if(!bookingId)throw issue('예약을 확인해 주세요.','INPUT_REQUIRED');
+  const result=await rpc('slope_update_reservation_notes',{p_id:bookingId,p_notes:notes==null?null:String(notes),p_expected:expectedUpdatedAt||null});
+  return {id:result?.id||bookingId,updatedAt:result?.updatedAt||result?.updated_at,notes:result?.notes??''};
+}
 /** New grouped dates commit atomically and retry the same server batch identity. */
 export async function saveReservationBatch(payloads,batchId){
   await requireBookingOperator();

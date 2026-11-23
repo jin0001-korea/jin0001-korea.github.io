@@ -351,7 +351,9 @@ function renderCell(row,column,context,escape) {
   if(key==='I'){const requirement=expertRequirement(row,context.settings),pass=(context.lessonPasses||[]).find(item=>item.id===row.lessonPassId);return `<strong>${escape(bookingTeamLabel(row,context)||'—')}</strong><small>${escape(ageLabel(row))} · ${escape(row.experienceCount===null?'경험 미확인':`경험 ${row.experienceCount}회`)}</small>${requirement.required||requirement.needsReview?badge(requirementText(requirement),requirement.needsReview?'amber':'teal',escape):''}${row.juniorPreparation?badge('주니어 기술등급제 준비','teal',escape):''}${row.lessonPassId?badge(pass?`${Number(pass.total_sessions)}회 수강권`:'수강권 연결','neutral',escape):''}`;}
   if(key==='N'&&lessonPlanSettings(row).explicit){const plan=lessonPlanSettings(row);return `<strong>${plan.lessonMinutes/60}시간</strong><small>${plan.breakMinutes?`휴식 ${plan.breakMinutes/60}시간 · 총 ${(plan.lessonMinutes+plan.breakMinutes)/60}시간`:'휴식 없이 연속'}</small>`;}
   if(key==='H'){const d=directoryDisplayNames(row,context);if(d.customerName)return escape(d.customerName);}
-  if(key==='G'||key==='O')return `<span class="bk-long-cell">${escape(value||'—')}</span>`;
+  // 특이사항(G)은 표에서 바로 수정·저장(2026-11-24). 강사·관리자 전용 — 고객·알림톡 비노출.
+  if(key==='G')return `<textarea class="bk-note-edit" data-bk-note="${escape(row.id)}" data-bk-note-original="${escape(value||'')}" data-bk-note-stamp="${escape(row.updatedAt||row.updated_at||'')}" rows="2" maxlength="2000" placeholder="특이사항 입력" aria-label="특이사항 (강사·관리자 전용)">${escape(value||'')}</textarea>`;
+  if(key==='O')return `<span class="bk-long-cell">${escape(value||'—')}</span>`;
   if(['T','U','X','Y','Z','AB'].includes(key)){const summary=financialSummary(row),amount=key==='X'?summary?.requested:key==='Z'?summary?.balance:value;return `<span class="${key==='Z'&&Number(amount)>0?'bk-amount-due':''}">${escape(money(amount))}</span>${key==='X'&&rentalDetails(row).amount===null?'<small class="bk-rental-unknown" data-bk-rental-unknown>장비금액 미확인</small>':''}`;}
   return escape(value===''||value===null?'—':value);
 }
@@ -1597,7 +1599,7 @@ function bookingPayload(draft,context) {
 /** All mutations are passed to authenticated parent callbacks; demo writes remain in memory. */
 export {validationError as validateBookingIntake};
 
-export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,now=new Date()}={}) {
+export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,onInlineNote,now=new Date()}={}) {
   bookingRailObservers.get(root)?.disconnect();bookingRailObservers.delete(root);
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return;
   const view=root.querySelector('.booking-page');if(!view)return;
@@ -1829,6 +1831,16 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
     finally{event.target.disabled=false;}
   });
   view.querySelectorAll('[data-bk-detail]').forEach(button=>button.addEventListener('click',()=>update({detailId:button.dataset.bkDetail})));
+  // 특이사항(G) 표 인라인 저장(2026-11-24): 입력 중엔 재렌더하지 않고 blur(change) 시 변경분만 전용 저장.
+  view.querySelectorAll('[data-bk-note]').forEach(area=>area.addEventListener('change',async()=>{
+    if(typeof onInlineNote!=='function'||area.disabled)return;
+    const id=area.dataset.bkNote,next=area.value,original=area.dataset.bkNoteOriginal||'';
+    if(next.trim()===original.trim())return;
+    area.disabled=true;area.setAttribute('aria-busy','true');
+    try{await onInlineNote(id,next,area.dataset.bkNoteStamp||null);area.dataset.bkNoteOriginal=next.trim();}
+    catch(error){area.value=original;globalThis.alert?.(error?.message||'특이사항을 저장하지 못했습니다. 다시 시도해 주세요.');}
+    finally{area.disabled=false;area.removeAttribute('aria-busy');}
+  }));
   // 표 전체화면(#12 보완): 표 패널을 화면 전체로 펼친다. 행의 예약 변경 창은 그 위에 뜬다.
   view.querySelector('[data-bk-fullscreen]')?.addEventListener('click',()=>update({tableFullscreen:!settings.tableFullscreen}));
   if(settings.tableFullscreen){

@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=107';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=108';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -77,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=97').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=98').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -182,6 +182,7 @@ function render(){
     onChangeSoon:()=>{dirty=false;renderSoon();},
     onSave:saveBookingReservation,
     onSaveBatch:saveBookingBatch,
+    onInlineNote:saveBookingNotes,
     onChangeReservation:changeReservation,
     onLoadPaymentRequestCorrections:id=>api.fetchPaymentRequestCorrections(id),
     onDeleteReservation:deleteReservation,
@@ -831,6 +832,16 @@ function bookingWriteResult(payload,result){
     updated_at:written.updatedAt||written.updated_at||base.updated_at||payload.expectedUpdatedAt,
     seasonId:written.seasonId??base.seasonId??payload.seasonId},state);
   return {...result,id,reservation};
+}
+// 전체 예약·배정표 특이사항(G) 인라인 저장(2026-11-24): 다른 필드 불변, 전용 RPC.
+async function saveBookingNotes(id,notes,expectedUpdatedAt){
+  const clean=String(notes??'').trim();
+  if(ui.booking.demo){
+    const row=(state.reservations||[]).find(item=>item.id===id);
+    if(row)row.raw={...row.raw,G:clean};
+    return {id,updatedAt:row?.updated_at,notes:clean};
+  }
+  return await writeOperation(()=>api.updateReservationNotes(id,clean,expectedUpdatedAt),'특이사항을 저장했습니다.');
 }
 async function saveBookingReservation(payload){
   if(ui.booking.demo){
