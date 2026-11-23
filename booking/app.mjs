@@ -8,7 +8,7 @@ import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.m
 import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
 import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
-import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=22';
+import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
 import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=107';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
@@ -149,7 +149,7 @@ function render(){
   const changes=ui.customerChanges,changeRows=changes.status==='pending'?(state.customerChangeRequests||[]):changes.requests;
   const oldReview=ui.view==='payments'?app.querySelector('[data-pr-review-key]'):null;
   const reviewScroll=oldReview?{key:oldReview.dataset.prReviewKey,panes:['.pr-evidence-pane','.pr-proposals-pane','.pr-form-pane'].map(selector=>({selector,top:oldReview.querySelector(selector)?.scrollTop||0})),name:oldReview.contains(document.activeElement)?document.activeElement?.getAttribute('name'):null,check:oldReview.contains(document.activeElement)?document.activeElement?.dataset?.prCheck:null}:null;
-  app.innerHTML=ui.view==='friends'?friendPanel(ui.friendMatches):ui.view==='reviews'?renderReviewsAdmin({profile:state.profile,ui,busy:!!activeWrite}):ui.view==='payments'?renderPaymentReview({profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,loading:ui.paymentReviewLoading,error:ui.paymentReviewError,busy:!!activeWrite})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='calls'?renderCommunications(ctx.customers,ctx.customerTeams)+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='changes'?renderCustomerChanges({profile:state.profile,requests:changeRows,status:changes.status,notes:changes.notes,loading:changes.loading,error:changes.error||(changes.status==='pending'?state.customerChangeRequestsError:''),busy:!!activeWrite})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='notices'?renderCustomerNotices({state:ctx,demo,profile:state.profile,settingsHref:bookingStaffLinks().settings})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='customers'?renderCustomers({state:ctx,ui,escapeHTML:esc,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()})+renderPassDialogs({state:ctx,ui,escapeHTML:esc}):ui.view==='timetable'?renderTimetable({state:ctx,ui,escapeHTML:esc,icon,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):renderBookingPage({state,ui,escapeHTML:esc,icon,now:new Date()})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderPasses({state:ctx,ui,escapeHTML:esc,icon,now:new Date()});
+  app.innerHTML=ui.view==='friends'?friendPanel(ui.friendMatches):ui.view==='reviews'?renderReviewsAdmin({profile:state.profile,ui,busy:!!activeWrite}):ui.view==='payments'?renderPaymentReview({profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,loading:ui.paymentReviewLoading,error:ui.paymentReviewError,busy:!!activeWrite})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='calls'?renderCommunications(ctx.customers,ctx.customerTeams)+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='changes'?renderCustomerChanges({profile:state.profile,requests:changeRows,status:changes.status,notes:changes.notes,bulk:changes.bulk||(changes.bulk={selected:[],note:''}),loading:changes.loading,error:changes.error||(changes.status==='pending'?state.customerChangeRequestsError:''),busy:!!activeWrite})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='notices'?renderCustomerNotices({state:ctx,demo,profile:state.profile,settingsHref:bookingStaffLinks().settings})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):ui.view==='customers'?renderCustomers({state:ctx,ui,escapeHTML:esc,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()})+renderPassDialogs({state:ctx,ui,escapeHTML:esc}):ui.view==='timetable'?renderTimetable({state:ctx,ui,escapeHTML:esc,icon,now:new Date()})+renderBookingEditor({state,ui,escapeHTML:esc,now:new Date()}):renderBookingPage({state,ui,escapeHTML:esc,icon,now:new Date()})+renderPaymentPassIssue({state:ctx,ui,escapeHTML:esc})+renderPasses({state:ctx,ui,escapeHTML:esc,icon,now:new Date()});
   const requestBooking=ui.booking?.draft?.id;
   if(active&&!demo&&/^friend-match-[a-f0-9-]{36}$/.test(requestBooking||'')){
     const body=app.querySelector('.bk-drawer-body');
@@ -227,7 +227,7 @@ function render(){
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});
   if(ui.view==='reservations'||ui.passes?.issuing||ui.passes?.editRequest||ui.passes?.deleteRequest)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass,onUpdate:updatePass});
   if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink});
-  if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
+  if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,bulk:changes.bulk||(changes.bulk={selected:[],note:''}),onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,onReviewBatch:reviewCustomerRequestBatch,onBulkChange:()=>{dirty=false;render();},isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
   if(ui.view==='friends')bindFriendOperations();
   if(ui.view==='reviews'){const identity=authVersion,viewUi=ui;bindReviewsAdmin(app,{ui,onChange:()=>{dirty=false;render();},onAction:reviewsAdminAction,onError:toast,isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='reviews'});}
   if(ui.view==='payments'){const identity=authVersion,viewUi=ui;bindPaymentReview(app,{profile:state.profile,ui,data:ui.paymentReviewData,bookingContext:ctx,busy:!!activeWrite,onChange:()=>{dirty=false;render();},onRefresh:()=>loadPaymentReviews(),onAction:paymentReviewAction,onOpenBooking:createPaymentReservation,onLoadSavedReservations:loadSavedPaymentReservations,onEditSavedReservation:editSavedPaymentReservation,onError:toast,onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.'),isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='payments'});}
@@ -512,12 +512,45 @@ async function reviewCustomerRequest(request,decision,note){
     if(!current())return {discarded:true};
     processed=true;
     delete ui.customerChanges.notes[customerRequestKey(request)];dirty=false;
+    // 체감 개선(2026-11-23): 처리 결과는 즉시 알리고, 예약표·요청목록 재적재는 그 뒤에.
+    toast(result.ok===false?result.message||'예약이 변경되어 이 요청을 승인할 수 없습니다. 최신 요청을 확인해 주세요.':decision==='approved'?(request.requestKind==='pass_schedule'?'수강권 일정 신청을 승인하고 예약을 등록했습니다.':'변경 요청을 승인하고 강습 일정을 변경했습니다.'):'고객 요청을 반려했습니다.');
+    await refreshDesk({force:true,renderView:false});
+    if(!current())return result;
+    await loadCustomerChanges();
+    return result;
+  }catch(error){if(current()&&isAuthError(error))clearOperations();throw error;}
+  finally{if(activeWrite===token)activeWrite=null;if(processed&&current()&&ui.view==='changes')renderSoon();}
+}
+// 그룹 승인·반려(2026-11-23): 선택 묶음을 순차 처리하고 재적재는 마지막에 한 번만.
+async function reviewCustomerRequestBatch(requestsToReview,decision,note){
+  mustBeOperator();
+  if(!canReviewCustomerChanges(state.profile)||ui.booking.demo)throw Object.assign(new Error('관리자 계정으로 변경 요청을 검토해 주세요.'),{code:'ADMIN_REQUIRED'});
+  if(activeWrite)throw new Error('다른 저장 작업을 마친 뒤 다시 시도해 주세요.');
+  const token={identity:authVersion};let processed=false;activeWrite=token;writeVersion++;
+  const current=()=>token.identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo;
+  const failures=[];let done=0;
+  try{
+    for(const request of requestsToReview){
+      try{
+        const result=await api.reviewCustomerChange(request.id,decision,note,request.updatedAt,request.requestKind||'reservation_change');
+        if(!current())return {discarded:true};
+        processed=true;
+        if(result?.ok===false)failures.push({key:customerRequestKey(request),message:result.message||'요청이 변경되었습니다.'});
+        else{done++;delete ui.customerChanges.notes[customerRequestKey(request)];}
+      }catch(issue){
+        if(current()&&isAuthError(issue)){clearOperations();throw issue;}
+        if(!current())return {discarded:true};
+        failures.push({key:customerRequestKey(request),message:issue.message||'처리하지 못했습니다.'});
+      }
+    }
+    dirty=false;
+    // 실패 건은 선택을 유지해 재시도하기 쉽게 한다. 결과는 재적재 전에 즉시 알린다.
+    ui.customerChanges.bulk={selected:failures.map(item=>item.key),note:failures.length?String(note||''):''};
+    toast(`${decision==='approved'?'승인':'반려'} ${done}건 완료${failures.length?` · 실패 ${failures.length}건 — ${failures[0].message}`:''}`);
     await refreshDesk({force:true,renderView:false});
     if(!current())return {discarded:true};
     await loadCustomerChanges();
-    if(!current())return {discarded:true};
-    toast(result.ok===false?result.message||'예약이 변경되어 이 요청을 승인할 수 없습니다. 최신 요청을 확인해 주세요.':decision==='approved'?(request.requestKind==='pass_schedule'?'수강권 일정 신청을 승인하고 예약을 등록했습니다.':'변경 요청을 승인하고 강습 일정을 변경했습니다.'):'고객 요청을 반려했습니다.');
-    return result;
+    return {ok:failures.length===0,failures};
   }catch(error){if(current()&&isAuthError(error))clearOperations();throw error;}
   finally{if(activeWrite===token)activeWrite=null;if(processed&&current()&&ui.view==='changes')renderSoon();}
 }
