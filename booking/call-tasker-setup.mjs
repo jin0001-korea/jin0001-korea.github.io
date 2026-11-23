@@ -51,8 +51,9 @@ export function callRowsToPayload(rows, options) {
     var durationSeconds = Number(fields[3]);
     if (!isFinite(occurredAt) || occurredAt < since || occurredAt > options.now || durationSeconds > 86400) continue;
     var phone = row.slice(offset).trim();
-    // 투넘버(듀얼넘버): 둘째(업무) 회선 통화는 상대 번호 끝에 '#'가 붙는다(문자 address 규약과 동일).
-    // '#'는 아래 번호 검증 정규식이 막으므로 먼저 떼고, dualNumberOnly 면 개인회선('#' 없는 것)은 제외한다.
+    // Dual-number call_log numbers carry one trailing #, same as the SMS address column.
+    // Strip it before the phone regex (line below rejects #); when business-line-only,
+    // drop main-line calls that have no trailing #. ASCII only: this runs embedded on the phone.
     var dualNumber = phone.charAt(phone.length - 1) === '#';
     if (dualNumber) phone = phone.slice(0, -1);
     if (options.dualNumberOnly && !dualNumber) continue;
