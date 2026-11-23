@@ -1,7 +1,7 @@
 import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=101';
 import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=85';
 import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=20';
-import {renderSmsInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=25';
+import {renderSmsInbox,renderFormInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=26';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
 import {hasSmsHistoryWork,isSmsHistoryOpen,clearSmsHistory} from './sms-history-view.mjs?v=12';
 import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.mjs?v=14';
@@ -98,7 +98,8 @@ function renderCommunications(customers,customerTeams){
   const tab=['calls','sms','kakao','forms'].includes(ui.communicationTab)?ui.communicationTab:'calls';
   const tabs=`<nav class="communications-tabs" aria-label="상담 기록 종류"><button type="button" data-communication-tab="sms" aria-pressed="${tab==='sms'}">상담</button><button type="button" data-communication-tab="calls" aria-pressed="${tab==='calls'}">전화</button><button type="button" data-communication-tab="kakao" aria-pressed="${tab==='kakao'}">카카오</button><button type="button" data-communication-tab="forms" aria-pressed="${tab==='forms'}">상담문의</button></nav>`;
   if(tab==='kakao')return tabs+renderKakaoInbox({ui});
-  if(tab==='sms'||tab==='forms')return tabs+renderSmsInbox({profile:state.profile,data:smsDataForTab(tab),ui,customers,customerTeams,loading:ui.smsInboxLoading,error:ui.smsInboxError,busy:!!activeWrite});
+  if(tab==='forms')return tabs+renderFormInbox({profile:state.profile,data:smsDataForTab('forms'),ui,customers,customerTeams,loading:ui.smsInboxLoading,error:ui.smsInboxError,busy:!!activeWrite});
+  if(tab==='sms')return tabs+renderSmsInbox({profile:state.profile,data:smsDataForTab('sms'),ui,customers,customerTeams,loading:ui.smsInboxLoading,error:ui.smsInboxError,busy:!!activeWrite});
   return tabs+renderCallInbox({profile:state.profile,data:ui.callInboxData,ui,customers,customerTeams,loading:ui.callInboxLoading,error:ui.callInboxError,busy:!!activeWrite});
 }
 // IME 안전 재렌더(2026-11-20, payment-review-view v119 패턴의 app 전역판):

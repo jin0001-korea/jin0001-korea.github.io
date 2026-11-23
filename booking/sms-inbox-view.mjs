@@ -194,6 +194,15 @@ function attachmentMarkup(message,u){
   }).join('');
 }
 const threadPreview=thread=>text(thread.lastMessageBody)||text(thread.lastSubject)||(Number(thread.lastAttachmentCount)>0?`사진·첨부 ${Number(thread.lastAttachmentCount)}개`:thread.lastTransport==='mms'?'장문·사진 문자(MMS)':'내용 없는 문자');
+// 상담폼 본문에서 이름·종목·내용을 뽑아 접수 목록 표에 쓴다. 백필("[상담폼·과거] 이름\n강습 종목: 종목\n접수: …")과
+// 실시간 메일("[상담폼] 제목\n\n본문") 포맷을 모두 다룬다.
+const parseInquiry=body=>{
+  const raw=text(body);
+  const name=(raw.match(/\[상담폼[^\]]*\]\s*([^\n]+)/)||[])[1]?.trim()||'';
+  const sport=(raw.match(/강습\s*종목\s*[:：]\s*([^\n]+)/)||[])[1]?.trim()||'';
+  const content=raw.replace(/^\[상담폼[^\]]*\][^\n]*\n?/,'').replace(/강습\s*종목\s*[:：][^\n]*\n?/,'').replace(/접수\s*[:：][^\n]*\n?/,'').replace(/\s*\n\s*/g,' ').trim();
+  return {name,sport,content};
+};
 function checkedDetail(result,key,phone){
   if(!result||smsThreadKey(result.sourceId,result.phone)!==key||!Array.isArray(result.messages)||result.messages.some(message=>normalizeSmsPhone(message.phone)!==phone))throw Error('문자 대화의 전화번호와 수신함을 확인하지 못했습니다.');
   return result;
@@ -312,6 +321,28 @@ export function renderSmsInbox({profile,data,ui={},customers=[],customerTeams=[]
         return `<button type="button" class="si-thread ${key===selectedKey?'selected':''}" data-si-open data-si-source-id="${esc(thread.sourceId)}" data-si-phone="${esc(thread.phone)}" aria-pressed="${key===selectedKey}"><span class="si-thread-top"><strong>${esc(formatTelephone(thread.phone))}</strong><time>${esc(stamp(thread.lastMessageAt))}</time></span><span class="si-thread-meta"><span>${esc(source?.label||thread.sourceLabel)}</span>${customer?`<strong>${esc(customer)}</strong>`:''}<span>문자 ${Math.max(0,Number(thread.messageCount)||0)}개</span></span><span class="si-thread-preview"><span>${thread.lastDirection==='sent'?'보냄':'받음'}</span>${esc(threadPreview(thread))}</span></button>`;
       }).join('')||(!loading&&!error&&!u.error?`<div class="si-empty"><strong>${sources.length?'이 조건의 문자 대화가 없습니다.':'공유된 문자 수신함이 없습니다.'}</strong><p>${sources.length?'Tasker에서 문자 권한과 연결 설정을 확인한 뒤 동기화해 주세요.':profile.role==='admin'?'휴대폰 연결 설정을 확인해 주세요.':'사장님이 수신함을 공유하면 확인할 수 있습니다.'}</p></div>`:'')}</div>
       <nav class="si-pagination" aria-label="문자 목록 페이지"><button type="button" class="btn ghost small" data-si-page="previous" ${disabled(loading||!u.offset)}>이전</button><span>${total?`${Math.min(total,u.offset+1)}–${Math.min(total,u.offset+threads.length)}`:'0'} / ${total}</span><button type="button" class="btn ghost small" data-si-page="next" ${disabled(loading||!data?.hasMore)}>다음</button></nav>
+    </section>${detailMarkup(sources,threads,u,customers,busy,customerTeams)}</div></section>`;
+}
+
+// 상담문의(아임웹 상담폼) 전용 접수 목록. 문자 대화와 달리 접수일/이름/전화/종목/내용 표로 보여준다.
+// 동기화·과거가져오기 등 폰 전용 UI는 뺀다. 바인딩은 bindSmsInbox를 그대로 재사용(같은 data-si-* 셀렉터).
+export function renderFormInbox({profile,data,ui={},customers=[],customerTeams=[],loading=false,error='',busy=false}={}){
+  if(!canUse(profile)){clearSmsMediaViews(ui);return '<section class="si-access"><h2>상담문의</h2><p>관리자·상담사 로그인 후 이용할 수 있습니다.</p></section>';}
+  const u=stateOf(ui),sources=allowedSources(profile,data),threads=visibleThreads(data,sources,u.sourceId);
+  u.visibleSourceIds=sources.map(source=>source.id);
+  if(u.selected&&!u.visibleSourceIds.includes(u.selected.sourceId))clearSmsMediaViews(ui);
+  const total=Math.max(0,Number(data?.total)||0),selectedKey=u.selected?smsThreadKey(u.selected.sourceId,u.selected.phone):'';
+  return `<section class="sms-inbox" data-sms-inbox>
+    <header class="si-heading"><div><h1>상담문의 접수</h1><p>아임웹 상담 신청 내역입니다. 행을 누르면 상세 내용과 상담 메모를 볼 수 있습니다.</p></div><button type="button" class="btn secondary small" data-si-refresh ${disabled(loading)}>새로고침</button></header>
+    <form class="si-filters" data-si-filter-form><label class="si-field"><span>상담폼</span><select name="sourceId">${sources.map(source=>option(source.id,source.label,u.sourceDraftId||u.sourceId)).join('')}</select></label><label class="si-field si-search"><span>이름·전화번호·내용 검색</span><input name="query" type="search" maxlength="120" value="${esc(u.queryDraft)}" placeholder="이름 또는 전화번호"></label><button type="submit" class="btn secondary small" ${disabled(loading)}>검색</button></form>
+    ${error||u.error?`<p class="si-error" role="alert">${esc(error||u.error)}</p>`:''}${loading?'<p class="si-loading" role="status">상담 접수 내역을 확인하고 있습니다.</p>':''}
+    <div class="si-layout ${u.selected?'has-detail':''}"><section class="si-thread-list" aria-label="상담문의 접수 목록"><header><strong>접수 ${total}건</strong><span>최근 접수순 · 한국 시간</span></header>
+      <div class="ci-table-wrap"><table class="ci-table"><thead><tr><th>접수일시</th><th>이름</th><th>전화번호</th><th>종목</th><th>내용</th></tr></thead><tbody>${threads.map(thread=>{
+        const key=smsThreadKey(thread.sourceId,thread.phone),q=parseInquiry(thread.lastMessageBody),matches=matchingSmsCustomers(thread.phone,customers,customerTeams);
+        const name=q.name||(matches.length===1?matches[0].name:'')||'—',count=Math.max(0,Number(thread.messageCount)||0);
+        return `<tr class="${key===selectedKey?'selected':''}" data-si-open data-si-source-id="${esc(thread.sourceId)}" data-si-phone="${esc(thread.phone)}" role="button" tabindex="0" aria-pressed="${key===selectedKey}"><td><strong>${esc(stamp(thread.lastMessageAt))}</strong>${count>1?`<small>재접수 ${count}건</small>`:''}</td><td><strong>${esc(name)}</strong></td><td>${esc(formatTelephone(thread.phone))}</td><td>${esc(q.sport||'—')}</td><td class="ci-last-note"><span>${esc((q.content||threadPreview(thread)||'').slice(0,90))}</span></td></tr>`;
+      }).join('')||(!loading&&!error&&!u.error?`<tr><td colspan="5"><div class="si-empty"><strong>${sources.length?'이 조건의 상담문의가 없습니다.':'공유된 상담폼 수신함이 없습니다.'}</strong><p>${sources.length?'아임웹 상담폼이 들어오면 여기에 접수됩니다.':'사장님이 수신함을 공유하면 확인할 수 있습니다.'}</p></div></td></tr>`:'')}</tbody></table></div>
+      <nav class="si-pagination" aria-label="상담문의 페이지"><button type="button" class="btn ghost small" data-si-page="previous" ${disabled(loading||!u.offset)}>이전</button><span>${total?`${Math.min(total,u.offset+1)}–${Math.min(total,u.offset+threads.length)}`:'0'} / ${total}</span><button type="button" class="btn ghost small" data-si-page="next" ${disabled(loading||!data?.hasMore)}>다음</button></nav>
     </section>${detailMarkup(sources,threads,u,customers,busy,customerTeams)}</div></section>`;
 }
 
