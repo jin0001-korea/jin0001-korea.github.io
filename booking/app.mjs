@@ -406,7 +406,9 @@ function loadCommunications(options={}){if(ui.communicationTab==='kakao')return 
 async function loadSmsInbox({quiet=false}={}){
   if(!hasOperator()||ui.booking.demo||ui.view!=='calls'||(ui.communicationTab!=='sms'&&ui.communicationTab!=='forms'))return {discarded:true};
   const identity=authVersion,viewUi=ui,token={},version=ui.communicationVersion;
-  const filters=ui.smsInbox||{};
+  let filters=ui.smsInbox||{};
+  // 상담문의(forms)는 아임웹 수신함으로 서버 범위를 좁혀야 과거 상담이 최신 폰 문자에 밀리지 않는다.
+  if(ui.communicationTab==='forms'&&!filters.sourceId){const im=(ui.smsInboxData?.sources||ui.callInboxData?.sources||[]).find(isImwebSource);if(im){(ui.smsInbox??={}).sourceId=im.id;filters=ui.smsInbox;}}
   const payload=Object.fromEntries(['sourceId','query','offset','limit'].filter(key=>filters[key]!==undefined&&filters[key]!=='').map(key=>[key,filters[key]]));
   ui.smsInboxRequest=token;ui.smsInboxLoading=true;ui.smsInboxError='';
   const current=()=>identity===authVersion&&viewUi===ui&&version===ui.communicationVersion&&token===ui.smsInboxRequest&&hasOperator()&&!ui.booking.demo&&ui.view==='calls'&&(ui.communicationTab==='sms'||ui.communicationTab==='forms');
