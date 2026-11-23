@@ -20,7 +20,7 @@ const stamp=value=>{
 const duration=value=>{const seconds=Math.max(0,Number(value)||0);return seconds>=60?`${Math.floor(seconds/60)}분${seconds%60?` ${seconds%60}초`:''}`:`${seconds}초`;};
 const phoneLabel=value=>formatTelephone(value)||'발신번호 미표시';
 const stateOf=ui=>{
-  const defaults={mode:'all',sourceId:'',workflowStatus:'',query:'',from:'',to:'',offset:0,limit:100,detailId:null,detail:null,draft:null,baseline:null,detailRequest:0,detailLoading:false,saving:false,sourceBusy:null,sourceDrafts:{},error:'',history:{open:false,sourceId:'',from:'2026-10-01',to:'',busy:false,error:'',file:null,result:null}};
+  const defaults={mode:'all',sourceId:'',workflowStatus:'',query:'',from:'',to:'',offset:0,limit:100,detailId:null,detail:null,draft:null,baseline:null,detailRequest:0,detailLoading:false,saving:false,sourceBusy:null,sourceDrafts:{},error:'',history:{open:false,sourceId:'',from:'2026-10-01',to:'',busy:false,error:'',file:null,result:null,dualNumberOnly:false}};
   const state=ui.callInbox??={};
   for(const [key,value] of Object.entries(defaults))if(state[key]===undefined)state[key]=value;
   return state;
@@ -110,6 +110,7 @@ function renderCallHistory(u,sources,profile){
   <label class="field"><span class="field-label">시작일</span><input type="date" data-ci-history-from value="${esc(h.from)}" min="2026-10-01" ${h.busy?'disabled':''}></label>
   <label class="field"><span class="field-label">종료일</span><input type="date" data-ci-history-to value="${esc(h.to)}" min="2026-10-01" ${h.busy?'disabled':''}></label>
   <label class="field"><span class="field-label">통화기록 백업 파일</span><input type="file" accept=".xml,text/xml,application/xml" data-ci-history-file ${h.busy||!h.sourceId?'disabled':''}></label></div>
+  <label class="ci-history-dual"><input type="checkbox" data-ci-history-dual ${h.dualNumberOnly?'checked':''} ${h.busy?'disabled':''}> 투넘버(듀얼넘버) 휴대폰 — 업무번호(끝 #)로 주고받은 통화만 가져오기 <small>캐치스키처럼 한 폰에 개인·업무 번호가 같이 있으면 체크</small></label>
   ${h.error?`<p class="ci-history-error" role="alert">${esc(h.error)}</p>`:''}
   ${file?`<div class="ci-history-preview"><strong>가져올 통화 ${file.records.length}건</strong>${summary?`<span>${esc(summary)}</span>`:''}${file.issues.length?`<ul>${file.issues.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}<button type="button" class="btn primary small" data-ci-history-import ${h.busy||!file.records.length?'disabled':''}>${h.busy?'가져오는 중…':`${file.records.length}건 가져오기`}</button></div>`:''}
   ${result?`<p class="ci-history-result">저장 ${result.inserted}건 · 이미 있던 통화 ${result.accepted-result.inserted}건${result.ignored?` · 형식 미달 제외 ${result.ignored}건`:''} (총 ${result.accepted+result.ignored}건 확인).</p>`:''}
@@ -145,6 +146,7 @@ export function bindCallInbox(root,{profile,data,ui={},customers=[],customerTeam
   root.querySelector('[data-ci-history-source]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.sourceId=e.target.value;h.file=null;h.result=null;h.error='';repaint();}});
   root.querySelector('[data-ci-history-from]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.from=e.target.value;h.file=null;repaint();}});
   root.querySelector('[data-ci-history-to]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.to=e.target.value;h.file=null;repaint();}});
+  root.querySelector('[data-ci-history-dual]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.dualNumberOnly=e.target.checked;h.file=null;h.result=null;repaint();}});
   root.querySelector('[data-ci-history-file]')?.addEventListener('change',async e=>{
     const input=e.target,picked=input.files?.[0];if(!picked||!alive()||historyBusy())return;
     h.busy=true;h.error='';h.file=null;h.result=null;repaint();
@@ -152,7 +154,7 @@ export function bindCallInbox(root,{profile,data,ui={},customers=[],customerTeam
       if(picked.size>128*1024*1024)throw Error('백업 파일이 너무 큽니다(128MB 초과).');
       const raw=await picked.text();
       const module=await import('./call-backup-parser.mjs?v=1');
-      const parsed=module.parseCallBackupXml(raw,{sourceId:h.sourceId,from:h.from,to:h.to||undefined});
+      const parsed=module.parseCallBackupXml(raw,{sourceId:h.sourceId,from:h.from,to:h.to||undefined,dualNumberOnly:h.dualNumberOnly});
       if(!parsed.records.length)throw Error('선택한 날짜 범위에 가져올 통화가 없습니다. 날짜와 백업 파일을 확인해 주세요.');
       h.file=parsed;
     }catch(error){h.error=error.message||'백업 파일을 읽지 못했습니다.';}

@@ -23,7 +23,9 @@ function dayStartMs(value) {
 }
 
 /** 통화기록 백업 XML → 날짜 범위 안의 저장 후보. 기본 선택은 0건(UI에서 고른다). */
-export function parseCallBackupXml(raw, { sourceId, from = '2026-10-01', to, now = Date.now() } = {}) {
+// 투넘버(듀얼넘버): SMS Backup & Restore 는 둘째 회선(업무) 통화의 상대 번호 끝에 '#'을 붙인다
+// (문자 쪽 sms-inbox-view 와 동일 규약). dualNumberOnly=true 면 '#' 붙은 업무번호만 남기고 '#' 제거.
+export function parseCallBackupXml(raw, { sourceId, from = '2026-10-01', to, now = Date.now(), dualNumberOnly = false } = {}) {
   if (typeof sourceId !== 'string' || !sourceId) throw new Error('업장 휴대폰을 먼저 선택해 주세요.');
   const today = new Date(now + 32400000).toISOString().slice(0, 10);
   const toDay = to || today;
@@ -39,7 +41,7 @@ export function parseCallBackupXml(raw, { sourceId, from = '2026-10-01', to, now
   const elements = Array.from(doc.documentElement.children);
   if (elements.some(element => element.tagName !== 'call')) throw new Error('지원하지 않는 요소가 포함된 백업입니다.');
 
-  let rawCount = elements.length, inRange = 0, skippedUnsupported = 0, skippedNoPhone = 0, skippedOutside = 0;
+  let rawCount = elements.length, inRange = 0, skippedUnsupported = 0, skippedNoPhone = 0, skippedOutside = 0, skippedPersonalLine = 0;
   const seen = new Set(), candidates = [];
   for (const element of elements) {
     const dateText = attribute(element, 'date');
@@ -49,7 +51,11 @@ export function parseCallBackupXml(raw, { sourceId, from = '2026-10-01', to, now
     inRange++;
     const type = Number(attribute(element, 'type'));
     if (!TYPE_RESULT.has(type)) { skippedUnsupported++; continue; }
-    const phone = normalizeBackupCallPhone(attribute(element, 'number'));
+    const rawNumber = attribute(element, 'number').trim();
+    const dualLine = rawNumber.endsWith('#');
+    // 캐치스키(투넘버): 업무회선('#')만. 개인회선은 건너뛴다. dualNumberOnly=false 면 모두 포함하되 '#'만 제거.
+    if (dualNumberOnly && !dualLine) { skippedPersonalLine++; continue; }
+    const phone = normalizeBackupCallPhone(dualLine ? rawNumber.slice(0, -1) : rawNumber);
     if (!phone) { skippedNoPhone++; continue; }
     let duration = Number(attribute(element, 'duration'));
     if (!Number.isInteger(duration) || duration < 0) duration = 0;
@@ -61,6 +67,7 @@ export function parseCallBackupXml(raw, { sourceId, from = '2026-10-01', to, now
   }
   candidates.sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.externalId.localeCompare(b.externalId));
   const issues = [];
+  if (dualNumberOnly) issues.push(`투넘버 업무회선(끝 #)만 가져옵니다. 개인회선 통화 ${skippedPersonalLine}건은 제외했습니다.`);
   if (skippedUnsupported) issues.push(`저장 대상이 아닌 통화 유형 ${skippedUnsupported}건은 제외했습니다.`);
   if (skippedNoPhone) issues.push(`번호를 확인할 수 없는 통화 ${skippedNoPhone}건은 제외했습니다.`);
   // 서버 RPC는 [from, to) 반열림 경계를 요구한다. window.start/end 는 정확한 KST 자정이므로
