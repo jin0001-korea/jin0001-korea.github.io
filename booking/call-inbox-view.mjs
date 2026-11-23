@@ -166,7 +166,7 @@ export function bindCallInbox(root,{profile,data,ui={},customers=[],customerTeam
       const records=h.file.records;
       for(let i=0;i<records.length;i+=100){
         const batch=records.slice(i,i+100).map(({contactName,...rest})=>rest);
-        const result=await onAction?.('call-history-import',{sourceId:h.file.sourceId,from:h.file.fromBoundary,to:h.file.toBoundary,records:batch});
+        const result=await onAction?.('call-history-import',{sourceId:h.file.sourceId,from:h.file.from,to:h.file.to,records:batch});
         totals.accepted+=Number(result?.accepted)||0;totals.inserted+=Number(result?.inserted)||0;
       }
       h.result=totals;h.file=null;
