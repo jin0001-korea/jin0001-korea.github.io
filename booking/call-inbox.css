@@ -16,3 +16,5 @@
 /* 등록고객 배지 + 통화 차수(2026-11-20) */
 .ci-registered{color:#1f7a4d!important;font-weight:700}
 .ci-seq{display:block;margin-top:2px;font-size:11px;color:#6b8691}
+
+.ci-modes{display:inline-flex;gap:4px;margin:0 0 12px;background:#eef3ee;border-radius:9px;padding:3px}.ci-mode{appearance:none;border:0;background:transparent;padding:7px 14px;border-radius:7px;font:inherit;font-size:13px;color:#4a5f52;cursor:pointer}.ci-mode.active{background:#fff;color:#1f3b2e;font-weight:650;box-shadow:0 1px 2px rgba(0,0,0,.08)}.ci-callback-note{font-size:11px;color:#7a8a7d;margin:0 0 10px;line-height:1.5}
