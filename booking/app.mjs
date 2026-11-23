@@ -15,7 +15,7 @@ import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=28';
-import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=26';
+import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=27';
 import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
 import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=52';
 import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=42';
@@ -899,8 +899,16 @@ function openAutoAssign(id){
   render();
   const ctx=context(),rows=currentPlanRows(ctx,id),plan=buildAssignmentPlan(rows,ctx,{now:new Date()});
   activePlan={plan,ids:rows.map(row=>row.id),mode:ui.booking.demo?'preview':'operational',identity:authVersion,signature:planSignature(plan)};
-  const node=planDialog();node.innerHTML=renderAssignmentPlan({plan,escapeHTML:esc,icon,mode:activePlan.mode});
-  bindAssignmentPlan(node,{plan,onClose:closePlan,onOpenReservation:id=>{closePlan();openReservation(id);},onApply:applyPlan});if(!node.open)node.showModal();
+  const node=planDialog();
+  const renderPlan=()=>{
+    node.innerHTML=renderAssignmentPlan({plan,escapeHTML:esc,icon,mode:activePlan.mode,sort:activePlan.sort||{}});
+    bindAssignmentPlan(node,{plan,onClose:closePlan,onOpenReservation:rid=>{closePlan();openReservation(rid);},onApply:applyPlan,onSort:key=>{
+      const cur=activePlan.sort||{};
+      activePlan.sort=cur.key===key?{key,dir:cur.dir==='asc'?'desc':'asc'}:{key,dir:'asc'};
+      renderPlan();
+    }});
+  };
+  renderPlan();if(!node.open)node.showModal();
 }
 async function applyPlan(items){
   const pending=activePlan;if(!pending)throw new Error('자동배정안을 다시 만들어 주세요.');
