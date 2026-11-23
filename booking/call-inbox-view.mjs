@@ -136,40 +136,42 @@ export function bindCallInbox(root,{profile,data,ui={},customers=[],customerTeam
   // 과거 통화 가져오기(2026-11-23): 파일은 브라우저 안에서만 파싱, 선택분만 call-history-import 로 전송.
   const h=u.history;
   const historyBusy=()=>!!h.busy;
-  root.querySelector('[data-ci-history-open]')?.addEventListener('click',()=>{if(current()){h.open=true;h.error='';paint();}});
-  root.querySelector('[data-ci-history-close]')?.addEventListener('click',()=>{if(current()&&!historyBusy()){h.open=false;h.file=null;h.result=null;h.error='';paint();}});
-  root.querySelector('[data-ci-history-source]')?.addEventListener('change',e=>{if(current()&&!historyBusy()){h.sourceId=e.target.value;h.file=null;h.result=null;h.error='';paint();}});
-  root.querySelector('[data-ci-history-from]')?.addEventListener('change',e=>{if(current()&&!historyBusy()){h.from=e.target.value;h.file=null;paint();}});
-  root.querySelector('[data-ci-history-to]')?.addEventListener('change',e=>{if(current()&&!historyBusy()){h.to=e.target.value;h.file=null;paint();}});
+  // 과거 통화 가져오기 패널은 사용자 클릭 액션이라 communicationVersion 결합(current)이 아니라
+  // 권한만 본다 — 미리보기 보는 사이 백그라운드 새로고침이 끼어도 클릭이 조용히 무시되지 않게(2026-11-23).
+  const alive=()=>canUse(profile)&&!ui.booking.demo;
+  const repaint=()=>{if(alive())onChange?.();};
+  root.querySelector('[data-ci-history-open]')?.addEventListener('click',()=>{if(alive()){h.open=true;h.error='';repaint();}});
+  root.querySelector('[data-ci-history-close]')?.addEventListener('click',()=>{if(alive()&&!historyBusy()){h.open=false;h.file=null;h.result=null;h.error='';repaint();}});
+  root.querySelector('[data-ci-history-source]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.sourceId=e.target.value;h.file=null;h.result=null;h.error='';repaint();}});
+  root.querySelector('[data-ci-history-from]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.from=e.target.value;h.file=null;repaint();}});
+  root.querySelector('[data-ci-history-to]')?.addEventListener('change',e=>{if(alive()&&!historyBusy()){h.to=e.target.value;h.file=null;repaint();}});
   root.querySelector('[data-ci-history-file]')?.addEventListener('change',async e=>{
-    const input=e.target,picked=input.files?.[0];if(!picked||!current()||historyBusy())return;
-    h.busy=true;h.error='';h.file=null;h.result=null;paint();
+    const input=e.target,picked=input.files?.[0];if(!picked||!alive()||historyBusy())return;
+    h.busy=true;h.error='';h.file=null;h.result=null;repaint();
     try{
       if(picked.size>128*1024*1024)throw Error('백업 파일이 너무 큽니다(128MB 초과).');
       const raw=await picked.text();
       const module=await import('./call-backup-parser.mjs?v=1');
       const parsed=module.parseCallBackupXml(raw,{sourceId:h.sourceId,from:h.from,to:h.to||undefined});
-      if(!current())return;
       if(!parsed.records.length)throw Error('선택한 날짜 범위에 가져올 통화가 없습니다. 날짜와 백업 파일을 확인해 주세요.');
       h.file=parsed;
-    }catch(error){if(current())h.error=error.message||'백업 파일을 읽지 못했습니다.';}
-    finally{if(current()){h.busy=false;try{input.value='';}catch{}paint();}}
+    }catch(error){h.error=error.message||'백업 파일을 읽지 못했습니다.';}
+    finally{h.busy=false;try{input.value='';}catch{}repaint();}
   });
   root.querySelector('[data-ci-history-import]')?.addEventListener('click',async()=>{
-    if(!current()||historyBusy()||!h.file?.records.length)return;
-    h.busy=true;h.error='';paint();
+    if(historyBusy()||!h.file?.records.length||!alive())return;
+    h.busy=true;h.error='';repaint();
     const totals={accepted:0,inserted:0};
     try{
       const records=h.file.records;
       for(let i=0;i<records.length;i+=100){
         const batch=records.slice(i,i+100).map(({contactName,...rest})=>rest);
         const result=await onAction?.('call-history-import',{sourceId:h.file.sourceId,from:h.file.fromBoundary,to:h.file.toBoundary,records:batch});
-        if(!current())return;
         totals.accepted+=Number(result?.accepted)||0;totals.inserted+=Number(result?.inserted)||0;
       }
       h.result=totals;h.file=null;
-    }catch(error){if(current())h.error=error.message||'가져오기를 완료하지 못했습니다. 다시 시도해 주세요.';}
-    finally{if(current()){h.busy=false;paint();refresh();}}
+    }catch(error){h.error=error.message||'가져오기를 완료하지 못했습니다. 다시 시도해 주세요.';}
+    finally{h.busy=false;repaint();try{refresh();}catch{}}
   });
   const changedFilters=values=>{
     if(!current()||busy()||!confirmDiscard())return false;

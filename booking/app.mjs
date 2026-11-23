@@ -1,6 +1,6 @@
 import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=101';
 import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=85';
-import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=22';
+import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=23';
 import {renderSmsInbox,renderFormInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=28';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
 import {hasSmsHistoryWork,isSmsHistoryOpen,clearSmsHistory} from './sms-history-view.mjs?v=12';
