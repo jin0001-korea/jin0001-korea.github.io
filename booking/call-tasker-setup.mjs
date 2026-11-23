@@ -51,6 +51,11 @@ export function callRowsToPayload(rows, options) {
     var durationSeconds = Number(fields[3]);
     if (!isFinite(occurredAt) || occurredAt < since || occurredAt > options.now || durationSeconds > 86400) continue;
     var phone = row.slice(offset).trim();
+    // 투넘버(듀얼넘버): 둘째(업무) 회선 통화는 상대 번호 끝에 '#'가 붙는다(문자 address 규약과 동일).
+    // '#'는 아래 번호 검증 정규식이 막으므로 먼저 떼고, dualNumberOnly 면 개인회선('#' 없는 것)은 제외한다.
+    var dualNumber = phone.charAt(phone.length - 1) === '#';
+    if (dualNumber) phone = phone.slice(0, -1);
+    if (options.dualNumberOnly && !dualNumber) continue;
     var digits = phone.replace(/[^0-9]/g, '');
     // Unknown/private placeholders, SIP addresses and malformed strings stay
     // unassociated with a customer. Preserve ordinary formatted phone numbers.
@@ -251,6 +256,7 @@ export function buildCallTaskerProject({source, token, endpoint = CALL_INGEST_EN
   try { target = new URL(endpoint); } catch { throw new Error('전송 주소가 올바르지 않습니다.'); }
   if (target.href !== CALL_INGEST_ENDPOINT) throw new Error('등록된 수신 기록 전송 주소가 필요합니다.');
   const collectFrom = sourceTime(source.collectFrom);
+  const dualNumberOnly = source.dualNumberOnly === true;
   const identifier = String(source.id).toLowerCase().replace(/-/g, '_');
   const namespace = `crm_${identifier}`;
   const snapshotVariable = `${namespace}_snapshot`;
@@ -272,7 +278,7 @@ export function buildCallTaskerProject({source, token, endpoint = CALL_INGEST_EN
   // Keep epoch values inside JSON and the complete SQL selection as text; both
   // survive Tasker's variable bridge without precision loss or invalid SQL.
   const preparation = `var ${snapshotVariable} = (function () {\n  var capturedNow = Date.now();\n  return JSON.stringify({now: capturedNow, since: Math.max(${collectFrom}, capturedNow - 604800000)});\n})();\nsetLocal('${snapshotVariable}', ${snapshotVariable});\nvar ${selectionVariable} = 'date >= ' + JSON.parse(${snapshotVariable}).since.toFixed(0) + ' AND type IN (1,2,3,5,6)';\nsetLocal('${selectionVariable}', ${selectionVariable});`;
-  const serialization = `${callRowsToPayload.toString()}\nvar ${bodyVariable} = '';\nvar http_data = '';\nvar http_response_code = '0';\nsetLocal('${bodyVariable}', ${bodyVariable});\nsetLocal('http_data', http_data);\nsetLocal('http_response_code', http_response_code);\n${bodyVariable} = (function () {\n  var payload = callRowsToPayload(typeof ${rowsVariable} === 'undefined' ? [] : ${rowsVariable}, {collectFrom: ${collectFrom}, now: JSON.parse(${snapshotVariable}).now});\n  payload.diagnostic = {collectorVersion: 6, submitted: payload.records.length};\n  return JSON.stringify(payload);\n})();\nsetLocal('${bodyVariable}', ${bodyVariable});`;
+  const serialization = `${callRowsToPayload.toString()}\nvar ${bodyVariable} = '';\nvar http_data = '';\nvar http_response_code = '0';\nsetLocal('${bodyVariable}', ${bodyVariable});\nsetLocal('http_data', http_data);\nsetLocal('http_response_code', http_response_code);\n${bodyVariable} = (function () {\n  var payload = callRowsToPayload(typeof ${rowsVariable} === 'undefined' ? [] : ${rowsVariable}, {collectFrom: ${collectFrom}, now: JSON.parse(${snapshotVariable}).now, dualNumberOnly: ${dualNumberOnly}});\n  payload.diagnostic = {collectorVersion: 6, submitted: payload.records.length};\n  return JSON.stringify(payload);\n})();\nsetLocal('${bodyVariable}', ${bodyVariable});`;
   const result = `if (typeof http_response_code !== 'undefined' && Number(http_response_code) >= 200 && Number(http_response_code) < 300) {\n  setGlobal('CRM_${identifier}_LastSync', String(Date.now()));\n}`;
   const relevantVariables = `<StringArray sr=""><_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0>%http_data\n응답 데이터\n서버 응답</_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0><_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1>%http_response_code\nHTTP 상태\n서버 응답 상태</_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1></StringArray>`;
   const httpVariables = `<Bundle sr="arg0"><Vals sr="val"><net.dinglisch.android.tasker.RELEVANT_VARIABLES>${xml(relevantVariables)}</net.dinglisch.android.tasker.RELEVANT_VARIABLES><net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type></Vals></Bundle>`;
