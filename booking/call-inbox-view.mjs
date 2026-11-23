@@ -112,7 +112,7 @@ function renderCallHistory(u,sources,profile){
   <label class="field"><span class="field-label">통화기록 백업 파일</span><input type="file" accept=".xml,text/xml,application/xml" data-ci-history-file ${h.busy||!h.sourceId?'disabled':''}></label></div>
   ${h.error?`<p class="ci-history-error" role="alert">${esc(h.error)}</p>`:''}
   ${file?`<div class="ci-history-preview"><strong>가져올 통화 ${file.records.length}건</strong>${summary?`<span>${esc(summary)}</span>`:''}${file.issues.length?`<ul>${file.issues.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}<button type="button" class="btn primary small" data-ci-history-import ${h.busy||!file.records.length?'disabled':''}>${h.busy?'가져오는 중…':`${file.records.length}건 가져오기`}</button></div>`:''}
-  ${result?`<p class="ci-history-result">저장 ${result.inserted}건 · 이미 있던 통화 ${result.accepted-result.inserted}건 건너뜀 (총 ${result.accepted}건 확인).</p>`:''}
+  ${result?`<p class="ci-history-result">저장 ${result.inserted}건 · 이미 있던 통화 ${result.accepted-result.inserted}건${result.ignored?` · 형식 미달 제외 ${result.ignored}건`:''} (총 ${result.accepted+result.ignored}건 확인).</p>`:''}
   </section>`;
 }
 export function renderCallInbox({profile,data,ui={},customers=[],customerTeams=[],loading=false,error='',busy=false}={}){
@@ -161,13 +161,13 @@ export function bindCallInbox(root,{profile,data,ui={},customers=[],customerTeam
   root.querySelector('[data-ci-history-import]')?.addEventListener('click',async()=>{
     if(historyBusy()||!h.file?.records.length||!alive())return;
     h.busy=true;h.error='';repaint();
-    const totals={accepted:0,inserted:0};
+    const totals={accepted:0,inserted:0,ignored:0};
     try{
       const records=h.file.records;
       for(let i=0;i<records.length;i+=100){
         const batch=records.slice(i,i+100).map(({contactName,...rest})=>rest);
         const result=await onAction?.('call-history-import',{sourceId:h.file.sourceId,from:h.file.from,to:h.file.to,records:batch});
-        totals.accepted+=Number(result?.accepted)||0;totals.inserted+=Number(result?.inserted)||0;
+        totals.accepted+=Number(result?.accepted)||0;totals.inserted+=Number(result?.inserted)||0;totals.ignored+=Number(result?.ignored)||0;
       }
       h.result=totals;h.file=null;
     }catch(error){h.error=error.message||'가져오기를 완료하지 못했습니다. 다시 시도해 주세요.';}
