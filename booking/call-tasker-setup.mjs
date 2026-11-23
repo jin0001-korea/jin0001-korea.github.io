@@ -6,7 +6,7 @@ export const CALL_TASKER_SETUP_STEPS = Object.freeze([
   '각 휴대폰의 공식 Tasker를 6.6.18 이상 최신 정식 버전으로 업데이트합니다. 장문·사진 동기화에는 Java Code 동작이 필요합니다.',
   '새로 연결하는 휴대폰은 v11 연결파일을 내려받습니다. 이미 v10을 사용하는 휴대폰은 기존 연결파일로 업데이트하여 연결키를 유지할 수 있습니다. 파일을 준비한 뒤 해당 SLOPE 수신 프로젝트만 교체합니다.',
   'Tasker의 전화·통화기록·SMS 권한과 알림을 허용하고, 배터리 사용을 제한 없음으로 설정합니다. 삼성의 절전·초절전 앱 목록에서 Tasker를 제외합니다.',
-  'Tasker 하단 프로젝트 탭을 길게 눌러 Import Project로 .prj.xml 파일을 가져옵니다. 통화·문자 동기화 v9, 장문·사진 동기화 v9, 채팅+ 동기화 v11 작업을 각각 한 번 실행합니다. 진단 프로젝트만으로는 자동 수집이 시작되지 않습니다.',
+  'Tasker 하단 프로젝트 탭을 길게 눌러 Import Project로 .prj.xml 파일을 가져옵니다. 통화·문자 동기화 v12, 장문·사진 동기화 v9, 채팅+ 동기화 v11 작업을 각각 한 번 실행합니다. 진단 프로젝트만으로는 자동 수집이 시작되지 않습니다.',
   '일반 문자·여러 줄 장문·사진 문자를 각각 보내 보고 문자 대화의 동기화 상태와 실제 내용을 확인합니다. 장문·사진은 다운로드가 끝난 뒤 다음 실행에서 확인하며, 두 번 연속 같은 첨부 구성이 확인되면 저장합니다.',
   '통화 종료 후 약 5초 및 2분 간격으로 확인합니다. 장문·사진과 삼성 채팅+ 작업도 각각 2분마다 확인합니다. 밀린 채팅+는 여러 번 나눠 가져오며 새 메시지를 먼저 처리합니다. 수동 실행 후 마지막 보고 시각과 미완료 건수를 확인하세요. Android 절전 상태에서는 실행이 늦어질 수 있습니다.',
 ]);
@@ -46,7 +46,7 @@ export function callRowsToPayload(rows, options) {
       fields.push(row.slice(offset, divider));
       offset = divider + 1;
     }
-    if (fields.length !== 4 || !/^\d{1,20}$/.test(fields[0]) || !/^\d{1,16}$/.test(fields[1]) || !/^(1|3|5|6)$/.test(fields[2]) || !/^\d{1,9}$/.test(fields[3])) continue;
+    if (fields.length !== 4 || !/^\d{1,20}$/.test(fields[0]) || !/^\d{1,16}$/.test(fields[1]) || !/^(1|2|3|5|6)$/.test(fields[2]) || !/^\d{1,9}$/.test(fields[3])) continue;
     var occurredAt = Number(fields[1]);
     var durationSeconds = Number(fields[3]);
     if (!isFinite(occurredAt) || occurredAt < since || occurredAt > options.now || durationSeconds > 86400) continue;
@@ -267,12 +267,12 @@ export function buildCallTaskerProject({source, token, endpoint = CALL_INGEST_EN
   const timestamp = Date.now();
   const nameSuffix = `${label} [${source.id}]`;
   const projectName = `SLOPE 수신 · ${label}${model ? ` · ${model}` : ''} [${source.id}]`;
-  const taskName = `통화·문자 동기화 v9 · ${nameSuffix}`;
+  const taskName = `통화·문자 동기화 v12 · ${nameSuffix}`;
   // Tasker may export numeric JSlet variables as rounded scientific notation.
   // Keep epoch values inside JSON and the complete SQL selection as text; both
   // survive Tasker's variable bridge without precision loss or invalid SQL.
-  const preparation = `var ${snapshotVariable} = (function () {\n  var capturedNow = Date.now();\n  return JSON.stringify({now: capturedNow, since: Math.max(${collectFrom}, capturedNow - 604800000)});\n})();\nsetLocal('${snapshotVariable}', ${snapshotVariable});\nvar ${selectionVariable} = 'date >= ' + JSON.parse(${snapshotVariable}).since.toFixed(0) + ' AND type IN (1,3,5,6)';\nsetLocal('${selectionVariable}', ${selectionVariable});`;
-  const serialization = `${callRowsToPayload.toString()}\nvar ${bodyVariable} = '';\nvar http_data = '';\nvar http_response_code = '0';\nsetLocal('${bodyVariable}', ${bodyVariable});\nsetLocal('http_data', http_data);\nsetLocal('http_response_code', http_response_code);\n${bodyVariable} = (function () {\n  var payload = callRowsToPayload(typeof ${rowsVariable} === 'undefined' ? [] : ${rowsVariable}, {collectFrom: ${collectFrom}, now: JSON.parse(${snapshotVariable}).now});\n  payload.diagnostic = {collectorVersion: 5, submitted: payload.records.length};\n  return JSON.stringify(payload);\n})();\nsetLocal('${bodyVariable}', ${bodyVariable});`;
+  const preparation = `var ${snapshotVariable} = (function () {\n  var capturedNow = Date.now();\n  return JSON.stringify({now: capturedNow, since: Math.max(${collectFrom}, capturedNow - 604800000)});\n})();\nsetLocal('${snapshotVariable}', ${snapshotVariable});\nvar ${selectionVariable} = 'date >= ' + JSON.parse(${snapshotVariable}).since.toFixed(0) + ' AND type IN (1,2,3,5,6)';\nsetLocal('${selectionVariable}', ${selectionVariable});`;
+  const serialization = `${callRowsToPayload.toString()}\nvar ${bodyVariable} = '';\nvar http_data = '';\nvar http_response_code = '0';\nsetLocal('${bodyVariable}', ${bodyVariable});\nsetLocal('http_data', http_data);\nsetLocal('http_response_code', http_response_code);\n${bodyVariable} = (function () {\n  var payload = callRowsToPayload(typeof ${rowsVariable} === 'undefined' ? [] : ${rowsVariable}, {collectFrom: ${collectFrom}, now: JSON.parse(${snapshotVariable}).now});\n  payload.diagnostic = {collectorVersion: 6, submitted: payload.records.length};\n  return JSON.stringify(payload);\n})();\nsetLocal('${bodyVariable}', ${bodyVariable});`;
   const result = `if (typeof http_response_code !== 'undefined' && Number(http_response_code) >= 200 && Number(http_response_code) < 300) {\n  setGlobal('CRM_${identifier}_LastSync', String(Date.now()));\n}`;
   const relevantVariables = `<StringArray sr=""><_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0>%http_data\n응답 데이터\n서버 응답</_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0><_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1>%http_response_code\nHTTP 상태\n서버 응답 상태</_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1></StringArray>`;
   const httpVariables = `<Bundle sr="arg0"><Vals sr="val"><net.dinglisch.android.tasker.RELEVANT_VARIABLES>${xml(relevantVariables)}</net.dinglisch.android.tasker.RELEVANT_VARIABLES><net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type></Vals></Bundle>`;
