@@ -92,7 +92,7 @@ export async function fetchDesk() {
   const scopedContext=profile.role==='counselor'?await rpc('slope_booking_workspace_context',{}):null;
   if(profile.role==='counselor'&&(!scopedContext||!Array.isArray(scopedContext.roster)))throw issue('예약 운영 기준을 불러오지 못했습니다. 다시 로그인해 주세요.','BOOKING_CONTEXT_UNAVAILABLE');
   const [roster, scheduleRows, assignments, reservations, seasonPackages, capabilities, timeOffRequests, settingsRows,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,noticeResult,passStatuses,changeRequests,sheetsResult] = await Promise.all([
-    scopedContext?Promise.resolve(scopedContext.roster||[]):readAll('slope_members', 'user_id,display_name,email,role,active,must_change_password,created_at', q => q.order('created_at').order('user_id')),
+    scopedContext?Promise.resolve(scopedContext.roster||[]):readAll('slope_members', 'user_id,display_name,email,role,active,must_change_password,created_at,freelancer,phone', q => q.order('created_at').order('user_id')),
     readAll('slope_schedules', 'id,instructor_name,instructor_user_id,customer_name,phone,start_at,end_at,lesson_minutes,break_minutes,level,location,updated_at,cancelled_at', q => q.order('start_at').order('id')),
     readAll('slope_schedule_instructors', 'schedule_id,instructor_user_id', q => q.order('schedule_id').order('instructor_user_id')),
     readAll('slope_reservations', '*', q => q.order('created_at', { ascending: false }).order('id')),
