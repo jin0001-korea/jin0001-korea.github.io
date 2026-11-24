@@ -529,7 +529,7 @@ export async function savePolicy(settings = {}) {
 
 /** Staff credentials remain in Supabase auth; device ingestion keys never enter app state. */
 export async function callInboxAction(action,payload={}){
-  const allowed=['inbox-list','call-detail','call-save','source-update','source-key','source-revoke','sms-thread-list','sms-thread-detail','sync-status-list','sms-history-import','sms-media-prepare','sms-media-complete','sms-media-attachment','call-history-import'];
+  const allowed=['inbox-list','callback-list','call-detail','call-save','source-update','source-key','source-revoke','sms-thread-list','sms-thread-detail','sync-status-list','sms-history-import','sms-media-prepare','sms-media-complete','sms-media-attachment','call-history-import'];
   if(!allowed.includes(action)||!payload||typeof payload!=='object'||Array.isArray(payload))throw issue('상담 요청을 확인해 주세요.','INPUT_REQUIRED');
   await requireBookingOperator({adminOnly:action.startsWith('source-')||['sms-history-import','sms-media-prepare','sms-media-complete','call-history-import'].includes(action)});
   const response=await supabase.functions.invoke('slope-call-inbox',{body:{...payload,action}});
