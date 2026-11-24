@@ -191,6 +191,7 @@ function render(){
     onSavePolicy:value=>writeOperation(()=>api.savePolicy(value),'배정 기준을 저장했습니다.'),
     onAutoAssign:id=>openAutoAssign(id),onOpenLesson:openReservation,onIssuePass:issuePassFromBooking,
     onCreatePass:async payload=>{mustBeOperator();const saved=await writeOperation(()=>api.createLessonPass(payload),'수강권을 발급했습니다.');return saved;},
+    onUpdatePass:updatePass,
     onSaveCustomerPerson:value=>writeOperation(()=>api.saveCustomerPerson(value),'개인 명부를 저장했습니다.'),
     // 그룹 수정(2026-11-17 사용자 확정): 선택 행들에 장비렌탈·받은 금액을 건별 검증으로 적용.
     // 요청액·미수금은 buildQuickAmountChange → FINANCIAL v3 payload가 자동 재계산한다.
@@ -231,7 +232,7 @@ function render(){
     },
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});
-  if(ui.view==='reservations'||ui.passes?.issuing||ui.passes?.editRequest||ui.passes?.deleteRequest)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass,onUpdate:updatePass});
+  if(ui.view==='reservations'||ui.passes?.issuing||ui.passes?.editRequest||ui.passes?.deleteRequest)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass,onUpdate:updatePass,onEdit:editPassInline});
   if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink});
   if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,bulk:changes.bulk||(changes.bulk={selected:[],note:''}),onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,onReviewBatch:reviewCustomerRequestBatch,onBulkChange:()=>{dirty=false;render();},isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
   if(ui.view==='friends')bindFriendOperations();
@@ -781,6 +782,40 @@ function issuePassInline(){
   // 멱등 키 시드(2026-11-20): 이 진입은 [data-bk-issue-pass] 클릭을 안 거치므로 시드가 없으면
   // 렌더 폴백의 issueId:'seed' 리터럴이 발급 payload까지 새어 나가 uuid 캐스팅으로 하드 실패했다.
   draft.passConfigs=[{issueId:crypto.randomUUID(),minutes:'',sessions:'',fee:'',done:null}];
+  ui.view='booking';
+  suspendBookingDrafts(app,ui);openBookingDraft(ui,draft,{tab:'intake'});dirty=false;render();
+}
+// 발급 수강권 변경(2026-11-24 사용자 지시): 예약접수 폼을 날짜만 빼고 그대로 열어
+// 모든 항목(주니어기술등급제·현금영수증·장비·금액·메모 등)을 수정한다. schedulePass 와
+// 동일한 seeding + 저장된 booking(날짜 미정 예약 draft) 병합. 저장은 updateLessonPass.
+function editPassInline(id){
+  if(activeWrite||ui.booking.deckSaving){toast('저장 작업을 마친 뒤 변경해 주세요.');return;}
+  const ctx=context(),pass=selectPassBalances(ctx).find(row=>row.id===id);
+  if(!pass){toast('수강권을 찾지 못했습니다. 목록을 새로고침해 주세요.');return;}
+  let draft=createBookingDraft(ctx,new Date());
+  Object.assign(draft.raw,{H:pass.customer_name,I:pass.learner_name,L:pass.phone||'',D:pass.sport,E:pass.company||''});
+  draft.customerContactPhone=pass.phone||'';draft.teamPhoneMode='same';
+  const customerId=pass.customer_id||pass.customerId,teamId=pass.customer_team_id||pass.customerTeamId;
+  if(customerId&&teamId){
+    const selected=customerDirectorySelection(customerId,teamId,ctx);
+    if(selected){Object.assign(draft.raw,selected.raw);draft.customerId=customerId;draft.customerTeamId=teamId;delete draft.customerDraft;delete draft.teamDraft;
+      draft.customerContactPhone=selected.customerContactPhone??selected.raw.L;draft.teamPhoneMode=selected.teamPhoneMode||'same';
+      for(const key of ['participants','age','ageBand','juniorPreparation','experienceCount','parallelLongTurn','snowboardNoviceTurn'])if(selected.defaults?.[key]!==undefined)draft[key]=selected.defaults[key];}
+  }
+  const source=(ctx.lessonPasses||[]).find(row=>row.id===id);
+  const booking=source&&source.booking&&typeof source.booking==='object'&&!Array.isArray(source.booking)?source.booking:null;
+  if(booking){
+    if(booking.raw)draft.raw={...draft.raw,...booking.raw};
+    for(const key of ['lessonMinutes','breakMinutes','age','ageBand','experienceCount','parallelLongTurn','snowboardNoviceTurn','location','participants','cashReceiptRequested','cashReceiptNumberMode','cashReceiptNumber','cashReceiptNumberSet','rentalPaymentStatus','rentalHours','rentalAmount','rentalCustomAmount','juniorPreparation','teamPhoneMode','customerContactPhone'])
+      if(booking[key]!==undefined)draft[key]=booking[key];
+  }else if(source){draft=applyPassCarryDraft(draft,source);}
+  // 열(column) 권위값으로 동결 필드·식별자를 다시 덮는다(booking.raw 복사본 위에).
+  Object.assign(draft.raw,{H:pass.customer_name,I:pass.learner_name,L:pass.phone||draft.raw.L,D:pass.sport||draft.raw.D,E:pass.company||draft.raw.E});
+  draft.instructorIds=pass.fixedInstructorId?[pass.fixedInstructorId]:[];
+  draft.preferredInstructorId=pass.fixedInstructorId||draft.preferredInstructorId||null;
+  draft.id='';draft.passEditMode=true;draft.passId=id;
+  draft.passExpectedUpdatedAt=pass.updatedAt||pass.updated_at||source?.updated_at;
+  draft.passTotalSessions=String(pass.total_sessions??pass.total??'');
   ui.view='booking';
   suspendBookingDrafts(app,ui);openBookingDraft(ui,draft,{tab:'intake'});dirty=false;render();
 }

@@ -396,13 +396,14 @@ export async function updateLessonPass(payload){
   const hasCompany=typeof payload.company==='string'&&payload.company.trim()!=='';
   const hasCount=payload.studentCount!==undefined&&payload.studentCount!==null&&payload.studentCount!=='';
   const hasInstructor=typeof payload.fixedInstructorId==='string'&&uuid(payload.fixedInstructorId);
-  if(!hasMinutes&&!hasSport&&!hasNotes&&!hasCompany&&!hasCount&&!hasInstructor)throw issue('변경할 항목을 선택해 주세요.','INPUT_REQUIRED');
+  const hasBooking=payload.booking&&typeof payload.booking==='object'&&!Array.isArray(payload.booking);
+  if(!hasMinutes&&!hasSport&&!hasNotes&&!hasCompany&&!hasCount&&!hasInstructor&&!hasBooking)throw issue('변경할 항목을 선택해 주세요.','INPUT_REQUIRED');
   if(hasMinutes&&![120,240].includes(payload.lessonMinutes))throw issue('시간권은 2시간 또는 4시간만 선택할 수 있습니다.','INPUT_REQUIRED');
   if(hasSport&&!['스키','보드'].includes(payload.sport))throw issue('종목은 스키 또는 보드만 선택할 수 있습니다.','INPUT_REQUIRED');
   if(hasNotes&&payload.notes.length>2000)throw issue('메모는 2000자 이내여야 합니다.','INPUT_REQUIRED');
   if(hasCompany&&payload.company.trim().length>120)throw issue('강습센터 이름을 확인해 주세요.','INPUT_REQUIRED');
   if(hasCount&&(!Number.isInteger(payload.studentCount)||payload.studentCount<1||payload.studentCount>20))throw issue('강습 인원은 1명부터 20명까지입니다.','INPUT_REQUIRED');
-  const result=await rpc('slope_update_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,...(hasMinutes?{lessonMinutes:payload.lessonMinutes}:{}),...(hasSport?{sport:payload.sport}:{}),...(hasNotes?{notes:payload.notes}:{}),...(hasCompany?{company:payload.company.trim()}:{}),...(hasCount?{studentCount:payload.studentCount}:{}),...(hasInstructor?{fixedInstructorId:payload.fixedInstructorId}:{})}});
+  const result=await rpc('slope_update_lesson_pass',{p_payload:{id:payload.id,expectedUpdatedAt:payload.expectedUpdatedAt,...(hasMinutes?{lessonMinutes:payload.lessonMinutes}:{}),...(hasSport?{sport:payload.sport}:{}),...(hasNotes?{notes:payload.notes}:{}),...(hasCompany?{company:payload.company.trim()}:{}),...(hasCount?{studentCount:payload.studentCount}:{}),...(hasInstructor?{fixedInstructorId:payload.fixedInstructorId}:{}),...(hasBooking?{booking:payload.booking}:{})}});
   if(result?.id!==payload.id)throw issue('수강권 수정 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.','PASS_UPDATE_UNCONFIRMED');
   return result;
 }

@@ -193,7 +193,7 @@ function validateDraft(draft){
   return '';
 }
 
-export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,onSchedule,onCustomerLink,onDelete,onUpdate}={}){
+export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,onSchedule,onCustomerLink,onDelete,onUpdate,onEdit}={}){
   const view=root.querySelector('.pass-page');if(!view)return;
   const form=view.querySelector('.lp-issue-form');let linking=false;let deleting=false;
   const busy=()=>linking||deleting||!!form?.dataset.saving;
@@ -270,7 +270,11 @@ export function bindPasses(root,{state={},ui={},onChange,onCreate,onIssueInline,
   view.querySelectorAll('[data-pass-edit]').forEach(button=>button.onclick=()=>{
     if(busy()||button.disabled)return;
     const pass=selectPassBalances(state).find(row=>row.id===button.dataset.passEdit);
-    if(pass)update({editRequest:{id:pass.id,lessonMinutes:pass.lessonMinutes||120,error:'',saving:false}});
+    if(!pass)return;
+    // 2026-11-24: [변경]은 예약접수 폼(날짜 제외)을 그대로 열어 전 항목을 수정한다(onEdit).
+    // onEdit 미연결 환경(데모 등)은 기존 축소형 모달로 폴백.
+    if(typeof onEdit==='function'){onEdit(pass.id);return;}
+    update({editRequest:{id:pass.id,lessonMinutes:pass.lessonMinutes||120,error:'',saving:false}});
   });
   view.querySelector('[data-pass-edit-cancel]')?.addEventListener('click',()=>{if(!busy()&&!configuration(ui).editRequest?.saving)update({editRequest:null});});
   // 삭제는 변경 창 안에서 진입한다(2026-11-20 사용자 지시: 행 버튼에서 제거).

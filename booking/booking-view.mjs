@@ -471,6 +471,17 @@ function renderSessionJumps(draft,escape){
 }
 function renderTeamSchedule(draft,context,escape){
   const raw=draft.raw,rows=bookingDateRows(draft),extra=rows.slice(1);
+  // 발급 수강권 변경(2026-11-24): 예약접수 폼 그대로, 날짜/시간 블록만 간단 조건으로 대체.
+  // 고객명·강습생·총 횟수는 변경 불가(서버 트리거 동결) — 총 횟수는 읽기전용 표시.
+  if(!draft.id&&draft.passEditMode){
+    return `<section class="bk-team-schedule bk-pass-mode bk-pass-edit" data-bk-team-schedule data-bk-pane="financial"><div class="bk-section-label"><span>03</span><h3>수강권 변경</h3><small>날짜·시간 미정</small></div>
+    <p class="bk-session-caption">고객명·강습생·총 횟수는 변경할 수 없습니다(잘못 발급이면 삭제 후 재발급).</p>
+    <div class="bk-form-grid bk-pass-terms"><label class="field"><span class="field-label">몇 시간권 <b>*</b></span><select name="lessonMinutes" required><option value="120" ${draft.lessonMinutes===120?'selected':''}>2시간권</option><option value="240" ${draft.lessonMinutes===240?'selected':''}>4시간권</option></select></label><label class="field"><span class="field-label">총 횟수 <small>변경 불가</small></span><span class="bk-suffixed"><input value="${escape(String(draft.passTotalSessions||''))}" disabled><span>회</span></span></label></div>
+    ${rawFinancial(draft,escape,{})}
+    <p class="bk-field-note">받아야 할 금액(자동) = (회당 강습료 + 장비 결제완료 금액) × 총 횟수. 현금영수증 금액은 받아야 할 금액 기준입니다.</p>
+    <p class="bk-form-error" data-bk-pass-inline-error role="alert" hidden></p>
+    <div class="bk-pass-inline-actions"><button type="submit" class="btn primary">수강권 변경 저장</button></div></section>`;
+  }
   // 날짜 미정 수강권(2026-11-16 확정): 팝업이 아니라 이 날짜지정 블록 자체가 발급 모드로 바뀐다.
   // 날짜·시간만 생략하고 몇 시간권·총 횟수·강습료·장비 결제상태·받아야 할/받은/미수금을 그대로 받는다.
   if(!draft.id&&draft.passIssueMode){
@@ -716,11 +727,11 @@ function renderCustomerBlock(draft,context,escape,{review=false}={}) {
   // 카카오 ID 예외(2026-11-17): 저장값 '카카오:아이디' 또는 체크 상태로 모드를 판단한다.
   const contactValue=customerPhoneOf(draft),contactKakaoId=kakaoContactId(contactValue),kakaoMode=draft.contactKakaoMode??!!contactKakaoId;
   const phonePlaceholder=review?'고객 연락 가능한 번호':'번호 4자리부터 기존 고객 찾기';
-  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape((draft.customerId?directoryDisplayNames(draft,context).customerName:null)||draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked?'disabled':''}></label><div class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(kakaoMode?(contactKakaoId??contactValue):contactValue)}" required type="${kakaoMode?'text':'tel'}" inputmode="${kakaoMode?'text':'tel'}" autocomplete="${kakaoMode?'off':'tel'}" maxlength="30" placeholder="${kakaoMode?'카카오톡 ID':phonePlaceholder}" data-bk-phone-placeholder="${escape(phonePlaceholder)}" aria-label="고객 연락처" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid&&!kakaoMode?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span><label class="check-field bk-kakao-contact"><input type="checkbox" name="contactKakaoMode" ${kakaoMode?'checked':''}> 해외 거주 등 · 전화 대신 카카오톡 ID 기록</label></div><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?(draft.customerId?`<div data-bk-directory-selection>${renderPeopleManager(draft,context,escape)}</div>`:'<p class="bk-field-note">상담 후보에서 기존 고객을 연결하면 개인 명부(수강생 이름)를 선택할 수 있습니다. 새 고객의 명부는 예약 저장 때 함께 만들어집니다.</p>'):`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
+  return `<section class="bk-customer-block" data-bk-customer-block><div class="bk-section-label"><span>01</span><h3>고객 공통정보</h3><small>같은 고객의 팀이 함께 사용합니다</small></div><div class="bk-customer-fields"><div class="bk-customer-grid"><label class="field bk-field-H"><span class="field-label">고객명(입금자) <b>*</b></span><input name="raw_H" value="${escape((draft.customerId?directoryDisplayNames(draft,context).customerName:null)||draft.raw.H)}" required maxlength="120" autocomplete="name" placeholder="고객명 또는 입금자명" ${locked||draft.passEditMode?'disabled':''}></label><div class="field bk-field-L"><span class="field-label">고객 연락처 <b>*</b></span><input name="raw_L" value="${escape(kakaoMode?(contactKakaoId??contactValue):contactValue)}" required type="${kakaoMode?'text':'tel'}" inputmode="${kakaoMode?'text':'tel'}" autocomplete="${kakaoMode?'off':'tel'}" maxlength="30" placeholder="${kakaoMode?'카카오톡 ID':phonePlaceholder}" data-bk-phone-placeholder="${escape(phonePlaceholder)}" aria-label="고객 연락처" aria-describedby="bk-phone-feedback" aria-invalid="${phone.invalid?'true':'false'}"><span id="bk-phone-feedback" class="bk-phone-feedback ${phone.invalid?'is-invalid':''}" data-bk-phone-feedback aria-live="polite">${escape(review&&!phone.invalid&&!kakaoMode?'상담 원문의 고객 연락처와 대조해 주세요.':phone.text)}</span><label class="check-field bk-kakao-contact"><input type="checkbox" name="contactKakaoMode" ${kakaoMode?'checked':''}> 해외 거주 등 · 전화 대신 카카오톡 ID 기록</label></div><label class="field bk-field-E"><span class="field-label">강습업체·지점 <b>*</b></span><select name="raw_E" required>${option('','업체·지점 선택',normalizeBookingCompany(draft.raw.E),escape)}${companies.map(company=>option(company,company,normalizeBookingCompany(draft.raw.E),escape)).join('')}</select></label>${selectField('raw_Q','결제 소스 *',draft.raw.Q,[['','선택해 주세요'],...bookingPaymentSourceOptions(draft.raw.Q).map(item=>[item.value,item.label])],escape,'required')}</div>${renderCashReceiptFields(draft,escape)}</div>${legacy?'<p class="bk-field-note">고객명을 입력하면 팀 이력을 연결할 수 있습니다.</p>':''}${review?(draft.customerId?`<div data-bk-directory-selection>${renderPeopleManager(draft,context,escape)}</div>`:'<p class="bk-field-note">상담 후보에서 기존 고객을 연결하면 개인 명부(수강생 이름)를 선택할 수 있습니다. 새 고객의 명부는 예약 저장 때 함께 만들어집니다.</p>'):`<div data-bk-customer-suggestions>${renderCustomerSuggestions(draft,context,escape)}</div><div data-bk-directory-selection>${renderDirectorySelection(draft,context,escape)||renderPeopleManager(draft,context,escape)}</div>`}</section>`;
 }
 function renderTeamEditor(draft,context,escape,settings){
   const locked=!!draft.id&&!!draft.customerId;
-  return `<section class="bk-team-block" data-bk-team-block data-bk-pane="team">${draft.sameCustomerNewTeam?'<p class="bk-family-draft-note">새 팀 · 공통정보와 일정 가져옴</p>':''}<div class="bk-team-identity"><div><label class="field bk-field-I"><span class="field-label">강습생·팀 <small>선택 · 저장 후에도 변경 가능</small></span><input name="raw_I" value="${escape((()=>{if(!draft.customerId||!draft.customerTeamId)return draft.raw.I;const d=directoryDisplayNames(draft,context);return d.teamName!==null?d.teamName:draft.raw.I;})())}" maxlength="120" placeholder="예: 엄마, 아빠, 첫째, 막내"></label><p class="bk-field-note" data-bk-team-notice>비워두면 기본 1팀입니다. 팀이 여러 개면 구분해 주세요.</p><div data-bk-team-choices>${renderCustomerTeamChoices(draft,context,escape)}</div></div>${renderTeamPhoneFields(draft,escape)}${renderPassSelector(draft,context,escape)}</div>${renderTeamConditions(draft,context,escape)}${renderTeamSchedule(draft,context,escape)}<div class="bk-add-team-options"><label class="check-field"><input type="checkbox" name="copyTeamConditions" ${draft.copyTeamConditions?'checked':''}> 다른 팀에도 나이·경험·실력·준비·회차별 금액 가져오기</label><button type="button" class="btn secondary small bk-new-team" data-bk-new-team data-bk-add-team="${escape(draft.id||'')}">같은 고객 다른 팀 추가 →</button><p class="bk-field-note">고객 공통정보와 일정은 항상 가져옵니다. ${draft.paymentReviewId?'체크하면 강습료·장비요금을 복사합니다. 새 팀의 입금 배분액은 0원으로 시작합니다.':'체크하면 각 회차의 강습료·장비요금·입금액도 복사합니다.'}</p></div><details class="bk-optional-assignment" ${settings.tab==='assignment'||draft.instructorIds?.length?'open':''}><summary>강사 배정 <span>선택 · 저장 후에도 가능</span></summary>${renderAssignment(draft,context,escape)}</details>${draft.id?`<details class="bk-inline-history" ${settings.tab==='history'?'open':''}><summary>변경 이력</summary>${renderChangeHistory(draft,context,escape)}</details>`:''}</section>`;
+  return `<section class="bk-team-block" data-bk-team-block data-bk-pane="team">${draft.sameCustomerNewTeam?'<p class="bk-family-draft-note">새 팀 · 공통정보와 일정 가져옴</p>':''}<div class="bk-team-identity"><div><label class="field bk-field-I"><span class="field-label">강습생·팀 <small>선택 · 저장 후에도 변경 가능</small></span><input name="raw_I" value="${escape((()=>{if(!draft.customerId||!draft.customerTeamId)return draft.raw.I;const d=directoryDisplayNames(draft,context);return d.teamName!==null?d.teamName:draft.raw.I;})())}" maxlength="120" placeholder="예: 엄마, 아빠, 첫째, 막내" ${draft.passEditMode?'disabled':''}></label><p class="bk-field-note" data-bk-team-notice>비워두면 기본 1팀입니다. 팀이 여러 개면 구분해 주세요.</p><div data-bk-team-choices>${renderCustomerTeamChoices(draft,context,escape)}</div></div>${renderTeamPhoneFields(draft,escape)}${renderPassSelector(draft,context,escape)}</div>${renderTeamConditions(draft,context,escape)}${renderTeamSchedule(draft,context,escape)}<div class="bk-add-team-options"><label class="check-field"><input type="checkbox" name="copyTeamConditions" ${draft.copyTeamConditions?'checked':''}> 다른 팀에도 나이·경험·실력·준비·회차별 금액 가져오기</label><button type="button" class="btn secondary small bk-new-team" data-bk-new-team data-bk-add-team="${escape(draft.id||'')}">같은 고객 다른 팀 추가 →</button><p class="bk-field-note">고객 공통정보와 일정은 항상 가져옵니다. ${draft.paymentReviewId?'체크하면 강습료·장비요금을 복사합니다. 새 팀의 입금 배분액은 0원으로 시작합니다.':'체크하면 각 회차의 강습료·장비요금·입금액도 복사합니다.'}</p></div><details class="bk-optional-assignment" ${settings.tab==='assignment'||draft.instructorIds?.length?'open':''}><summary>강사 배정 <span>선택 · 저장 후에도 가능</span></summary>${renderAssignment(draft,context,escape)}</details>${draft.id?`<details class="bk-inline-history" ${settings.tab==='history'?'open':''}><summary>변경 이력</summary>${renderChangeHistory(draft,context,escape)}</details>`:''}</section>`;
 }
 
 function teamBoardCards(settings){
@@ -1580,7 +1591,7 @@ function validationError(draft,context) {
 
 function bookingPayload(draft,context) {
   const payload=prepareCustomerIdentity(draft);
-  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds','pendingPeople','passIssueMode','passTotalSessions','passIssueDone','passConfigs','autoTeamNameFromPeople','peopleRosterOpen','commonGroupBatchId'])delete payload[key];
+  for(const key of ['commonGroupId','suggestion','rentalCustomAmount','patchEnabled','sameCustomerNewTeam','historyInstructorSelection','copyTeamConditions','copiedTeamConditions','datePickerOpen','datePickerMonth','repeatDatesOpen','repeatStart','repeatWeeks','repeatCount','savedBatchRows','dateBatch','participantPersonIds','pendingPeople','passIssueMode','passTotalSessions','passIssueDone','passConfigs','autoTeamNameFromPeople','peopleRosterOpen','commonGroupBatchId','passEditMode','passId','passExpectedUpdatedAt'])delete payload[key];
   // 횟수(J) 입력 폐지(2026-11-15) — 비어 있으면 회차 수로 자동 확정.
   // 검토 분석이 제안한 횟수(raw.J)는 보존한다(검토 화면 lessonCount와 공유 필드).
   if(!String(payload.raw?.J||'').trim())payload.raw={...payload.raw,J:String(bookingDateRows(payload).length)+'회'};
@@ -1599,7 +1610,7 @@ function bookingPayload(draft,context) {
 /** All mutations are passed to authenticated parent callbacks; demo writes remain in memory. */
 export {validationError as validateBookingIntake};
 
-export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,onInlineNote,now=new Date()}={}) {
+export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onUpdatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,onInlineNote,now=new Date()}={}) {
   bookingRailObservers.get(root)?.disconnect();bookingRailObservers.delete(root);
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return;
   const view=root.querySelector('.booking-page');if(!view)return;
@@ -2381,7 +2392,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
               received!==null&&due>0?(multiConfig?`미수금(전체 구성 기준): ${money(due)}원`:`미수금: ${money(due)}원`):null,
               String(raw.G||'').trim(),
             ].filter(Boolean);
-            const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||'').trim()||nameKey||'수강권',phone:livePhone,company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:target.headcount>=1&&target.headcount<=99?`1:${target.headcount}`:'',participants:target.participants,fixedInstructorId:target.draft.preferredInstructorId||'',customerId:commonCustomerId,teamId:target.teamId,...(commonCustomerDraft?{customerDraft:commonCustomerDraft}:{}),...(target.teamDraft?{teamDraft:target.teamDraft}:{}),notes:noteLines.join('\n').slice(0,2000)});
+            const saved=await onCreatePass({id:row.issueId,customerName:nameKey,learnerName:String(raw.I||'').trim()||nameKey||'수강권',phone:livePhone,company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:n,lessonMinutes:row.minutes==='4시간'?240:120,lessonRatio:target.headcount>=1&&target.headcount<=99?`1:${target.headcount}`:'',participants:target.participants,fixedInstructorId:target.draft.preferredInstructorId||'',customerId:commonCustomerId,teamId:target.teamId,...(commonCustomerDraft?{customerDraft:commonCustomerDraft}:{}),...(target.teamDraft?{teamDraft:target.teamDraft}:{}),notes:noteLines.join('\n').slice(0,2000),booking:bookingColumnFromDraft(target.draft)});
             row.done={totalSessions:n,passId:saved?.id||null};
             issuedTotal++;
           }
@@ -2396,6 +2407,39 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
         update({teamDeck:deck,draft:nextActive},{soon:true});
         fail(error?.message||'수강권을 발급하지 못했습니다. 다시 시도해 주세요.');
       }
+    };
+    // 수강권으로 저장할 booking 칸(날짜·시간 제외 예약 draft). 발급·변경 공용.
+    const bookingColumnFromDraft=draft=>{
+      const payload=bookingPayload(draft,context);
+      const raw={...payload.raw};delete raw.A;delete raw.B;delete raw.C;delete raw.F;
+      const booking={...payload,raw};
+      delete booking.id;delete booking.startAt;delete booking.endAt;delete booking.status;delete booking.instructorIds;
+      return booking;
+    };
+    const savePassEdit=async form=>{
+      if(busy())return;preserveDraft();
+      const errorBox=form.querySelector('[data-bk-pass-inline-error]');
+      const fail=m=>{if(errorBox){errorBox.hidden=false;errorBox.textContent=m;errorBox.scrollIntoView?.({block:'nearest'});}};
+      if(typeof onUpdatePass!=='function')return fail('수강권 변경 연결을 확인해 주세요.');
+      const draft=settings.draft,next=draftFromForm(form,draft);
+      if(![120,240].includes(next.lessonMinutes))return fail('시간권(2시간·4시간)을 선택해 주세요.');
+      if(!['스키','보드'].includes(String(next.raw.D||'').trim()))return fail('종목(스키·보드)을 선택해 주세요.');
+      if(!String(next.raw.E||'').trim())return fail('강습센터를 확인해 주세요.');
+      const head=numeric(next.raw.M),ratioCount=Number.isInteger(head)&&head>=1&&head<=20?head:null;
+      let booking;try{booking=bookingColumnFromDraft(next);}catch(error){return fail(error?.message||'수강권 정보를 확인해 주세요.');}
+      const payload={id:draft.passId,expectedUpdatedAt:draft.passExpectedUpdatedAt,booking,lessonMinutes:next.lessonMinutes,sport:String(next.raw.D).trim(),company:String(next.raw.E).trim(),
+        ...(ratioCount!==null?{studentCount:ratioCount}:{}),
+        ...(next.preferredInstructorId&&!(Array.isArray(draft.instructorIds)&&draft.instructorIds.length)?{fixedInstructorId:next.preferredInstructorId}:{}),
+        ...(typeof next.notes==='string'?{notes:next.notes}:{})};
+      if(errorBox)errorBox.hidden=true;
+      const submitButton=form.querySelector('.bk-pass-inline-actions button[type=submit]');
+      if(submitButton)submitButton.disabled=true;
+      try{
+        const result=await onUpdatePass(payload);
+        if(result&&result.discarded){if(submitButton)submitButton.disabled=false;return;}
+        if(result&&result.updatedAt&&settings.draft)settings.draft.passExpectedUpdatedAt=result.updatedAt;
+        if(submitButton)submitButton.disabled=false;
+      }catch(error){if(submitButton)submitButton.disabled=false;fail(error?.message||'수강권을 변경하지 못했습니다. 다시 시도해 주세요.');}
     };
     view.querySelector('[data-bk-issue-pass]')?.addEventListener('click',()=>{
       if(busy())return;preserveDraft();
@@ -2452,7 +2496,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
           const participants=roster.length?participantsFromPeople(roster,ids):(Array.isArray(draft.participants)?draft.participants.map(person=>({type:person?.type==='minor'?'minor':'adult',age:person?.type==='minor'&&Number.isInteger(person?.age)?person.age:null})):[]);
           const headcount=numeric(raw.M)||participants.length||1;
           const directoryLink=draft.customerId&&draft.customerTeamId?{customerId:draft.customerId,teamId:draft.customerTeamId,...(draft.customerDraft?{customerDraft:{...draft.customerDraft,id:draft.customerId,name:String(raw.H||'').trim()}}:{}),...(draft.teamDraft?{teamDraft:{...draft.teamDraft,id:draft.customerTeamId,customerId:draft.customerId,name:String(raw.I||'').trim()}}:{})}:{};
-          const saved=await onCreatePass({id:issueIds[entry.key],customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:entry.sessions,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',...directoryLink,notes:[...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000)});
+          const saved=await onCreatePass({id:issueIds[entry.key],customerName:String(raw.H||'').trim(),learnerName:String(raw.I||raw.H||'').trim()||'수강권',phone:String(raw.L||draft.customerContactPhone||'').trim(),company:String(raw.E||'').trim(),sport:['스키','보드'].includes(String(raw.D||'').trim())?String(raw.D).trim():'스키',totalSessions:entry.sessions,lessonRatio:headcount>=1&&headcount<=99?`1:${headcount}`:'',participants,fixedInstructorId:draft.preferredInstructorId||'',...directoryLink,notes:[...passIssueCarryLines(draft),String(raw.G||'').trim()].filter(Boolean).join('\n').slice(0,2000),booking:bookingColumnFromDraft(draft)});
           results[entry.key]={totalSessions:entry.sessions,passId:saved?.id||null};
           update({passIssueResults:{...results}});
         }
@@ -2461,6 +2505,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
     });
     view.querySelector('[data-bk-clear-assignment]')?.addEventListener('click',()=>{preserveDraft();update({draft:{...settings.draft,raw:{...settings.draft.raw,F:''},instructorIds:[],suggestion:false}});});
     form.addEventListener('submit',event=>{event.preventDefault();if(busy())return;preserveDraft();
+      if(!settings.draft.id&&settings.draft.passEditMode){void savePassEdit(form);return;}
       if(!settings.draft.id&&settings.draft.passIssueMode){void issueInlinePass(form);return;}
       // 수강권으로 이미 발급한 팀은 예약으로 다시 저장하지 않는다 — 중복 등록 방지(N2, 2026-11-16).
       if(!settings.draft.id&&settings.draft.passIssueDone){showError(form,'이 팀은 이미 수강권으로 발급했습니다. 날짜가 정해지면 수강권 탭의 [일정 등록]으로 이어가 주세요. 예약으로 따로 저장하면 중복 등록이 됩니다.');return;}
