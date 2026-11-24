@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=111';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=112';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -77,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=100').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=101').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -230,31 +230,20 @@ function render(){
       toast(`그룹 수정: 성공 ${outcome.ok}건 · 실패 ${outcome.failed.length}건`);
       return outcome;
     },
-    // 일괄 삭제(2026-11-24 사용자 지시): 선택 건을 건별 취소(소프트 삭제·cancelReservation). 결제·현금영수증 기록은 보관.
+    // 일괄 하드 삭제(2026-11-24 사용자 지시): 선택 건을 자식 레코드까지 영구 삭제(복구 불가·관리자 전용, slope_purge_reservations).
     onBulkDelete:async ids=>{
       mustBeOperator();
       if(ui.booking.demo)throw new Error('운영 예약표에서 사용해 주세요.');
-      const outcome={ok:0,failed:[],failedIds:[]};
-      const result=await writeOperation(async()=>{
-        for(const id of ids){
-          const row=state.reservations.find(item=>item.id===id);
-          const label=row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);
-          try{
-            if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');
-            if(['cancelled','canceled','deleted','refunded'].includes(String(row.status||'').toLowerCase())||row.cancelledAt||row.cancelled_at||row.deletedAt||row.deleted_at||row.refundedAt||row.refunded_at)throw new Error('이미 삭제·취소된 예약입니다.');
-            const saved=await api.cancelReservation({reservationId:id,requestId:`bulk-del-${id}-${Date.now()}`});
-            if(saved?.discarded)throw new Error('세션이 바뀌어 중단했습니다.');
-            if(saved?.id!==id||saved.status!=='cancelled')throw new Error('삭제 결과를 확인하지 못했습니다.');
-            state=applyReservationCancellation(state,id,saved);
-            outcome.ok++;
-          }catch(error){outcome.failed.push({label,message:error?.message||'삭제하지 못했습니다.'});outcome.failedIds.push(id);}
-        }
-        return outcome;
-      },`선택 삭제 · ${ids.length}건 처리`);
+      const labelOf=id=>{const row=(state.reservations||[]).find(r=>r.id===id);return row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);};
+      const result=await writeOperation(()=>api.purgeReservations(ids),`선택 ${ids.length}건 영구 삭제`);
       if(result?.discarded)return result;
+      const deleted=new Set(result?.deletedIds||[]);
+      const failedIds=ids.filter(id=>!deleted.has(id));
+      const failed=failedIds.map(id=>({label:labelOf(id),message:'삭제되지 않았습니다(이미 삭제됐거나 권한을 확인해 주세요).'}));
+      state={...state,reservations:(state.reservations||[]).filter(row=>!deleted.has(row.id))};
       state.customerNotices=selectActiveCustomerNotices(state.customerNotices||[],state);invalidateCustomerLink();
-      toast(`선택 삭제: 성공 ${outcome.ok}건 · 실패 ${outcome.failed.length}건`);
-      return outcome;
+      toast(`영구 삭제: ${deleted.size}건 완료${failedIds.length?` · ${failedIds.length}건 미삭제`:''}`);
+      return {ok:deleted.size,failed,failedIds};
     },
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});

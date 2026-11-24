@@ -321,6 +321,15 @@ export async function cancelReservation({reservationId,expectedUpdatedAt,request
   return result;
 }
 
+/** 하드 삭제(완전 삭제, 관리자 전용): 선택 예약과 자식 레코드(현금영수증 요청·변경요청·취소기록 등)를 영구 삭제한다. 되돌릴 수 없다. */
+export async function purgeReservations(ids){
+  await requireBookingOperator({adminOnly:true});
+  if(!Array.isArray(ids)||!ids.length||ids.length>500)throw issue('삭제할 예약을 다시 확인해 주세요.','INPUT_REQUIRED');
+  const clean=ids.map(id=>lessonId(id));
+  const result=await rpc('slope_purge_reservations',{p_ids:clean});
+  return {deletedIds:Array.isArray(result?.deletedIds)?result.deletedIds:[],deleted:Number(result?.deleted)||0};
+}
+
 /** Actual issuance identifiers and the ledger are visible to the owner role only. */
 export async function listCashReceipts({status='pending',limit=200,offset=0}={}){
   await requireBookingOperator({adminOnly:true});
