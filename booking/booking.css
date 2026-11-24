@@ -838,3 +838,5 @@ th[data-bk-sort]:hover{background:#e8f1f1}
 
 .bk-note-edit{display:block;width:100%;min-width:150px;min-height:40px;max-height:120px;resize:vertical;font:inherit;font-size:12px;line-height:1.5;border:1px solid transparent;border-radius:6px;padding:4px 6px;background:#fbfdfc;color:inherit;box-sizing:border-box}.bk-note-edit:hover{border-color:#d4e0dc}.bk-note-edit:focus{border-color:#207c80;background:#fff;outline:none}.bk-note-edit[aria-busy=true]{opacity:.6}
 
+
+.bk-bulk-delete-zone{margin-top:12px;padding-top:12px;border-top:1px dashed #e3d3cf}.bk-bulk-delete-trigger{color:#a65750!important;border:1px solid #ead2ce!important}.bk-bulk-delete-trigger:hover{background:#fff4f1!important}.bk-bulk-delete-warn{font-size:12px;line-height:1.7;color:#a45f4e;background:#fff5f1;border:1px solid #efd3cc;border-radius:7px;padding:10px 12px;margin:0 0 10px}

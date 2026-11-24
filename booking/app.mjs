@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=110';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=111';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -228,6 +228,32 @@ function render(){
       },`그룹 수정 적용 · 성공 ${ids.length}건 중 일부는 결과 패널에서 확인`);
       if(result?.discarded)return result;
       toast(`그룹 수정: 성공 ${outcome.ok}건 · 실패 ${outcome.failed.length}건`);
+      return outcome;
+    },
+    // 일괄 삭제(2026-11-24 사용자 지시): 선택 건을 건별 취소(소프트 삭제·cancelReservation). 결제·현금영수증 기록은 보관.
+    onBulkDelete:async ids=>{
+      mustBeOperator();
+      if(ui.booking.demo)throw new Error('운영 예약표에서 사용해 주세요.');
+      const outcome={ok:0,failed:[],failedIds:[]};
+      const result=await writeOperation(async()=>{
+        for(const id of ids){
+          const row=state.reservations.find(item=>item.id===id);
+          const label=row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);
+          try{
+            if(!row)throw new Error('예약을 찾지 못했습니다. 목록을 새로고침해 주세요.');
+            if(['cancelled','canceled','deleted','refunded'].includes(String(row.status||'').toLowerCase())||row.cancelledAt||row.cancelled_at||row.deletedAt||row.deleted_at||row.refundedAt||row.refunded_at)throw new Error('이미 삭제·취소된 예약입니다.');
+            const saved=await api.cancelReservation({reservationId:id,requestId:`bulk-del-${id}-${Date.now()}`});
+            if(saved?.discarded)throw new Error('세션이 바뀌어 중단했습니다.');
+            if(saved?.id!==id||saved.status!=='cancelled')throw new Error('삭제 결과를 확인하지 못했습니다.');
+            state=applyReservationCancellation(state,id,saved);
+            outcome.ok++;
+          }catch(error){outcome.failed.push({label,message:error?.message||'삭제하지 못했습니다.'});outcome.failedIds.push(id);}
+        }
+        return outcome;
+      },`선택 삭제 · ${ids.length}건 처리`);
+      if(result?.discarded)return result;
+      state.customerNotices=selectActiveCustomerNotices(state.customerNotices||[],state);invalidateCustomerLink();
+      toast(`선택 삭제: 성공 ${outcome.ok}건 · 실패 ${outcome.failed.length}건`);
       return outcome;
     },
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});

@@ -1424,7 +1424,7 @@ function renderBulkEditor(settings,escape){
   const ids=settings.bulkIds||[];
   if(!settings.bulkOpen||!ids.length)return '';
   const result=settings.bulkResult;
-  return `<section class="panel bk-bulk-editor" data-bk-bulk-editor><div class="bk-section-label"><span>GROUP</span><h3>선택한 ${ids.length}건 그룹 수정</h3><small>'변경 안 함'·빈칸 항목은 그대로 둡니다</small></div><div class="bk-form-grid">${selectField('bulkSport','종목(스키·보드)','keep',[['keep','변경 안 함'],['스키','스키'],['보드','보드']],escape)}${selectField('bulkRentalStatus','장비렌탈 결제상태','keep',[['keep','변경 안 함'],['onsite_unpaid','미결제(당일 코코넛 실사용 확인)'],['free','무료'],['paid','결제완료']],escape)}${selectField('bulkRentalHours','장비렌탈 이용시간','keep',[['keep','변경 안 함(자동 기본요금)'],['4','4시간'],['6','6시간']],escape)}<label class="field"><span class="field-label">렌탈 금액 <small>비우면 기본요금×인원 자동</small></span><span class="bk-suffixed"><input type="number" name="bulkRentalAmount" min="0" step="1" inputmode="numeric" placeholder="자동"><span>원</span></span></label><label class="field"><span class="field-label">받은 금액(입금액) <small>비우면 변경 안 함</small></span><span class="bk-suffixed"><input type="number" name="bulkPaidAmount" min="0" step="1" inputmode="numeric" placeholder="변경 안 함"><span>원</span></span></label></div><p class="bk-field-note">실제 받아야 할 금액·미수금은 강습료+장비 기준으로 저장 시 자동 재계산됩니다. 각 건은 개별 검증을 통과해야 저장되고, 실패한 건은 건너뛴 뒤 아래에 사유가 남으며 선택 상태로 유지됩니다.</p>${result?`<div class="bk-bulk-result" role="status"><strong>적용 결과 · 성공 ${result.ok}건 · 실패 ${result.failed.length}건</strong>${result.failed.length?`<ul>${result.failed.map(item=>`<li>${escape(item.label)} — ${escape(item.message)}</li>`).join('')}</ul>`:''}</div>`:''}<div class="bk-pass-inline-actions"><button type="button" class="btn primary" data-bk-bulk-apply>선택 ${ids.length}건에 적용</button><button type="button" class="btn ghost" data-bk-bulk-close>닫기</button></div></section>`;
+  return `<section class="panel bk-bulk-editor" data-bk-bulk-editor><div class="bk-section-label"><span>GROUP</span><h3>선택한 ${ids.length}건 그룹 수정</h3><small>'변경 안 함'·빈칸 항목은 그대로 둡니다</small></div><div class="bk-form-grid">${selectField('bulkSport','종목(스키·보드)','keep',[['keep','변경 안 함'],['스키','스키'],['보드','보드']],escape)}${selectField('bulkRentalStatus','장비렌탈 결제상태','keep',[['keep','변경 안 함'],['onsite_unpaid','미결제(당일 코코넛 실사용 확인)'],['free','무료'],['paid','결제완료']],escape)}${selectField('bulkRentalHours','장비렌탈 이용시간','keep',[['keep','변경 안 함(자동 기본요금)'],['4','4시간'],['6','6시간']],escape)}<label class="field"><span class="field-label">렌탈 금액 <small>비우면 기본요금×인원 자동</small></span><span class="bk-suffixed"><input type="number" name="bulkRentalAmount" min="0" step="1" inputmode="numeric" placeholder="자동"><span>원</span></span></label><label class="field"><span class="field-label">받은 금액(입금액) <small>비우면 변경 안 함</small></span><span class="bk-suffixed"><input type="number" name="bulkPaidAmount" min="0" step="1" inputmode="numeric" placeholder="변경 안 함"><span>원</span></span></label></div><p class="bk-field-note">실제 받아야 할 금액·미수금은 강습료+장비 기준으로 저장 시 자동 재계산됩니다. 각 건은 개별 검증을 통과해야 저장되고, 실패한 건은 건너뛴 뒤 아래에 사유가 남으며 선택 상태로 유지됩니다.</p>${result?`<div class="bk-bulk-result" role="status"><strong>적용 결과 · 성공 ${result.ok}건 · 실패 ${result.failed.length}건</strong>${result.failed.length?`<ul>${result.failed.map(item=>`<li>${escape(item.label)} — ${escape(item.message)}</li>`).join('')}</ul>`:''}</div>`:''}<div class="bk-pass-inline-actions"><button type="button" class="btn primary" data-bk-bulk-apply>선택 ${ids.length}건에 적용</button><button type="button" class="btn ghost" data-bk-bulk-close>닫기</button></div><div class="bk-bulk-delete-zone">${settings.bulkDeleteArmed?`<p class="bk-bulk-delete-warn">⚠ 선택 ${ids.length}건을 삭제합니다. 예약표·강사 일정에서 제외되며, 결제·현금영수증 등 기존 기록은 보관됩니다. 되돌리려면 다시 등록해야 합니다.</p><div class="bk-pass-inline-actions"><button type="button" class="btn bk-danger" data-bk-bulk-delete-confirm>${ids.length}건 삭제 확정</button><button type="button" class="btn ghost" data-bk-bulk-delete-cancel>취소</button></div>`:`<button type="button" class="btn ghost bk-bulk-delete-trigger" data-bk-bulk-delete>선택 ${ids.length}건 삭제 →</button>`}</div></section>`;
 }
 function draftFromForm(form,draft) {
   const data=new FormData(form);let next=clone(draft);
@@ -1624,7 +1624,7 @@ function bookingPayload(draft,context) {
 /** All mutations are passed to authenticated parent callbacks; demo writes remain in memory. */
 export {validationError as validateBookingIntake};
 
-export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onUpdatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,onInlineNote,now=new Date()}={}) {
+export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSave,onSaveBatch,onChangeReservation,onLoadPaymentRequestCorrections,onDeleteReservation,onAssign,onOpenLesson,onSaveCapabilities,onSavePolicy,onCandidates,onAutoAssign,onIssuePass,onCreatePass,onUpdatePass,onSaveCustomerPerson,onDeleteCustomerPerson,onBulkAmounts,onBulkDelete,onInlineNote,now=new Date()}={}) {
   bookingRailObservers.get(root)?.disconnect();bookingRailObservers.delete(root);
   const role=state.profile?.role||ui.role;if(!['admin','counselor'].includes(role))return;
   const view=root.querySelector('.booking-page');if(!view)return;
@@ -1837,7 +1837,21 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
   });
   view.querySelector('[data-bk-bulk-open]')?.addEventListener('click',()=>update({bulkOpen:true,bulkResult:null}));
   view.querySelector('[data-bk-bulk-clear]')?.addEventListener('click',()=>update({bulkIds:[],bulkOpen:false,bulkResult:null}));
-  view.querySelector('[data-bk-bulk-close]')?.addEventListener('click',()=>update({bulkOpen:false}));
+  view.querySelector('[data-bk-bulk-close]')?.addEventListener('click',()=>update({bulkOpen:false,bulkDeleteArmed:false}));
+  // 일괄 삭제(2026-11-24 사용자 지시): 그룹 선택 → 2단계 확인 → 선택 건을 건별 취소(소프트 삭제).
+  view.querySelector('[data-bk-bulk-delete]')?.addEventListener('click',()=>update({bulkDeleteArmed:true,bulkResult:null}));
+  view.querySelector('[data-bk-bulk-delete-cancel]')?.addEventListener('click',()=>update({bulkDeleteArmed:false}));
+  view.querySelector('[data-bk-bulk-delete-confirm]')?.addEventListener('click',async event=>{
+    if(busy()||!onBulkDelete)return;
+    const ids=[...(settings.bulkIds||[])];if(!ids.length)return update({bulkDeleteArmed:false});
+    event.target.disabled=true;
+    try{
+      const result=await onBulkDelete(ids);
+      if(result?.discarded)return;
+      update({bulkResult:result,bulkIds:result?.failedIds||[],bulkDeleteArmed:false,bulkOpen:true});
+    }catch(error){update({bulkResult:{ok:0,failed:[{label:'삭제 실패',message:error?.message||'선택 삭제를 처리하지 못했습니다.'}],failedIds:ids},bulkDeleteArmed:false});}
+    finally{event.target.disabled=false;}
+  });
   view.querySelector('[data-bk-bulk-apply]')?.addEventListener('click',async event=>{
     if(busy()||!onBulkAmounts)return;
     const ids=[...(settings.bulkIds||[])];if(!ids.length)return;
