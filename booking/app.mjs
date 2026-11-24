@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=113';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=114';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -77,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=101').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=102').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -244,6 +244,20 @@ function render(){
       state.customerNotices=selectActiveCustomerNotices(state.customerNotices||[],state);invalidateCustomerLink();
       toast(`영구 삭제: ${deleted.size}건 완료${failedIds.length?` · ${failedIds.length}건 미삭제`:''}`);
       return {ok:deleted.size,failed,failedIds};
+    },
+    // 그룹선택 강사 일괄배정(2026-11-25 사용자 지시): 선택 강사를 선택 예약들에 건별 배정.
+    // 검증은 기존 writer가 수행 — 겹침·자격·종목·고정강사 안 맞는 건은 건너뛰고 사유를 반환한다.
+    onBulkAssign:async(ids,instructorId)=>{
+      mustBeOperator();
+      if(ui.booking.demo)throw new Error('운영 예약표에서 사용해 주세요.');
+      const labelOf=id=>{const row=(state.reservations||[]).find(r=>r.id===id);return row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);};
+      const translate=m=>{const s=String(m||'');if(/INPUT_REVIEW/.test(s))return '강사 조건 확인 필요(종목·자격·시간겹침 등) — 예약을 열어 확인하세요.';if(/40001|처리하고|lock/i.test(s))return '다른 기기에서 처리 중 — 다시 시도해 주세요.';if(/종료된/.test(s))return '이미 종료된 강습입니다.';return s||'배정하지 못했습니다.';};
+      const result=await writeOperation(()=>api.bulkAssignInstructor(ids,instructorId),`선택 ${ids.length}건 강사 일괄 배정`);
+      if(result?.discarded)return result;
+      const failedIds=Array.isArray(result?.failedIds)?result.failedIds:[];
+      const failed=(result?.failed||[]).map(item=>({label:labelOf(item.id),message:translate(item.message)}));
+      toast(`강사 배정: 성공 ${result?.ok||0}건${failed.length?` · 실패 ${failed.length}건`:''}`);
+      return {ok:result?.ok||0,failed,failedIds};
     },
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});

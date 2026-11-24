@@ -330,6 +330,16 @@ export async function purgeReservations(ids){
   return {deletedIds:Array.isArray(result?.deletedIds)?result.deletedIds:[],deleted:Number(result?.deleted)||0};
 }
 
+/** 그룹선택 강사 일괄배정(관리자 전용): 선택 강사를 선택 예약들에 건별 배정. 겹침·자격·고정강사 안 맞는 건은 건너뛰고 사유 반환. */
+export async function bulkAssignInstructor(ids,instructorId){
+  await requireBookingOperator({adminOnly:true});
+  if(!Array.isArray(ids)||!ids.length||ids.length>200)throw issue('배정할 예약을 다시 확인해 주세요.','INPUT_REQUIRED');
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(instructorId||'')))throw issue('배정할 강사를 선택해 주세요.','INPUT_REQUIRED');
+  const clean=ids.map(id=>lessonId(id));
+  const result=await rpc('slope_bulk_assign_instructor',{p_ids:clean,p_instructor_id:instructorId});
+  return {ok:Number(result?.ok)||0,failed:Array.isArray(result?.failed)?result.failed:[],failedIds:Array.isArray(result?.failedIds)?result.failedIds:[]};
+}
+
 /** Actual issuance identifiers and the ledger are visible to the owner role only. */
 export async function listCashReceipts({status='pending',limit=200,offset=0}={}){
   await requireBookingOperator({adminOnly:true});
