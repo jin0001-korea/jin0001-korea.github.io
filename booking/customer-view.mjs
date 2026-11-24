@@ -1,7 +1,7 @@
 import {canDeleteCustomer,customerDeletionPayload,customerDeletionUsage,isDeletedCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
 import {resizeParticipants} from './booking-participants.mjs?v=34';
 import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
-import {selectPassBalances} from './pass-view.mjs?v=53';
+import {selectPassBalances} from './pass-view.mjs?v=54';
 import {customerDirectoryTeams,customerContactChoices,customerDirectoryReservations,createCustomerDirectoryDraft,createCustomerTeamDraft,customerDirectoryPayload,customerTeamPayload,searchCustomerCandidates,CUSTOMER_AGE_BANDS,customerTeamAgeLabel} from './customer-directory.mjs?v=35';
 
 const escapeFallback=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -35,6 +35,8 @@ function customerFinanceBrand(customerId,state){
     const company=String(raw.E||'');
     if(company.includes('캐치'))catchCount++;else if(company.includes('라이즌'))risenCount++;
   }
+  // 수강권 미수도 합산(2026-11-24): 고객·팀 탭 미수 칩/배지에 수강권 미수 반영.
+  for(const pass of selectPassBalances(state))if((pass.customer_id??pass.customerId)===customerId)due+=pass.outstanding||0;
   const brands=[catchCount?'catch':null,risenCount?'risen':null].filter(Boolean);
   return {due,brands,catchCount,risenCount,
     brandClass:due>0?'cd-row-due':brands.length===1?(brands[0]==='catch'?'cd-co-catch':'cd-co-risen'):brands.length>1?'cd-co-mixed':'',
@@ -86,7 +88,7 @@ function renderHistory(customer,state,escape){
 function renderCustomerPasses(customer,state,escape){
   const passes=selectPassBalances(state).filter(pass=>(pass.customer_id??pass.customerId)===customer.id);
   const issuedDate=value=>value&&Number.isFinite(Date.parse(value))?dateLabel(String(value).slice(0,10)):'—';
-  return `<div class="cd-section-heading"><div><h3>수강권 <small>${passes.length}장</small></h3><p>시간권 변경·삭제는 [변경]에서, 일정 등록은 예약표의 수강권 블록에서 합니다.</p></div></div>${passes.length?`<div class="cd-pass-list">${passes.map(pass=>`<article class="cd-pass-card" data-cd-pass="${escape(pass.id)}"><header><div><h4>${escape(pass.learnerName||'기본 팀')}</h4><span>${escape(pass.sport||'종목 확인')} · ${pass.lessonMinutes===240?'4시간권':pass.lessonMinutes===120?'2시간권':'시간권 미정'} · ${pass.total===null?'횟수 미정':`총 ${pass.total}회`}</span></div><button type="button" class="btn ghost small" data-cd-pass-edit="${escape(pass.id)}" ${pass.id?'':'disabled'}>변경</button></header><p class="cd-pass-counts">강습완료 ${pass.completed}회 · 예약·진행중 ${pass.pending}회 · <strong class="${pass.available===0?'used':''}">미예약 잔여 ${pass.available===null?'—':`${pass.available}회`}</strong></p><small>발급 ${escape(issuedDate(pass.created_at||pass.createdAt))} · ${escape(pass.instructorName||'강사 미정')}</small></article>`).join('')}</div>`:'<div class="cd-empty compact">발급된 수강권이 없습니다. 예약표의 수강권 블록에서 발급합니다.</div>'}`;
+  return `<div class="cd-section-heading"><div><h3>수강권 <small>${passes.length}장</small></h3><p>시간권 변경·삭제는 [변경]에서, 일정 등록은 예약표의 수강권 블록에서 합니다.</p></div></div>${passes.length?`<div class="cd-pass-list">${passes.map(pass=>`<article class="cd-pass-card" data-cd-pass="${escape(pass.id)}"${pass.outstanding>0?' style="border-color:#e3b0b0;background:#fdecec"':''}><header><div><h4>${escape(pass.learnerName||'기본 팀')}</h4><span>${escape(pass.sport||'종목 확인')} · ${pass.lessonMinutes===240?'4시간권':pass.lessonMinutes===120?'2시간권':'시간권 미정'} · ${pass.total===null?'횟수 미정':`총 ${pass.total}회`}</span></div><button type="button" class="btn ghost small" data-cd-pass-edit="${escape(pass.id)}" ${pass.id?'':'disabled'}>변경</button></header><p class="cd-pass-counts">강습완료 ${pass.completed}회 · 예약·진행중 ${pass.pending}회 · <strong class="${pass.available===0?'used':''}">미예약 잔여 ${pass.available===null?'—':`${pass.available}회`}</strong></p>${pass.outstanding>0?`<p style="color:#c0392b;font-weight:700;margin:4px 0 0">미수 ${pass.outstanding.toLocaleString('ko-KR')}원</p>`:''}<small>발급 ${escape(issuedDate(pass.created_at||pass.createdAt))} · ${escape(pass.instructorName||'강사 미정')}</small></article>`).join('')}</div>`:'<div class="cd-empty compact">발급된 수강권이 없습니다. 예약표의 수강권 블록에서 발급합니다.</div>'}`;
 }
 function renderDeleteConfirmation(customer,state,value,escape){
   if(value.deleteTarget?.payload?.id!==customer.id)return '';

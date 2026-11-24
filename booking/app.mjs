@@ -17,8 +17,8 @@ import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonInterval
 import {buildAssignmentPlan} from './assignment-plan.mjs?v=28';
 import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=27';
 import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
-import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=53';
-import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=42';
+import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=54';
+import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=43';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
 import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=37';
 import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=35';
