@@ -1,4 +1,4 @@
-import {renderPaymentConversation} from './payment-conversation.mjs?v=1';
+import {renderPaymentConversation} from './payment-conversation.mjs?v=2';
 
 // 상담·전화 탭의 카카오 채널 열람(읽기 전용, 2026-11-16).
 // 수집기(kakao-collect)가 저장한 캡처를 캐치/라이즌별 방 목록 → 원문으로 보여준다.

@@ -1,4 +1,4 @@
-import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference,applyLevel2InstructorPreference} from './booking-view.mjs?v=108';
+import {createBookingDraft,applyFemaleInstructorPreference,applyEnglishInstructorPreference,applyLevel2InstructorPreference} from './booking-view.mjs?v=117';
 import {ensureBookingDates,bookingDateRows,sortBookingDates} from './booking-dates.mjs?v=70';
 import {parseKstDate,parseLessonTime,lessonPlanEndTime,bookingLocation} from './booking-rules.mjs?v=35';
 import {parseBookingAmount} from './booking-financial.mjs?v=12';
@@ -39,10 +39,6 @@ function applyReviewedRegistration(draft,approvedDraft){
   for(const key of ['parallelLongTurn','snowboardNoviceTurn','juniorPreparation'])if(typeof values[key]==='boolean')draft[key]=values[key];
   if(Number.isSafeInteger(values.experienceCount)&&values.experienceCount>=0&&values.experienceCount<=999)draft.experienceCount=values.experienceCount;
   if(['가족','자녀','성인','단체'].includes(values.relationship))draft.raw.K=values.relationship;
-  // 여자/영어 강사 요청은 특이사항(G)의 표준 문구로 동일하게 전달한다(접수 폼과 패리티).
-  if(['','prefer','require'].includes(values.femalePreference))draft.raw.G=applyFemaleInstructorPreference(draft.raw.G,values.femalePreference);
-  if(['','prefer','require'].includes(values.englishPreference))draft.raw.G=applyEnglishInstructorPreference(draft.raw.G,values.englishPreference);
-  if(['','prefer','require'].includes(values.level2Preference))draft.raw.G=applyLevel2InstructorPreference(draft.raw.G,values.level2Preference);
   if(typeof values.ability==='string')draft.raw.O=values.ability.slice(0,200);
   if(typeof values.lessonCount==='string')draft.raw.J=values.lessonCount.slice(0,30);
   if(['single','reorder','season'].includes(values.kind))draft.kind=values.kind;
@@ -68,6 +64,11 @@ function applyReviewedRegistration(draft,approvedDraft){
   if(values.teamPhoneMode==='separate'){draft.teamPhoneMode='separate';draft.raw.L=separatePhone||'';}
   const notes=[text(values.preferredInstructor)?`지정 강사 요청: ${text(values.preferredInstructor)}`:'',text(values.pickup)?`픽업 요청: ${text(values.pickup)}`:''];
   draft.raw.G=[draft.raw.G,...notes].filter(Boolean).join('\n').slice(0,3000);
+  // 여자/영어/레벨2 강사 요청: 특이사항(G) 표준 문구로 전달(접수 폼과 패리티).
+  // 2026-11-25: 노트 결합 뒤에 적용 — 상담 인용/자유 텍스트가 pref 적용 결과를 재오염하지 않게(감사 확정결함).
+  if(['','prefer','require'].includes(values.femalePreference))draft.raw.G=applyFemaleInstructorPreference(draft.raw.G,values.femalePreference);
+  if(['','prefer','require'].includes(values.englishPreference))draft.raw.G=applyEnglishInstructorPreference(draft.raw.G,values.englishPreference);
+  if(['','prefer','require'].includes(values.level2Preference))draft.raw.G=applyLevel2InstructorPreference(draft.raw.G,values.level2Preference);
   // Bank-linked bookings always retain the verified bank transfer source.
   draft.raw.Q='계좌이체';
 }
