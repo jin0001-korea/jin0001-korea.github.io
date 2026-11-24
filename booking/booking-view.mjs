@@ -658,8 +658,10 @@ export function participantsFromPeople(people,selectedIds){
 // 별도 열이 없는 시트 미러 구조에서 예약표·강사배정·강사 전달 노트에 그대로 보이게 하기 위한 방식.
 const FEMALE_PREF_LINES=Object.freeze({prefer:'여자 강사 선호',require:'여자 강사 필수'});
 export function femaleInstructorPreference(noteText){
-  const lines=String(noteText||'').split('\n').map(line=>line.trim());
-  return lines.includes(FEMALE_PREF_LINES.require)?'require':lines.includes(FEMALE_PREF_LINES.prefer)?'prefer':'';
+  // 2026-11-25 수정: 상담 원문 G는 '레벨2 강사 필수(…) · 여자 강사 선호 — …'처럼 한 줄에 섞여 들어오므로
+  // 정확한 한 줄 매칭이 아니라 문구 포함(substring)으로 판정한다(필수 우선). 버튼이 기존 상담내용을 반영.
+  const t=String(noteText||'');
+  return t.includes(FEMALE_PREF_LINES.require)?'require':t.includes(FEMALE_PREF_LINES.prefer)?'prefer':'';
 }
 export function applyFemaleInstructorPreference(noteText,pref){
   const keep=String(noteText||'').split('\n').filter(line=>!Object.values(FEMALE_PREF_LINES).includes(line.trim()));
@@ -669,8 +671,8 @@ export function applyFemaleInstructorPreference(noteText,pref){
 // 영어 강사 요청(2026-11-17): 여자 강사와 동일하게 특이사항(G) 표준 문구 한 줄로 저장.
 const ENGLISH_PREF_LINES=Object.freeze({prefer:'영어 강사 선호',require:'영어 강사 필수'});
 export function englishInstructorPreference(noteText){
-  const lines=String(noteText||'').split('\n').map(line=>line.trim());
-  return lines.includes(ENGLISH_PREF_LINES.require)?'require':lines.includes(ENGLISH_PREF_LINES.prefer)?'prefer':'';
+  const t=String(noteText||'');
+  return t.includes(ENGLISH_PREF_LINES.require)?'require':t.includes(ENGLISH_PREF_LINES.prefer)?'prefer':'';
 }
 export function applyEnglishInstructorPreference(noteText,pref){
   const keep=String(noteText||'').split('\n').filter(line=>!Object.values(ENGLISH_PREF_LINES).includes(line.trim()));
@@ -681,8 +683,8 @@ export function applyEnglishInstructorPreference(noteText,pref){
 // 수강권 발급 메모에도 특이사항이 실리므로 수강권 경로에서도 그대로 전달된다.
 const LEVEL2_PREF_LINES=Object.freeze({prefer:'레벨2 강사 선호',require:'레벨2 강사 필수'});
 export function level2InstructorPreference(noteText){
-  const lines=String(noteText||'').split('\n').map(line=>line.trim());
-  return lines.includes(LEVEL2_PREF_LINES.require)?'require':lines.includes(LEVEL2_PREF_LINES.prefer)?'prefer':'';
+  const t=String(noteText||'');
+  return t.includes(LEVEL2_PREF_LINES.require)?'require':t.includes(LEVEL2_PREF_LINES.prefer)?'prefer':'';
 }
 export function applyLevel2InstructorPreference(noteText,pref){
   const keep=String(noteText||'').split('\n').filter(line=>!Object.values(LEVEL2_PREF_LINES).includes(line.trim()));
