@@ -12,7 +12,7 @@ import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectD
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=35';
 import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=70';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=35';
-import {selectPassBalances} from './pass-view.mjs?v=52';
+import {selectPassBalances} from './pass-view.mjs?v=53';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const SOURCE_URL = 'https://docs.google.com/spreadsheets/d/1SdQoy71Dp2YUTlOYXMjP57gJ6D_fR7SdfWVDhCSk4N4/edit?gid=1274546051#gid=1274546051';
@@ -48,6 +48,13 @@ function keepActiveTeamVisible(root){
 }
 const ageBands=[['20s','성인 20대'],['30s','성인 30대'],['40s','성인 40대'],['50s','성인 50대'],['60s','성인 60대']];
 const customerPhoneOf=draft=>String(draft.customerContactPhone??draft.customer_contact_phone??((draft.teamPhoneMode??draft.team_phone_mode)==='separate'?'':draft.raw?.L??''));
+// (가) 2026-11-24: 표·수강권 연락처를 고객·팀 탭의 현재 번호로 표시(이름처럼 라이브). 알림톡 발송은 이미 디렉터리 번호 사용.
+const directoryRecipientOf=(row,context)=>{
+  const mode=row?.teamPhoneMode??row?.team_phone_mode;
+  if(mode==='separate'){const team=(context?.customerTeams||[]).find(t=>t.id===(row.customerTeamId??row.customer_team_id));return team?String(team.phone||'').trim():'';}
+  const cust=(context?.customers||[]).find(c=>c.id===(row.customerId??row.customer_id)&&!c.deleted_at);
+  const contact=cust&&Array.isArray(cust.contacts)&&cust.contacts[0];return contact?String(contact.phone||'').trim():'';
+};
 // 전화·카카오 ID 겸용 표시: 전화가 아니면 '카카오 아이디' 라벨, 둘 다 아니면 빈 문자열.
 const contactDisplay=value=>formatTelephone(value)||kakaoContactLabel(value);
 function setStableHTML(node,markup){if(!node)return;if(node._bkStableMarkup!==markup&&node.innerHTML!==markup)node.innerHTML=markup;node._bkStableMarkup=markup;}
@@ -351,6 +358,7 @@ function renderCell(row,column,context,escape) {
   if(key==='I'){const requirement=expertRequirement(row,context.settings),pass=(context.lessonPasses||[]).find(item=>item.id===row.lessonPassId);return `<strong>${escape(bookingTeamLabel(row,context)||'—')}</strong><small>${escape(ageLabel(row))} · ${escape(row.experienceCount===null?'경험 미확인':`경험 ${row.experienceCount}회`)}</small>${requirement.required||requirement.needsReview?badge(requirementText(requirement),requirement.needsReview?'amber':'teal',escape):''}${row.juniorPreparation?badge('주니어 기술등급제 준비','teal',escape):''}${row.lessonPassId?badge(pass?`${Number(pass.total_sessions)}회 수강권`:'수강권 연결','neutral',escape):''}`;}
   if(key==='N'&&lessonPlanSettings(row).explicit){const plan=lessonPlanSettings(row);return `<strong>${plan.lessonMinutes/60}시간</strong><small>${plan.breakMinutes?`휴식 ${plan.breakMinutes/60}시간 · 총 ${(plan.lessonMinutes+plan.breakMinutes)/60}시간`:'휴식 없이 연속'}</small>`;}
   if(key==='H'){const d=directoryDisplayNames(row,context);if(d.customerName)return escape(d.customerName);}
+  if(key==='L'){const live=directoryRecipientOf(row,context);if(live)return escape(contactDisplay(live)||live);}
   // 특이사항(G)은 표에서 바로 수정·저장(2026-11-24). 강사·관리자 전용 — 고객·알림톡 비노출.
   if(key==='G')return `<textarea class="bk-note-edit" data-bk-note="${escape(row.id)}" data-bk-note-original="${escape(value||'')}" data-bk-note-stamp="${escape(row.updatedAt||row.updated_at||'')}" rows="2" maxlength="2000" placeholder="특이사항 입력" aria-label="특이사항 (강사·관리자 전용)">${escape(value||'')}</textarea>`;
   if(key==='O')return `<span class="bk-long-cell">${escape(value||'—')}</span>`;

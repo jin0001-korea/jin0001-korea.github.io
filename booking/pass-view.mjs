@@ -43,7 +43,7 @@ export function selectPassBalances(context={}){
       // 디렉터리 연결 수강권은 최신 고객·팀 이름을 표시·검색에 쓴다(발급 스냅샷은 폴백, 2026-11-20).
       customerName:(()=>{const linkedCustomer=list(context.customers).find(row=>row?.id===(pass.customer_id??pass.customerId));return text(linkedCustomer?.name)||text(first(pass,'customer_name','customerName'));})(),
       learnerName:(()=>{const linkedTeam=list(context.customerTeams).find(row=>row?.id===(pass.customer_team_id??pass.customerTeamId));const teamName=linkedTeam?text(linkedTeam.name):'';return teamName||text(first(pass,'learner_name','learnerName'));})(),
-      phone:text(pass.phone),company:text(pass.company),sport:text(pass.sport),fixedInstructorId,
+      phone:(()=>{const linkedCustomer=list(context.customers).find(row=>row?.id===(pass.customer_id??pass.customerId)&&!row?.deleted_at);const live=linkedCustomer&&Array.isArray(linkedCustomer.contacts)&&linkedCustomer.contacts[0]?text(linkedCustomer.contacts[0].phone):'';return live||text(pass.phone);})(),company:text(pass.company),sport:text(pass.sport),fixedInstructorId,
       lessonMinutes:integer(first(pass,'lesson_minutes','lessonMinutes')),updatedAt:text(first(pass,'updated_at','updatedAt')),
       instructorName:fixedInstructorId?(person?.display_name||'담당 계정 확인 필요'):'강사 미정',
       status:pass.status||'active',overbooked:total!==null&&scheduled>total};
