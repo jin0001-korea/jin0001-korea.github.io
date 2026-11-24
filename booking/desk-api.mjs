@@ -496,8 +496,12 @@ export async function saveCapabilities(value) {
   const locations = [...new Set((Array.isArray(value.locations) ? value.locations : []).map(item => String(item).trim()).filter(Boolean))];
   if (sports.some(sport => !['스키', '보드'].includes(sport))) throw issue('가능 종목을 확인해 주세요.', 'INPUT_REQUIRED');
   if (value.verified && (!sports.length || !locations.length)) throw issue('가능 종목과 지점을 확인한 뒤 확인 완료로 저장해 주세요.', 'INPUT_REQUIRED');
+  // 강사 속성(2026-11-25): 성별·레벨·영어가능 — 예약 선호(여자/레벨2/영어) 매칭용.
+  const gender = ['여','남'].includes(value.gender) ? value.gender : null;
+  const instructor_level = [1,2,3].includes(Number(value.instructorLevel)) ? Number(value.instructorLevel) : null;
   return writeRecord('slope_instructor_capabilities', { instructor_user_id: value.instructorUserId }, {
     is_experienced: value.isExperienced === true, verified: value.verified === true, sports, locations,
+    gender, instructor_level, english_capable: value.englishCapable === true,
   });
 }
 
