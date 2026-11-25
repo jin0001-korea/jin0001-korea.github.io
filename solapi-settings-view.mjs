@@ -3,6 +3,7 @@ const rows = value => Array.isArray(value) ? value : [];
 const KINDS = [
   {id:'payment_adjustment', title:'입금 요청 정정·추가입금 안내', description:'등록한 정정 총액·기입금액·추가 미수와 사유를 안내합니다. 승인 템플릿 설정 전에는 발송 대기로 보관합니다.'},
   {id:'lesson_reminder', title:'곤지암 강습 전날 안내', description:'곤지암 강습 전날 오후 6시부터 강사·집결 장소·렌탈·픽업 안내를 한 번 발송합니다.'},
+  {id:'balance_due', title:'미수금 안내 (강습 2주 전)', description:'강습 시작 14일 전 오전 10시부터 미수금이 있는 예약에 금액과 카카오채널 결제 문의 방법을 한 번 안내합니다. 발송 시점에 미수가 해소되면 보내지 않습니다.'},
   {id:'reservation', title:'예약 접수 안내', description:'접수한 강습 일정과 예약 확인 링크를 안내합니다.'},
   {id:'pass', title:'수강권 등록 안내', description:'보유 횟수와 수강권 상태 확인 링크를 안내합니다.'},
   {id:'schedule_result', title:'일정 요청 처리 결과', description:'예약 변경·수강권 일정 신청의 승인 또는 반려 결과와 확인 링크를 안내합니다.'},
@@ -83,7 +84,7 @@ function templatesSection(state) {
 }
 
 
-const blockedLabels = {payment_adjustment_invalid:'입금 요청 정정 금액·사유 확인 필요',provider_not_connected:'솔라피 계정 연결 필요',channel_missing:'업체 발신 채널 설정 필요',delivery_disabled:'자동 발송 꺼짐',manually_paused:'자동 발송 일시 중지',credentials_changed:'연동 키 변경 · 자동 발송 재시작 필요',operator_inactive:'자동 발송 담당 관리자 확인 필요',reminder_invalid:'전날 안내 정보 확인 필요',student_count_missing:'강습 인원 확인 필요',source_link_unavailable:'고객 확인 링크 만료·해제',request_superseded:'신청 정보 변경·일정 경과',request_result_invalid:'일정 요청 결과 확인 필요',link_unavailable:'고객 확인 링크 생성 실패',invalid_date:'요청 일정 확인 필요',center_missing:'강습센터 미등록',center_changed:'강습센터 변경',missing_recipient:'전화번호 미등록',recipient_changed:'연락처 변경',customer_changed:'고객 정보 변경',instructor_missing:'담당 강사 미배정',template_missing:'템플릿 미설정',template_not_approved:'템플릿 승인 필요',provider_unavailable:'솔라피 연결 확인 필요',booking_changed:'예약 내용 변경',configuration_changed:'연동 설정 변경',report_link_invalid:'보고서 링크 확인 필요',message_too_long:'안내문 길이 확인 필요'};
+const blockedLabels = {payment_adjustment_invalid:'입금 요청 정정 금액·사유 확인 필요',provider_not_connected:'솔라피 계정 연결 필요',channel_missing:'업체 발신 채널 설정 필요',delivery_disabled:'자동 발송 꺼짐',manually_paused:'자동 발송 일시 중지',credentials_changed:'연동 키 변경 · 자동 발송 재시작 필요',operator_inactive:'자동 발송 담당 관리자 확인 필요',reminder_invalid:'전날 안내 정보 확인 필요',balance_invalid:'미수금 안내 정보 확인 필요',student_count_missing:'강습 인원 확인 필요',source_link_unavailable:'고객 확인 링크 만료·해제',request_superseded:'신청 정보 변경·일정 경과',request_result_invalid:'일정 요청 결과 확인 필요',link_unavailable:'고객 확인 링크 생성 실패',invalid_date:'요청 일정 확인 필요',center_missing:'강습센터 미등록',center_changed:'강습센터 변경',missing_recipient:'전화번호 미등록',recipient_changed:'연락처 변경',customer_changed:'고객 정보 변경',instructor_missing:'담당 강사 미배정',template_missing:'템플릿 미설정',template_not_approved:'템플릿 승인 필요',provider_unavailable:'솔라피 연결 확인 필요',booking_changed:'예약 내용 변경',configuration_changed:'연동 설정 변경',report_link_invalid:'보고서 링크 확인 필요',message_too_long:'안내문 길이 확인 필요'};
 const deliveryState = state => state.delivery?.workerReady === true ? (state.delivery.deliveryEnabled ? '자동 발송 켜짐' : '자동 발송 꺼짐') : state.loading ? '발송 상태 확인 중' : '발송 상태 확인 필요';
 function deliverySection(state) {
   const delivery = state.delivery,ready = delivery?.workerReady === true,enabled = ready && delivery?.deliveryEnabled === true,canEnable = ready && delivery?.canEnable === true;
