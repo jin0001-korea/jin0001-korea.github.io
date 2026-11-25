@@ -557,12 +557,21 @@ export function parsePassCarry(pass={}){
   const amountOf=value=>{const match=/([0-9][0-9,]*)\s*원/.exec(value);return match?Number(match[1].replace(/,/g,'')):null;};
   const minutes=[120,240].includes(Number(pass.lessonMinutes??pass.lesson_minutes))?Number(pass.lessonMinutes??pass.lesson_minutes):null;
   const ratio=/^1:(\d{1,2})$/.exec(String(pass.lessonRatio??pass.lesson_ratio??'').trim());
-  const fee=amountOf(take('회당 강습료:'));
+  // 2026-11-27 수정(박윤하 건): 메모 텍스트('회당 강습료:' 줄) 파싱은 형식이 조금만 달라도 실패해
+  // 회차가 T=0·Y=0으로 만들어지고 장비만 복사돼 '미수' 허상이 생겼다. 발급 때 구조화 저장되는
+  // pass.booking(raw.T·rental 필드)을 1순위로 쓰고, 메모 파싱은 레거시 폴백으로만 유지한다.
+  const bk=pass.booking&&typeof pass.booking==='object'?pass.booking:{};
+  const bkRaw=bk.raw&&typeof bk.raw==='object'?bk.raw:{};
+  const bkFee=(()=>{const v=Number(String(bkRaw.T??'').replace(/,/g,''));return Number.isInteger(v)&&v>0?v:null;})();
+  const fee=bkFee??amountOf(take('회당 강습료:'));
+  const bkStatus=['paid','free','onsite_unpaid'].includes(bk.rentalPaymentStatus)?bk.rentalPaymentStatus:null;
   const rentalLine=take('장비:');
-  const rentalStatus=rentalLine.includes('결제완료')?'paid':rentalLine.includes('무료')?'free':rentalLine.includes('미결제')?'onsite_unpaid':null;
+  const rentalStatus=bkStatus??(rentalLine.includes('결제완료')?'paid':rentalLine.includes('무료')?'free':rentalLine.includes('미결제')?'onsite_unpaid':null);
   const rentalHours=/([46])\s*시간/.exec(rentalLine);
+  const hours=bkStatus?([4,6].includes(Number(bk.rentalHours))?Number(bk.rentalHours):null):(rentalHours?Number(rentalHours[1]):null);
+  const amount=rentalStatus==='free'?0:bkStatus?(Number.isInteger(bk.rentalAmount)?bk.rentalAmount:null):amountOf(rentalLine);
   return {minutes,students:ratio?Number(ratio[1]):null,fee,
-    rental:rentalStatus?{status:rentalStatus,hours:rentalHours?Number(rentalHours[1]):null,amount:rentalStatus==='free'?0:amountOf(rentalLine)}:null};
+    rental:rentalStatus?{status:rentalStatus,hours,amount}:null};
 }
 export function applyPassCarryDraft(draft,pass){
   if(!pass)return draft;
@@ -576,7 +585,10 @@ export function applyPassCarryDraft(draft,pass){
     next.rentalCustomAmount=carry.rental.status!=='free'&&Number.isInteger(carry.rental.amount)&&carry.rental.amount!==defaultRate;
   }
   // 수강권은 구매 시 수납 완료 — 이 회차 받은 금액을 자동으로 채워 미수 0으로 시작한다.
-  if(carry.fee!==null)next.raw={...next.raw,Y:String(carry.fee+(carry.rental?.status==='paid'&&Number.isInteger(carry.rental.amount)?carry.rental.amount:0))};
+  // 2026-11-27: 강습료 파싱이 비어도 장비(결제완료)만 복사되면 그 금액만큼 미수 허상이 생기므로,
+  // 받은 금액은 강습료+결제완료 장비의 합으로 채운다(합이 0이면 건드리지 않음).
+  const carryPaid=(carry.fee??0)+(carry.rental?.status==='paid'&&Number.isInteger(carry.rental.amount)?carry.rental.amount:0);
+  if(carryPaid>0)next.raw={...next.raw,Y:String(carryPaid)};
   return next;
 }
 function renderPassIssueModal(settings,context,escape){
