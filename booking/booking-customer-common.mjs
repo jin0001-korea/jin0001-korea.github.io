@@ -1,7 +1,7 @@
 // Explicit in-memory intake groups. A matching name or telephone never links cards.
-import {canonicalTelephone} from './customer-teams.mjs?v=27';
+import {canonicalTelephone} from './customer-teams.mjs?v=28';
 import {preserveActiveDraft} from './team-drafts.mjs?v=36';
-import {bookingLocation} from './booking-rules.mjs?v=35';
+import {bookingLocation} from './booking-rules.mjs?v=36';
 
 const clone=value=>value===undefined?undefined:JSON.parse(JSON.stringify(value));
 const text=value=>String(value??'');

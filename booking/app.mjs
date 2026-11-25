@@ -1,27 +1,27 @@
-import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=101';
-import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=85';
-import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=27';
-import {renderSmsInbox,renderFormInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=28';
+import {renderPaymentReview,bindPaymentReview,hasPaymentReviewWork,hasPaymentReviewInFlight,suspendPaymentReview,clearPaymentReview,adoptPaymentReviewSave} from './payment-review-view.mjs?v=102';
+import {createPaymentBookingDrafts,createPaymentPassDraft,paymentReviewBookingType} from './payment-review-booking.mjs?v=86';
+import {renderCallInbox,bindCallInbox,hasUnsavedCallDraft,matchingCallCustomers} from './call-inbox-view.mjs?v=28';
+import {renderSmsInbox,renderFormInbox,bindSmsInbox,refreshSmsThread,refreshSmsSyncStatuses,rememberSmsReadPosition,hasSmsFilterDraft,clearSmsMediaViews} from './sms-inbox-view.mjs?v=29';
 import {renderKakaoInbox,bindKakaoInbox} from './kakao-inbox-view.mjs?v=1';
 import {hasSmsHistoryWork,isSmsHistoryOpen,clearSmsHistory} from './sms-history-view.mjs?v=12';
 import {buildCallTaskerProject,CALL_INGEST_ENDPOINT} from './call-tasker-setup.mjs?v=16';
-import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=27';
+import {canonicalTelephone,formatTelephone} from './customer-teams.mjs?v=28';
 import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=120';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=121';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
-import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
-import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
-import {buildAssignmentPlan} from './assignment-plan.mjs?v=28';
-import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=27';
-import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=28';
-import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=55';
-import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=43';
+import {recoverSavedBooking} from './booking-save-recovery.mjs?v=81';
+import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=36';
+import {buildAssignmentPlan} from './assignment-plan.mjs?v=29';
+import {renderAssignmentPlan,bindAssignmentPlan,assignmentSaveMessage} from './assignment-view.mjs?v=28';
+import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=29';
+import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=56';
+import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=44';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
-import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=37';
-import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=35';
+import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=38';
+import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=36';
 import {canUseBooking,bookingRoleLabel,isUnifiedBookingLocation,bookingStaffLinks,bookingAdminNavigation} from './booking-access.mjs?v=27';
 import {renderReviewsAdmin,bindReviewsAdmin,clearReviewsAdmin,reviewsAdminState} from './reviews-admin-view.mjs?v=1';
 
@@ -77,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=103').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=104').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}

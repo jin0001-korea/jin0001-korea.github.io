@@ -1,5 +1,5 @@
 import {participantAgeDetails,participantValidationError} from './booking-participants.mjs?v=34';
-import {knownCompanyLocation} from './company-options.mjs?v=31';
+import {knownCompanyLocation} from './company-options.mjs?v=32';
 /** Reservation and assignment rules shared by the workbench and its preview.
  * The server independently validates every saved assignment. This module never
  * grants permission or treats a candidate suggestion as a confirmed booking.

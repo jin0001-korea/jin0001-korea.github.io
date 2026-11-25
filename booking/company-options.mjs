@@ -4,7 +4,9 @@ export const BOOKING_COMPANIES=Object.freeze([
   '곤지암 라이즌',
   '곤지암 코코넛렌탈샵',
   '지산 라이즌스키',
-  '지산 비발디스키',
+  // 2026-11-26 사장 정정: 비발디는 '지산 비발디스키'(오기)가 아니라 별도 지점 — 라이즌·캐치 각각.
+  '비발디 라이즌스키',
+  '비발디 캐치스키',
 ]);
 const key=value=>String(value??'').normalize('NFKC').replace(/\s+/gu,'');
 const aliases=new Map([
@@ -12,7 +14,9 @@ const aliases=new Map([
  ...['라이즌곤지암','곤지암라이즌','라이즌스키곤지암','곤지암라이즌스키'].map(value=>[value,BOOKING_COMPANIES[1]]),
  ...['코코넛렌탈샵곤지암','곤지암코코넛렌탈샵'].map(value=>[value,BOOKING_COMPANIES[2]]),
  ...['라이즌지산','지산라이즌','라이즌스키지산','지산라이즌스키'].map(value=>[value,BOOKING_COMPANIES[3]]),
- ...['비발디스키지산','지산비발디스키'].map(value=>[value,BOOKING_COMPANIES[4]]),
+ // 구표기('지산 비발디스키' 계열)로 저장된 과거 값도 새 라벨로 정규화된다.
+ ...['비발디스키지산','지산비발디스키','지산비발디','비발디지산','라이즌비발디','비발디라이즌','라이즌스키비발디','비발디라이즌스키'].map(value=>[value,BOOKING_COMPANIES[4]]),
+ ...['캐치비발디','비발디캐치','캐치스키비발디','비발디캐치스키'].map(value=>[value,BOOKING_COMPANIES[5]]),
 ]);
 export function normalizeBookingCompany(value){return aliases.get(key(value))||String(value??'').trim();}
 export function bookingCompanyOptions(legacy=[]){

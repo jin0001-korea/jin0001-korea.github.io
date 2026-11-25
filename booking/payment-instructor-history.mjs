@@ -1,5 +1,5 @@
-import {canonicalTelephone,normalizeCustomerText} from './customer-teams.mjs?v=27';
-import {parseKstDate,parseLessonInterval} from './booking-rules.mjs?v=35';
+import {canonicalTelephone,normalizeCustomerText} from './customer-teams.mjs?v=28';
+import {parseKstDate,parseLessonInterval} from './booking-rules.mjs?v=36';
 
 // Read-only preference proposals. No identity link, assignment, availability
 // override, reservation write or notification is produced by this helper.
