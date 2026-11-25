@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=117';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=118';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=80';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=35';
@@ -835,7 +835,7 @@ function editPassInline(id){
   const booking=source&&source.booking&&typeof source.booking==='object'&&!Array.isArray(source.booking)?source.booking:null;
   if(booking){
     if(booking.raw)draft.raw={...draft.raw,...booking.raw};
-    for(const key of ['lessonMinutes','breakMinutes','age','ageBand','experienceCount','parallelLongTurn','snowboardNoviceTurn','location','participants','cashReceiptRequested','cashReceiptNumberMode','cashReceiptNumber','cashReceiptNumberSet','rentalPaymentStatus','rentalHours','rentalAmount','rentalCustomAmount','juniorPreparation','teamPhoneMode','customerContactPhone'])
+    for(const key of ['lessonMinutes','breakMinutes','age','ageBand','experienceCount','parallelLongTurn','snowboardNoviceTurn','location','participants','cashReceiptRequested','cashReceiptNumberMode','cashReceiptNumber','cashReceiptNumberSet','cashReceiptExtraRequest','rentalPaymentStatus','rentalHours','rentalAmount','rentalCustomAmount','juniorPreparation','teamPhoneMode','customerContactPhone'])
       if(booking[key]!==undefined)draft[key]=booking[key];
   }else if(source){draft=applyPassCarryDraft(draft,source);}
   // 열(column) 권위값으로 동결 필드·식별자를 다시 덮는다(booking.raw 복사본 위에).

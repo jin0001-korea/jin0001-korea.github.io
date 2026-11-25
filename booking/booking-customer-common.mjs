@@ -37,6 +37,8 @@ function sharedValues(source,target){
   next.cashReceiptNumber=source.cashReceiptRequested===true&&next.cashReceiptNumberMode==='manual'?text(source.cashReceiptNumber):'';
   // A server-only masked issuance number is never usable for a new team's request.
   next.cashReceiptNumberSet=false;
+  // 영수증발급 추가요청(2026-11-25): 요청을 끈 팀에는 남기지 않는다.
+  next.cashReceiptExtraRequest=source.cashReceiptRequested===true?text(source.cashReceiptExtraRequest):'';
   if(source.customerDraft){
     next.customerDraft=contactDraft(source.customerDraft,source);
     next.customerDraft.id=customerId(next)||next.customerDraft.id;

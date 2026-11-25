@@ -1,5 +1,5 @@
 import {BOOKING_START_TIMES,isBookingStartTime} from './booking-time-options.mjs?v=1';
-import {linkCommonCustomerDraft,syncCommonCustomerDrafts} from './booking-customer-common.mjs?v=38';
+import {linkCommonCustomerDraft,syncCommonCustomerDrafts} from './booking-customer-common.mjs?v=39';
 import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=31';
 import {normalizeParticipants,resizeParticipants,participantValidationError,participantSummary} from './booking-participants.mjs?v=34';
 import {rentalDetails,rentalDefaultAmount,rentalStatusLabel} from './rental-fields.mjs?v=32';
@@ -95,6 +95,8 @@ export function normalizeBookingRow(row={},state={}) {
     cashReceiptRequested:typeof aliased(row,'cashReceiptRequested','cash_receipt_requested')==='boolean'?aliased(row,'cashReceiptRequested','cash_receipt_requested'):null,
     cashReceiptNumberMode:aliased(row,'cashReceiptNumberMode','cash_receipt_number_mode')==='manual'?'manual':'team_phone',
     cashReceiptNumber:typeof row.cashReceiptNumber==='string'?row.cashReceiptNumber:'',cashReceiptNumberSet:aliased(row,'cashReceiptNumberSet','cash_receipt_number_set')===true,
+    // 영수증발급 추가요청(2026-11-25): 발급번호가 2개 이상일 때의 발급 담당자 지시문.
+    cashReceiptExtraRequest:typeof row.cashReceiptExtraRequest==='string'?row.cashReceiptExtraRequest:aliased(row,'cashReceiptExtraRequest','cash_receipt_extra_request')||'',
     age:row.age??null,ageBand:aliased(row,'ageBand','age_band')||null,juniorPreparation:aliased(row,'juniorPreparation','junior_preparation')===true,
     customerContactPhone:aliased(row,'customerContactPhone','customer_contact_phone')??(aliased(row,'teamPhoneMode','team_phone_mode')==='separate'?'':raw.L),teamPhoneMode:aliased(row,'teamPhoneMode','team_phone_mode')==='separate'?'separate':'same',experienceCount:aliased(row,'experienceCount','experience_count')??null,
     parallelLongTurn:booleanAnswer(aliased(row,'parallelLongTurn','parallel_long_turn')),
@@ -702,7 +704,7 @@ function renderCashReceiptFields(draft,escape){
   const transferSource=paymentSourceValue==='계좌이체',nonTransferSource=!!paymentSourceValue&&!transferSource;
   const requested=!nonTransferSource&&draft.cashReceiptRequested===true,manual=draft.cashReceiptNumberMode==='manual';
   const receiptValue=nonTransferSource?'false':(typeof draft.cashReceiptRequested==='boolean'?String(draft.cashReceiptRequested):'');
-  return `<div class="bk-receipt-fields"><h4>현금영수증</h4>${selectField('cashReceiptRequested',nonTransferSource?'현금영수증 요청 (계좌이체만 해당)':'현금영수증 요청',receiptValue,[['','선택해 주세요'],['true','예'],['false','아니오']],escape,nonTransferSource?'disabled':'')}<div data-bk-receipt-details ${requested?'':'hidden'}>${selectField('cashReceiptNumberMode','발급번호',manual?'manual':'team_phone',[['team_phone','팀 연락처와 동일'],['manual','직접 입력']],escape,requested?'':'disabled')}<p class="bk-field-note" data-bk-receipt-phone ${manual?'hidden':''}>팀 연락처 ${escape(contactDisplay(draft.raw.L)||'미입력')}로 요청합니다.</p><label class="field" data-bk-receipt-manual ${manual?'':'hidden'}><span class="field-label">현금영수증 발급번호 <b>*</b></span><input name="cashReceiptNumber" type="text" inputmode="numeric" maxlength="30" autocomplete="off" value="${escape(draft.cashReceiptNumber||'')}" placeholder="${draft.cashReceiptNumberSet?'기존 발급번호 등록됨 · 관리자만 확인':'전화번호·사업자번호·카드번호 직접 입력'}" ${requested&&manual?draft.cashReceiptNumberSet?'':'required':'disabled'}><span class="bk-field-note">숫자 8~20자리${draft.cashReceiptNumberSet?' · 비워두면 기존 번호를 유지합니다.':''}</span></label></div></div>`;
+  return `<div class="bk-receipt-fields"><h4>현금영수증</h4>${selectField('cashReceiptRequested',nonTransferSource?'현금영수증 요청 (계좌이체만 해당)':'현금영수증 요청',receiptValue,[['','선택해 주세요'],['true','예'],['false','아니오']],escape,nonTransferSource?'disabled':'')}<div data-bk-receipt-details ${requested?'':'hidden'}>${selectField('cashReceiptNumberMode','발급번호',manual?'manual':'team_phone',[['team_phone','팀 연락처와 동일'],['manual','직접 입력']],escape,requested?'':'disabled')}<p class="bk-field-note" data-bk-receipt-phone ${manual?'hidden':''}>팀 연락처 ${escape(contactDisplay(draft.raw.L)||'미입력')}로 요청합니다.</p><label class="field" data-bk-receipt-manual ${manual?'':'hidden'}><span class="field-label">현금영수증 발급번호 <b>*</b></span><input name="cashReceiptNumber" type="text" inputmode="numeric" maxlength="30" autocomplete="off" value="${escape(draft.cashReceiptNumber||'')}" placeholder="${draft.cashReceiptNumberSet?'기존 발급번호 등록됨 · 관리자만 확인':'전화번호·사업자번호·카드번호 직접 입력'}" ${requested&&manual?draft.cashReceiptNumberSet?'':'required':'disabled'}><span class="bk-field-note">숫자 8~20자리${draft.cashReceiptNumberSet?' · 비워두면 기존 번호를 유지합니다.':''}</span></label><label class="field" data-bk-receipt-extra><span class="field-label">영수증발급 추가요청</span><textarea name="cashReceiptExtraRequest" rows="2" maxlength="1000" placeholder="발급번호가 2개 이상이면 여기에 적어 주세요. 예) 이아린 010-3786-0183 / 편예림 010-6249-0479 반반 분할 발급" ${requested?'':'disabled'}>${escape(draft.cashReceiptExtraRequest||'')}</textarea><span class="bk-field-note">현금영수증 관리탭의 발급 담당자에게 그대로 전달됩니다. 특이사항(G)이 아니라 이 칸에 적어 주세요.</span></label></div></div>`;
 }
 function refreshCashReceiptFields(form,draft){
   // 명시적 비계좌이체 결제소스만 현금영수증 자동 '아니오' + 잠금 (미확인은 그대로).
@@ -714,6 +716,7 @@ function refreshCashReceiptFields(form,draft){
   const requested=!nonTransfer&&draft.cashReceiptRequested===true,manual=draft.cashReceiptNumberMode==='manual';
   const details=form.querySelector('[data-bk-receipt-details]'),number=form.elements.namedItem('cashReceiptNumber'),mode=form.elements.namedItem('cashReceiptNumberMode'),manualBlock=form.querySelector('[data-bk-receipt-manual]'),phone=form.querySelector('[data-bk-receipt-phone]');
   if(details)details.hidden=!requested;if(mode)mode.disabled=!requested;if(manualBlock)manualBlock.hidden=!manual;if(number){number.disabled=!requested||!manual;number.required=requested&&manual&&!draft.cashReceiptNumberSet;}if(phone){phone.hidden=manual;phone.textContent=`팀 연락처 ${contactDisplay(draft.raw.L)||'미입력'}로 요청합니다.`;}
+  const extra=form.elements.namedItem('cashReceiptExtraRequest');if(extra)extra.disabled=!requested;
 }
 
 function refreshLearnerFields(form,draft){
@@ -1077,21 +1080,24 @@ function updateRentalFields(form) {
   const custom=form.elements.namedItem('rentalCustomAmount');
   if(!status||!hours||!amount||!custom)return;
   const active=!!status.value,free=status.value==='free';
+  // 미결제(onsite_unpaid): 당일 코코넛렌탈샵 실사용으로 확정하므로 금액 입력 자체를 막는다
+  // (2026-11-25 사장 지시). 추정 금액을 적으면 받아야 할 금액에 합산돼 허위 미수가 생긴다.
+  const onsite=status.value==='onsite_unpaid';
   // 운영 기본(2026-11-16, N8): 결제완료는 4시간권 금액만 받는다 — 비어 있으면 4시간을 기본 선택.
   if(status.value==='paid'&&!hours.value)hours.value='4';
   if(!active){hours.value='';amount.value='';custom.checked=false;}
   else if(free){amount.value='0';custom.checked=false;}
+  else if(onsite){amount.value='';custom.checked=false;}
   else if(!custom.checked){
     // 장비렌탈은 1인 단가 × 강습인원수 (예: 4시간 13,000원 × 2명 = 26,000원)
     const per=rentalDefaultAmount(hours.value);
     amount.value=per===null?'':String(per*rentalStudentCount(form));
   }
-  // 미결제(onsite_unpaid)는 이용시간 미정일 수 있어 필수 아님 —
-  // 당일 코코넛렌탈샵 실제 이용금액으로 확정한다. 금액은 참고 추정치.
+  // 미결제(onsite_unpaid)는 이용시간도 미정일 수 있어 필수 아님.
   const paidStatus=status.value==='paid';
   hours.disabled=!active;hours.required=paidStatus;
-  custom.disabled=!active||free;
-  amount.disabled=!active;amount.readOnly=!active||free||!custom.checked;amount.required=paidStatus;
+  custom.disabled=!active||free||onsite;
+  amount.disabled=!active||onsite;amount.readOnly=!active||free||onsite||!custom.checked;amount.required=paidStatus;
 }
 
 function candidateResult(draft,context) {
@@ -1116,7 +1122,7 @@ function renderInstructorBoard(draft,context,escape) {
 }
 
 const changeFields=[['customerId','연결 고객'],['customerTeamId','연결 팀'],['lessonMinutes','강습 시간 설정'],['breakMinutes','중간 휴식'],
-  ['participants','참가자별 성인·미성년·나이'],['cashReceiptRequested','현금영수증 요청'],['cashReceiptNumberMode','현금영수증 번호 설정'],['cashReceiptNumber','현금영수증 발급번호 변경'],['age','나이'],['ageBand','성인 연령대'],['juniorPreparation','주니어 기술등급제 준비'],['customerContactPhone','고객 연락처'],['teamPhoneMode','팀 연락처 설정'],['experienceCount','이전 강습 경험'],['parallelLongTurn','패러렐 롱턴'],['snowboardNoviceTurn','S자 너비스턴'],
+  ['participants','참가자별 성인·미성년·나이'],['cashReceiptRequested','현금영수증 요청'],['cashReceiptNumberMode','현금영수증 번호 설정'],['cashReceiptNumber','현금영수증 발급번호 변경'],['cashReceiptExtraRequest','영수증발급 추가요청'],['age','나이'],['ageBand','성인 연령대'],['juniorPreparation','주니어 기술등급제 준비'],['customerContactPhone','고객 연락처'],['teamPhoneMode','팀 연락처 설정'],['experienceCount','이전 강습 경험'],['parallelLongTurn','패러렐 롱턴'],['snowboardNoviceTurn','S자 너비스턴'],
   ['kind','예약 구분'],['isReorder','리오더'],['designated','특정 강사 지정'],['preferredInstructorId','지정 강사'],
   ['seasonId','시즌 강습 묶음'],['seasonTotal','구매 총회차'],['sessionNumber','이번 회차'],['lessonPassId','연결 수강권'],
   ['instructorIds','담당 강사'],['rentalPaymentStatus','장비렌탈 결제상태'],['rentalHours','장비렌탈 이용시간'],['rentalAmount','장비렌탈 금액']
@@ -1390,9 +1396,10 @@ export function buildQuickAmountChange(row,context,{lessonFee,paidAmount,rentalP
     const hours=[4,6].includes(Number(rentalHours))?Number(rentalHours):null;
     draft.rentalHours=status?hours:null;
     const per=rentalDefaultAmount(draft.rentalHours),count=Math.max(1,numeric(draft.raw.M)||1);
-    draft.rentalAmount=status==='free'?0:status&&per!==null?per*count:null;
+    // 미결제는 금액 없음이 원칙(2026-11-25) — 기본요금 추정도 넣지 않는다.
+    draft.rentalAmount=status==='free'?0:status==='onsite_unpaid'?null:status&&per!==null?per*count:null;
     // 그룹 수정(2026-11-17): 직접 입력한 렌탈 금액은 기본요금 대신 그대로 보존한다.
-    if(rentalAmount!==undefined&&rentalAmount!==null&&Number.isSafeInteger(Number(rentalAmount))&&status!=='free'){
+    if(rentalAmount!==undefined&&rentalAmount!==null&&Number.isSafeInteger(Number(rentalAmount))&&status!=='free'&&status!=='onsite_unpaid'){
       draft.rentalAmount=Number(rentalAmount);
       draft.rentalCustomAmount=Number(rentalAmount)!==(per!==null?per*count:null);
     }
@@ -1459,7 +1466,8 @@ function draftFromForm(form,draft) {
   if(data.has('cashReceiptRequested')){next.cashReceiptRequested=data.get('cashReceiptRequested')==='true'?true:data.get('cashReceiptRequested')==='false'?false:null;}
   if(data.has('cashReceiptNumberMode'))next.cashReceiptNumberMode=data.get('cashReceiptNumberMode')==='manual'?'manual':'team_phone';
   if(data.has('cashReceiptNumber'))next.cashReceiptNumber=String(data.get('cashReceiptNumber')||'');
-  if(next.cashReceiptRequested!==true){next.cashReceiptNumber='';next.cashReceiptNumberMode='team_phone';}
+  if(data.has('cashReceiptExtraRequest'))next.cashReceiptExtraRequest=String(data.get('cashReceiptExtraRequest')||'').slice(0,1000);
+  if(next.cashReceiptRequested!==true){next.cashReceiptNumber='';next.cashReceiptNumberMode='team_phone';next.cashReceiptExtraRequest='';}
   if(data.has('ageBand'))next.ageBand=String(data.get('ageBand')||'')||null;
   if(next.ageBand)next.age=null;else if(data.has('age'))next.age=numeric(data.get('age'));
   const junior=form.elements.namedItem('juniorPreparation');if(junior&&!junior.disabled)next.juniorPreparation=junior.checked===true;
@@ -1473,6 +1481,8 @@ function draftFromForm(form,draft) {
   if(data.has('rentalPaymentStatus'))next.rentalCustomAmount=data.has('rentalCustomAmount');
   if(next.rentalPaymentStatus===null){next.rentalHours=null;next.rentalAmount=null;next.rentalCustomAmount=false;}
   else if(next.rentalPaymentStatus==='free'){next.rentalAmount=0;next.rentalCustomAmount=false;}
+  // 미결제는 금액 원천 차단(2026-11-25) — 폼에 남아 있던 값도 버린다.
+  else if(next.rentalPaymentStatus==='onsite_unpaid'){next.rentalAmount=null;next.rentalCustomAmount=false;}
   const correction=correctionFromForm(form,next);if(correction)next.paymentRequestCorrection=correction;else delete next.paymentRequestCorrection;
   try{next.raw=applyFinancialV3(next);}catch{/* Keep invalid entered values available for correction. */}
 
@@ -1512,6 +1522,7 @@ function draftFromForm(form,draft) {
       if(data.has(prefix+'rentalPaymentStatus'))financial.rentalCustomAmount=data.has(prefix+'rentalCustomAmount');
       if(financial.rentalPaymentStatus===null){financial.rentalHours=null;financial.rentalAmount=null;financial.rentalCustomAmount=false;}
       if(financial.rentalPaymentStatus==='free'){financial.rentalAmount=0;financial.rentalCustomAmount=false;}
+      if(financial.rentalPaymentStatus==='onsite_unpaid'){financial.rentalAmount=null;financial.rentalCustomAmount=false;}
       if(form.elements.namedItem(`${prefix}paymentCorrectionEnabled`))financial.paymentRequestCorrection=correctionFromForm(form,row.financial,prefix)||null;
       if(Object.keys(financial.raw).length||Object.keys(financial).length>1)changes.financial=financial;
       for(const key of ['lessonMinutes','breakMinutes'])if(data.has(`date_${row.id}_${key}`))changes[key]=numeric(data.get(`date_${row.id}_${key}`));
@@ -1528,7 +1539,7 @@ function draftFromForm(form,draft) {
 function newDraft(context,now) {
   const raw={};for(const column of RAW_COLUMNS)raw[column.key]='';
   Object.assign(raw,{A:day(now),B:'09:00',C:'11:00',D:'스키',E:'',J:'1회',M:'1',N:'2시간'});
-  return ensureBookingDates(prepareCustomerIdentity(normalizeBookingRow({raw,participants:[{type:'',age:null}],cashReceiptRequested:null,cashReceiptNumberMode:'team_phone',cashReceiptNumber:'',lessonMinutes:120,breakMinutes:0,age:null,ageBand:null,juniorPreparation:false,customerContactPhone:'',teamPhoneMode:'same',experience_count:null,parallel_long_turn:null,snowboard_novice_turn:null,lessonPassId:null,rentalPaymentStatus:null,rentalHours:null,rentalAmount:null,financialVersion:FINANCIAL_VERSION,kind:'single',designated:false,status:'received'})));
+  return ensureBookingDates(prepareCustomerIdentity(normalizeBookingRow({raw,participants:[{type:'',age:null}],cashReceiptRequested:null,cashReceiptNumberMode:'team_phone',cashReceiptNumber:'',cashReceiptExtraRequest:'',lessonMinutes:120,breakMinutes:0,age:null,ageBand:null,juniorPreparation:false,customerContactPhone:'',teamPhoneMode:'same',experience_count:null,parallel_long_turn:null,snowboard_novice_turn:null,lessonPassId:null,rentalPaymentStatus:null,rentalHours:null,rentalAmount:null,financialVersion:FINANCIAL_VERSION,kind:'single',designated:false,status:'received'})));
 }
 
 function validationError(draft,context) {
@@ -1572,11 +1583,12 @@ function validationError(draft,context) {
     if(![4,6].includes(draft.rentalHours))return '장비렌탈 이용시간을 4시간 또는 6시간으로 선택해 주세요.';
     if(!Number.isSafeInteger(draft.rentalAmount)||draft.rentalAmount<0)return '장비렌탈 금액을 0원 이상의 정수로 입력해 주세요.';
   }
-  // 2026-11-15 운영 결정: 미결제는 시간·금액 미정 그대로 저장 — 당일 코코넛렌탈샵
-  // 실사용 시간·금액으로 확정한다. 적어 두는 값이 있으면 형식만 검증한다.
+  // 2026-11-15 운영 결정: 미결제는 시간 미정 그대로 저장 — 당일 코코넛렌탈샵 실사용으로 확정.
+  // 2026-11-25 사장 지시: 미결제는 금액 입력 자체를 원천 차단한다. 추정 금액이라도 적어 두면
+  // 받아야 할 금액(X)에 합산돼 있지도 않은 미수가 생긴다(임수현 1/22~24 실사고).
   if(draft.rentalPaymentStatus==='onsite_unpaid'){
     if(draft.rentalHours!==null&&draft.rentalHours!==undefined&&![4,6].includes(draft.rentalHours))return '장비렌탈 이용시간은 4시간·6시간만 선택할 수 있습니다. 미정이면 비워 두세요.';
-    if(draft.rentalAmount!==null&&draft.rentalAmount!==undefined&&(!Number.isSafeInteger(draft.rentalAmount)||draft.rentalAmount<0))return '장비렌탈 금액을 0원 이상의 정수로 입력하거나 비워 두세요.';
+    if(draft.rentalAmount!==null&&draft.rentalAmount!==undefined)return '미결제(당일 코코넛 실사용 확인)는 장비 금액을 입력할 수 없습니다. 금액은 비워 두세요.';
   }
 
   if(draft.paymentNeedsBreakConfirmation&&draft.lessonMinutes===240)return '4시간 강습의 중간 휴식을 확인해 주세요.';
@@ -1984,7 +1996,7 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
       }
       if(event.target.name==='raw_M'){preserveDraft();refreshParticipantFields(form,settings.draft,escape);const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
       if(/^participant_\d+_age$/.test(event.target.name||'')){preserveDraft();const target=form.querySelector('[data-bk-requirement]');if(target)target.innerHTML=renderRequirement(settings.draft,context,escape);return;}
-      if(event.target.name==='cashReceiptNumber'){preserveDraft();return;}
+      if(['cashReceiptNumber','cashReceiptExtraRequest'].includes(event.target.name)){preserveDraft();return;}
       invalidateCandidates();
       if(['raw_T','raw_U','raw_Y','rentalAmount','paymentCorrectionAmount'].includes(event.target.name)){updateFinancialFields(form);updateGrandTotal(form,settings.teamDeck,context,settings.draft);preserveDraft();}
       if(['raw_H','raw_L','raw_I','teamPhone','contactKakaoMode'].includes(event.target.name)){

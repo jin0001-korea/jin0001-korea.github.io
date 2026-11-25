@@ -1,5 +1,5 @@
 import {loadCashReceipts,issueCashReceipt} from './cash-receipt-client.mjs?v=33';
-import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue} from './cash-receipt-view.mjs?v=33';
+import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue} from './cash-receipt-view.mjs?v=34';
 import {loadAdminGuide} from './admin-guide-client.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import { getWarnings, reportDeadline, parseScheduleCSV } from './rules.mjs';
