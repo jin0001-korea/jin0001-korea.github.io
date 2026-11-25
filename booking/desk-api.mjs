@@ -91,7 +91,7 @@ export async function fetchDesk() {
   const profile = await requireBookingOperator();
   const scopedContext=profile.role==='counselor'?await rpc('slope_booking_workspace_context',{}):null;
   if(profile.role==='counselor'&&(!scopedContext||!Array.isArray(scopedContext.roster)))throw issue('예약 운영 기준을 불러오지 못했습니다. 다시 로그인해 주세요.','BOOKING_CONTEXT_UNAVAILABLE');
-  const [roster, scheduleRows, assignments, reservations, seasonPackages, capabilities, timeOffRequests, settingsRows,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,noticeResult,passStatuses,changeRequests,sheetsResult] = await Promise.all([
+  const [roster, scheduleRows, assignments, reservations, seasonPackages, capabilities, timeOffRequests, settingsRows,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,noticeResult,instructorNoticeResult,passStatuses,changeRequests,sheetsResult] = await Promise.all([
     scopedContext?Promise.resolve(scopedContext.roster||[]):readAll('slope_members', 'user_id,display_name,email,role,active,must_change_password,created_at,freelancer,phone', q => q.order('created_at').order('user_id')),
     readAll('slope_schedules', 'id,instructor_name,instructor_user_id,customer_name,start_at,end_at,lesson_minutes,break_minutes,level,location,updated_at,cancelled_at', q => q.order('start_at').order('id')),
     readAll('slope_schedule_instructors', 'schedule_id,instructor_user_id', q => q.order('schedule_id').order('instructor_user_id')),
@@ -106,6 +106,7 @@ export async function fetchDesk() {
     readAll('slope_customer_teams','*',q=>q.order('customer_id').order('name').order('id')),
     readAll('slope_customer_people','*',q=>q.order('customer_id').order('name').order('id')).catch(()=>[]),
     rpc('slope_customer_notice_queue',{p_limit:100}),
+    rpc('slope_instructor_notice_queue',{p_limit:100}).catch(()=>({notices:[]})),
     rpc('slope_customer_pass_statuses',{}),
     profile.role==='admin'?readCustomerRequestQueues('pending').catch(error=>({requests:[],error:error.message})):Promise.resolve({requests:[]}),
     rpc('slope_sheets_sync_status',{}).then(status=>({status,error:''})).catch(()=>({status:null,error:'시트 기록 상태를 불러오지 못했습니다.'})),
@@ -139,7 +140,7 @@ export async function fetchDesk() {
   }));
   const plans = new Map(schedules.map(row => [row.id, {lessonMinutes: row.lessonMinutes, breakMinutes: row.breakMinutes}]));
   return {
-    profile, roster, schedules, paymentReservations: reservations.map(row => ({...row, ...plans.get(row.id)})), reservations: activeReservations.map(row => ({...row, ...plans.get(row.id)})), seasonPackages, capabilities, timeOffRequests,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,customerNotices:selectActiveCustomerNotices(noticeResult?.notices||[],{reservations:activeReservations,schedules}),passStatuses:Array.isArray(passStatuses)?passStatuses:[],customerChangeRequests:changeRequests.requests.filter(row=>!row.reservationId||activeReservationIds.has(row.reservationId)),customerChangeRequestsError:changeRequests.error||'',
+    profile, roster, schedules, paymentReservations: reservations.map(row => ({...row, ...plans.get(row.id)})), reservations: activeReservations.map(row => ({...row, ...plans.get(row.id)})), seasonPackages, capabilities, timeOffRequests,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,customerNotices:selectActiveCustomerNotices(noticeResult?.notices||[],{reservations:activeReservations,schedules}),instructorNotices:Array.isArray(instructorNoticeResult?.notices)?instructorNoticeResult.notices:[],passStatuses:Array.isArray(passStatuses)?passStatuses:[],customerChangeRequests:changeRequests.requests.filter(row=>!row.reservationId||activeReservationIds.has(row.reservationId)),customerChangeRequestsError:changeRequests.error||'',
     settings: { ...DEFAULT_SETTINGS, ...(settingsRows[0]?.data || {}) },
     settingsUpdatedAt: settingsRows[0]?.updated_at || null, bookingUnavailable: null,
     sheetsSync:sheetsResult.status,sheetsSyncError:sheetsResult.error,
