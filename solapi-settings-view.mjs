@@ -3,6 +3,7 @@ const rows = value => Array.isArray(value) ? value : [];
 const KINDS = [
   {id:'payment_adjustment', title:'입금 요청 정정·추가입금 안내', description:'등록한 정정 총액·기입금액·추가 미수와 사유를 안내합니다. 승인 템플릿 설정 전에는 발송 대기로 보관합니다.'},
   {id:'lesson_reminder', title:'곤지암 강습 전날 안내', description:'곤지암 강습 전날 오후 6시부터 강사·집결 장소·렌탈·픽업 안내를 한 번 발송합니다.'},
+  {id:'instructor_assignment', title:'프리랜서 강사 배정 안내', description:'프리랜서 강사가 강습에 배정되면 강사 본인에게 일정확인 링크를 알림톡으로 보냅니다. 발신은 코코넛렌탈샵 채널을 사용합니다.'},
   {id:'balance_due', title:'미수금 안내 (강습 2주 전)', description:'강습 시작 14일 전 오전 10시부터 미수금이 있는 예약에 금액과 카카오채널 결제 문의 방법을 한 번 안내합니다. 발송 시점에 미수가 해소되면 보내지 않습니다.'},
   {id:'reservation', title:'예약 접수 안내', description:'접수한 강습 일정과 예약 확인 링크를 안내합니다.'},
   {id:'pass', title:'수강권 등록 안내', description:'보유 횟수와 수강권 상태 확인 링크를 안내합니다.'},
