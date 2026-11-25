@@ -153,7 +153,8 @@ export async function fetchWorkspace(defaultSettings = {}, options = {}) {
 
   const [roster, scheduleRows, reports, proofs, responses, reviews, settingsRows, assignments, scores, alerts, notifications, metrics, reservationChanges] = await Promise.all([
     readAll(TABLES.members, '*', query => query.order('created_at').order('user_id')),
-    readAll(TABLES.schedules, '*', query => query.order('start_at').order('id')),
+    // phone 컬럼은 2026-11-27부터 select 권한이 없다(개인정보 당일 제한) — 번호는 전용 RPC로만.
+    readAll(TABLES.schedules, 'id,instructor_name,instructor_user_id,customer_name,start_at,end_at,level,location,created_at,updated_at,lesson_minutes,break_minutes,cancelled_at', query => query.order('start_at').order('id')),
     readAll(TABLES.reports, '*', query => query.order('schedule_id')),
     readAll(TABLES.proofs, '*', query => query.order('schedule_id').order('kind')),
     readAll(TABLES.responses, '*', query => query.order('schedule_id').order('warning_id')),
@@ -183,7 +184,7 @@ export async function fetchWorkspace(defaultSettings = {}, options = {}) {
   const paymentScope=new Set(paymentIds);
   const schedules = scheduleRows.map(row => ({
     id: row.id, updatedAt:row.updated_at, cancelledAt:row.cancelled_at||null, status:cancelledSchedule(row)?'cancelled':'active', instructor: currentScheduleInstructorName(row,assignments,roster), instructorUserId: row.instructor_user_id, instructorUserIds:[...new Set([row.instructor_user_id,...assignments.filter(a=>a.schedule_id===row.id).map(a=>a.instructor_user_id)].filter(Boolean))],
-    customer: row.customer_name, phone: phoneResult.facts.get(row.id) ?? (row.phone || ''), start: row.start_at, end: row.end_at,
+    customer: row.customer_name, phone: phoneResult.facts.get(row.id) ?? '', start: row.start_at, end: row.end_at,
     level: row.level || '', location: row.location || '', checkIn: null, checkOut: null,
     report: null, responses: {}, reviews: {}, sample: false,
     rental:rentalResult.error?{available:false}:rentalResult.facts.get(row.id)||{paymentStatus:'unknown',bookedHours:null,useHours:null,available:true},

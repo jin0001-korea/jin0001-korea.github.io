@@ -93,7 +93,7 @@ export async function fetchDesk() {
   if(profile.role==='counselor'&&(!scopedContext||!Array.isArray(scopedContext.roster)))throw issue('예약 운영 기준을 불러오지 못했습니다. 다시 로그인해 주세요.','BOOKING_CONTEXT_UNAVAILABLE');
   const [roster, scheduleRows, assignments, reservations, seasonPackages, capabilities, timeOffRequests, settingsRows,lessonPasses,reservationChanges,customers,customerTeams,customerPeople,noticeResult,passStatuses,changeRequests,sheetsResult] = await Promise.all([
     scopedContext?Promise.resolve(scopedContext.roster||[]):readAll('slope_members', 'user_id,display_name,email,role,active,must_change_password,created_at,freelancer,phone', q => q.order('created_at').order('user_id')),
-    readAll('slope_schedules', 'id,instructor_name,instructor_user_id,customer_name,phone,start_at,end_at,lesson_minutes,break_minutes,level,location,updated_at,cancelled_at', q => q.order('start_at').order('id')),
+    readAll('slope_schedules', 'id,instructor_name,instructor_user_id,customer_name,start_at,end_at,lesson_minutes,break_minutes,level,location,updated_at,cancelled_at', q => q.order('start_at').order('id')),
     readAll('slope_schedule_instructors', 'schedule_id,instructor_user_id', q => q.order('schedule_id').order('instructor_user_id')),
     readAll('slope_reservations', '*', q => q.order('created_at', { ascending: false }).order('id')),
     readAll('slope_season_packages', '*', q => q.order('created_at', { ascending: false }).order('id')),
@@ -110,6 +110,17 @@ export async function fetchDesk() {
     profile.role==='admin'?readCustomerRequestQueues('pending').catch(error=>({requests:[],error:error.message})):Promise.resolve({requests:[]}),
     rpc('slope_sheets_sync_status',{}).then(status=>({status,error:''})).catch(()=>({status:null,error:'시트 기록 상태를 불러오지 못했습니다.'})),
   ]);
+  // phone 컬럼 select 권한 회수(2026-11-27) — 관리자·상담사는 전화 RPC(디렉토리 우선 해석)로 전 기간 번호를 받는다.
+  const phoneFacts = new Map();
+  {
+    const ids = scheduleRows.filter(r => !r.cancelled_at).map(r => r.id);
+    for (let i = 0; i < ids.length; i += 500) {
+      try {
+        const rows = await rpc('slope_schedule_customer_phones', { p_schedule_ids: ids.slice(i, i + 500) });
+        for (const row of rows || []) phoneFacts.set(row.schedule_id, row.phone || '');
+      } catch { /* 번호 미해석 시 빈값 — 화면은 '미등록'으로 표시 */ }
+    }
+  }
   const bySchedule = new Map();
   for (const row of assignments) {
     const ids = bySchedule.get(row.schedule_id) || [];
@@ -122,7 +133,7 @@ export async function fetchDesk() {
   const schedules = scheduleRows.filter(row=>!row.cancelled_at&&!archivedIds.has(row.id)).map(row => ({
     id: row.id, instructor: row.instructor_name, instructorUserId: row.instructor_user_id,
     instructorUserIds: [...new Set([row.instructor_user_id, ...(bySchedule.get(row.id) || [])].filter(Boolean))],
-    customer: row.customer_name, phone: row.phone || '', start: row.start_at, end: row.end_at,
+    customer: row.customer_name, phone: phoneFacts.get(row.id) || '', start: row.start_at, end: row.end_at,
     lessonMinutes: row.lesson_minutes ?? null, breakMinutes: row.break_minutes ?? 0,
     level: row.level || '', location: row.location || '', updatedAt: row.updated_at,
   }));
