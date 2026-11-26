@@ -14,6 +14,8 @@ const COMPANIES = [
   {company:'캐치', publicUrl:'https://pf.kakao.com/_aiQuG'},
   {company:'라이즌', publicUrl:'https://pf.kakao.com/_JxabMG'},
   {company:'코코넛렌탈샵', publicUrl:'https://pf.kakao.com/_mkzYn'},
+  {company:'비발디캐치', publicUrl:'https://pf.kakao.com/_aiQuG'},
+  {company:'비발디라이즌', publicUrl:'https://pf.kakao.com/_JxabMG'},
 ];
 const safeExternal = (value, host) => {
   try { const url = new URL(value); return url.protocol === 'https:' && url.hostname === host && !url.username && !url.password ? url.href : ''; }
