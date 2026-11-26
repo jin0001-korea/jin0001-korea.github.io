@@ -10,7 +10,7 @@ import {selectActiveCustomerNotices} from './customer-notice-filter.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import {renderCustomerChanges,bindCustomerChanges,canReviewCustomerChanges,customerRequestKey} from './customer-change-view.mjs?v=23';
 import {bindRentalBridgePanels} from './rental-bridge-view.mjs?v=31';
-import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=123';
+import {renderBookingPage,bindBookingPage,getBookingContext,createBookingDraft,renderBookingEditor,normalizeBookingRow,selectBookingRows,openBookingDraft,suspendBookingDrafts,applyReservationCancellation,buildQuickAmountChange,preparePaymentDirectCommit,applyPassCarryDraft} from './booking-view.mjs?v=124';
 import {hasUnsavedTeamDrafts} from './team-drafts.mjs?v=36';
 import {recoverSavedBooking} from './booking-save-recovery.mjs?v=82';
 import {ASSIGNMENT_REASON_LABELS,parseKstDate,parseLessonInterval,lessonIntervalsOverlap,applyLessonPlan,parseLessonTime} from './booking-rules.mjs?v=36';
@@ -251,7 +251,7 @@ function render(){
       mustBeOperator();
       if(ui.booking.demo)throw new Error('운영 예약표에서 사용해 주세요.');
       const labelOf=id=>{const row=(state.reservations||[]).find(r=>r.id===id);return row?`${String(row.raw?.H||row.raw?.I||id).trim()} · ${row.raw?.A||'날짜 미정'}`:String(id);};
-      const translate=m=>{const s=String(m||'');if(/INPUT_REVIEW/.test(s))return '강사 조건 확인 필요(종목·자격·시간겹침 등) — 예약을 열어 확인하세요.';if(/40001|처리하고|lock/i.test(s))return '다른 기기에서 처리 중 — 다시 시도해 주세요.';if(/종료된/.test(s))return '이미 종료된 강습입니다.';return s||'배정하지 못했습니다.';};
+      const translate=m=>{const s=String(m||'');if(/OVERLAP/.test(s))return '이 시간에 같은 강사가 이미 배정돼 있습니다(시간 겹침) — 다른 강사를 선택해 주세요.';if(/INPUT_REVIEW/.test(s))return '강사 조건 확인 필요(종목·자격·시간겹침 등) — 예약을 열어 확인하세요.';if(/40001|처리하고|lock/i.test(s))return '다른 기기에서 처리 중 — 다시 시도해 주세요.';if(/종료된/.test(s))return '이미 종료된 강습입니다.';return s||'배정하지 못했습니다.';};
       const result=await writeOperation(()=>api.bulkAssignInstructor(ids,instructorId),`선택 ${ids.length}건 강사 일괄 배정`);
       if(result?.discarded)return result;
       const failedIds=Array.isArray(result?.failedIds)?result.failedIds:[];

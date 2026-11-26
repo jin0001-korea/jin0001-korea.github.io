@@ -1871,7 +1871,10 @@ export function bindBookingPage(root,{state={},ui={},onChange,onChangeSoon,onSav
     const boxes=[...view.querySelectorAll('[data-bk-bulk-row]')],all=view.querySelector('[data-bk-bulk-all]');
     if(all)all.checked=boxes.length>0&&boxes.every(box=>box.checked);
   };
-  const rememberBulk=ids=>{settings.bulkIds=ids;if(ui.booking)ui.booking.bulkIds=ids;syncBulkToolbar();};
+  // 선택이 바뀌면 직전 실행 결과를 지운다(2026-11-27: '선택 2건'인데 지난 5건 결과가 남아 혼란 주던 문제).
+  const rememberBulk=ids=>{settings.bulkIds=ids;if(ui.booking)ui.booking.bulkIds=ids;
+    if(settings.bulkResult||settings.bulkAssignResult){settings.bulkResult=null;settings.bulkAssignResult=null;if(ui.booking){ui.booking.bulkResult=null;ui.booking.bulkAssignResult=null;}if(settings.bulkOpen)update({});}
+    syncBulkToolbar();};
   view.querySelectorAll('[data-bk-bulk-row]').forEach(box=>box.addEventListener('change',()=>{
     const ids=new Set(settings.bulkIds||[]);
     if(box.checked)ids.add(box.dataset.bkBulkRow);else ids.delete(box.dataset.bkBulkRow);
