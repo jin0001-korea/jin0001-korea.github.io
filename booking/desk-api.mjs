@@ -513,7 +513,7 @@ export async function saveCapabilities(value) {
   const instructor_level = [1,2,3].includes(Number(value.instructorLevel)) ? Number(value.instructorLevel) : null;
   return writeRecord('slope_instructor_capabilities', { instructor_user_id: value.instructorUserId }, {
     is_experienced: value.isExperienced === true, verified: value.verified === true, sports, locations,
-    gender, instructor_level, english_capable: value.englishCapable === true,
+    gender, instructor_level, english_capable: value.englishCapable === true, allow_overlap: value.allowOverlap === true,
   });
 }
 
