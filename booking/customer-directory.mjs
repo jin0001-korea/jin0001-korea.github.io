@@ -26,10 +26,14 @@ export function customerContactChoices(customer={},teams=[]){
     if(!result.some(item=>item.phone===phone))result.push({phone,label:text(contact.label)||'고객 연락처',source:'customer',teamId:null,formatted:formatTelephone(phone)});
   }
   for(const team of list(teams)){
-    const phone=canonicalTelephone(team.phone);if(!phone)continue;
-    const existing=result.find(item=>item.phone===phone);
-    if(existing){existing.teamIds=[...(existing.teamIds||[]),team.id];continue;}
-    result.push({phone,label:`${text(team.name)||'기본 1팀'} 연락처`,source:'team',teamId:team.id,teamIds:[team.id],formatted:formatTelephone(phone)});
+    // 2026-11-26 팀 단위 연락처: contacts 배열이 있으면 전부 선택지로 올린다(phone은 contacts[0] 미러).
+    const phones=list(team.contacts).map(contact=>({phone:canonicalTelephone(contact?.phone),label:text(contact?.label)})).filter(item=>item.phone);
+    if(!phones.length){const phone=canonicalTelephone(team.phone);if(phone)phones.push({phone,label:''});}
+    for(const item of phones){
+      const existing=result.find(entry=>entry.phone===item.phone);
+      if(existing){existing.teamIds=[...(existing.teamIds||[]),team.id];continue;}
+      result.push({phone:item.phone,label:item.label||`${text(team.name)||'기본 1팀'} 연락처`,source:'team',teamId:team.id,teamIds:[team.id],formatted:formatTelephone(item.phone)});
+    }
   }
   return result;
 }
@@ -106,7 +110,7 @@ export function customerDirectorySelection(customerId,teamId,context={},options=
 }
 
 export function createCustomerDirectoryDraft(){return {id:globalThis.crypto.randomUUID(),name:'',contacts:[{label:'대표 연락처',phone:''}],notes:'',expectedUpdatedAt:null};}
-export function createCustomerTeamDraft(customerId){return {id:globalThis.crypto.randomUUID(),customerId,name:'',phone:'',teamPhoneMode:'same',defaults:{sport:'스키',raw:{D:'스키',M:'1',N:'2시간'},participants:[{type:'',age:null}],age:null,ageBand:null,juniorPreparation:false,experienceCount:null,parallelLongTurn:null,snowboardNoviceTurn:null},expectedUpdatedAt:null};}
+export function createCustomerTeamDraft(customerId){return {id:globalThis.crypto.randomUUID(),customerId,name:'',phone:'',teamPhoneMode:'same',contacts:[],defaults:{sport:'스키',raw:{D:'스키',M:'1',N:'2시간'},participants:[{type:'',age:null}],age:null,ageBand:null,juniorPreparation:false,experienceCount:null,parallelLongTurn:null,snowboardNoviceTurn:null},expectedUpdatedAt:null};}
 
 export function validateCustomerDirectoryDraft(draft={}){
   if(!text(draft.name)||text(draft.name).length>120)return '고객명을 1~120자로 입력해 주세요.';
@@ -130,8 +134,18 @@ export function validateCustomerTeamDraft(draft={}){
   if(!draft.customerId)return '팀을 등록할 고객을 먼저 선택해 주세요.';
   if(text(draft.name).length>120)return '팀 이름은 120자 이내로 입력해 주세요.';
   if(draft.teamPhoneMode!==undefined&&!['same','separate'].includes(draft.teamPhoneMode))return '팀 연락처 사용 방식을 확인해 주세요.';
-  if(draft.teamPhoneMode==='separate'&&!text(draft.phone))return '팀의 별도 연락처를 입력해 주세요.';
+  if(draft.teamPhoneMode==='separate'&&!text(draft.phone)&&!list(draft.contacts).some(contact=>text(contact?.phone)))return '팀의 별도 연락처를 입력해 주세요.';
   if(draft.teamPhoneMode!=='same'&&text(draft.phone)&&!canonicalTelephone(draft.phone))return '팀 전화번호 형식을 확인해 주세요.';
+  if(draft.contacts!==undefined){
+    if(!Array.isArray(draft.contacts)||draft.contacts.length>10)return '팀 연락처는 최대 10개까지 등록할 수 있습니다.';
+    const phones=new Set();
+    for(const contact of draft.contacts){
+      if(text(contact?.label).length>80)return '팀 연락처 구분은 80자 이내로 입력해 주세요.';
+      if(!text(contact?.phone))continue;
+      const phone=canonicalTelephone(contact.phone);if(!phone)return '팀 전화번호 형식을 확인해 주세요. 예: 010-1234-5678';
+      if(phones.has(phone))return '같은 팀 안에 동일한 전화번호가 두 번 있습니다.';phones.add(phone);
+    }
+  }
   const defaults=draft.defaults||{};
   if(Array.isArray(defaults.participants)){const error=participantValidationError(defaults.participants,defaults.raw?.M??defaults.participants.length);if(error)return error;}
   if(defaults.sport&&!['스키','보드'].includes(defaults.sport))return '강습 종목을 확인해 주세요.';
@@ -147,5 +161,8 @@ export function customerTeamPayload(draft={}){
   defaults.ageBand=CUSTOMER_AGE_BANDS.includes(defaults.ageBand)?defaults.ageBand:null;
   if(defaults.ageBand)defaults.age=null;
   defaults.juniorPreparation=defaults.juniorPreparation===true;
-  return {id:draft.id,customerId:draft.customerId,name:text(draft.name),phone:draft.teamPhoneMode==='same'?'':canonicalTelephone(draft.phone)||'',defaults,...(draft.expectedUpdatedAt?{expectedUpdatedAt:draft.expectedUpdatedAt}:{})};
+  // 2026-11-26 팀 단위 연락처: contacts를 동봉하면 서버가 phone=contacts[0] 미러를 유지한다.
+  // contacts 키가 draft에 없으면 payload에서도 생략 — 서버가 기존 팀 연락처를 보존한다(부분 수정 보호).
+  const contacts=draft.contacts===undefined?undefined:list(draft.contacts).filter(contact=>text(contact.phone)).map(contact=>({label:text(contact.label),phone:canonicalTelephone(contact.phone)}));
+  return {id:draft.id,customerId:draft.customerId,name:text(draft.name),phone:(contacts&&contacts[0]?.phone)||(draft.teamPhoneMode==='same'?'':canonicalTelephone(draft.phone)||''),defaults,...(contacts!==undefined?{contacts}:{}),...(draft.expectedUpdatedAt?{expectedUpdatedAt:draft.expectedUpdatedAt}:{})};
 }

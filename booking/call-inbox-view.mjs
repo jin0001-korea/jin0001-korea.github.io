@@ -37,8 +37,8 @@ export function hasUnsavedCallDraft(ui={}){
 }
 export function matchingCallCustomers(phone,customers=[],customerTeams=[]){
   const normalized=canonicalTelephone(phone);if(!normalized)return [];
-  // 팀 별도 연락처(teamPhoneMode=separate)로 걸려온 전화도 그 고객에게 연결한다(2026-11-20).
-  const teamPhoneCustomerIds=new Set(list(customerTeams).filter(team=>canonicalTelephone(team?.phone)===normalized).map(team=>team?.customer_id??team?.customerId).filter(Boolean));
+  // 팀 연락처(대표 phone + contacts 배열)로 걸려온 전화도 그 고객에게 연결한다(2026-11-26 팀 단위 연락처).
+  const teamPhoneCustomerIds=new Set(list(customerTeams).filter(team=>canonicalTelephone(team?.phone)===normalized||list(team?.contacts).some(contact=>canonicalTelephone(contact?.phone)===normalized)).map(team=>team?.customer_id??team?.customerId).filter(Boolean));
   const seen=new Set();
   return list(customers).filter(customer=>{
     if(!customer?.id||isDeletedCustomer(customer)||seen.has(customer.id))return false;
