@@ -1,5 +1,5 @@
-import {loadCashReceipts,issueCashReceipt} from './cash-receipt-client.mjs?v=33';
-import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue} from './cash-receipt-view.mjs?v=34';
+import {loadCashReceipts,issueCashReceipt} from './cash-receipt-client.mjs?v=34';
+import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue,renderCashReceiptBulkIssue} from './cash-receipt-view.mjs?v=35';
 import {loadAdminGuide} from './admin-guide-client.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import { getWarnings, reportDeadline, parseScheduleCSV } from './rules.mjs';
@@ -44,7 +44,7 @@ const today = kstDate();
 const defaultSettings = {lateMinutes:10,minDuration:110,photoMinimum:12,videoMinimum:2,similarityThreshold:.8,timeRuleMode:'either',sheetUrl:'',smsTemplate:'[SLOPE] {고객명}님, 오늘의 강습 사진·영상과 보고서가 등록되었습니다.\n{링크}'};
 let state={profile:null,roster:[],schedules:[],reservationChangeNotifications:[],settings:{...defaultSettings},outbox:[]};
 let ui={role:'instructor',instructor:'',page:'dashboard',date:today,filter:'all',query:'',alertFilter:'pending',reportFilter:'all',detailTab:'proof',overview:{}};
-let cashReceiptFilter='pending',cashReceiptQuery='';
+let cashReceiptFilter='pending',cashReceiptQuery='';const cashReceiptSelection=new Set();
 let adminGuide={userId:null,html:'',error:'',loading:false,request:0};
 const app=$('#app'); const modal=$('#modal'); let activeLessonId=null;let loadingWorkspace=0;let loadingUserId=null;let passwordMode=false;
 let modalDirty=false;let mainDirty=false;let syncPromise=null;let lastSyncAt=0;let checksRunning=false;let pushBusy=false;
@@ -467,7 +467,7 @@ function exportCSV() {
 }
 function cashReceiptPage(){
   if(!canManageCashReceipts(state.profile))return '';
-  return head('현금영수증 관리','요청된 강습료와 발급번호를 확인하고, 실제 발급한 회차만 완료 처리하세요.')+renderCashReceipts({profile:state.profile,data:state.cashReceipts,error:state.cashReceiptsError,filter:cashReceiptFilter,query:cashReceiptQuery});
+  return head('현금영수증 관리','요청된 강습료와 발급번호를 확인하고, 실제 발급한 회차만 완료 처리하세요.')+renderCashReceipts({profile:state.profile,data:state.cashReceipts,error:state.cashReceiptsError,filter:cashReceiptFilter,query:cashReceiptQuery,selection:cashReceiptSelection});
 }
 function bindCashReceipts(){
   if(!canManageCashReceipts(state.profile))return;
@@ -475,6 +475,41 @@ function bindCashReceipts(){
   app.querySelectorAll('[data-cash-filter]').forEach(button=>button.onclick=()=>{cashReceiptFilter=button.dataset.cashFilter;render();});
   app.querySelector('[data-cash-query]')?.addEventListener('input',event=>{cashReceiptQuery=event.target.value;render();const input=app.querySelector('[data-cash-query]');input?.focus();});
   app.querySelectorAll('[data-cash-issue]').forEach(button=>button.onclick=()=>openCashReceiptIssue(button.dataset.cashIssue));
+  app.querySelectorAll('[data-cash-pick]').forEach(input=>input.onchange=()=>{const id=input.dataset.cashPick;if(input.checked)cashReceiptSelection.add(id);else cashReceiptSelection.delete(id);render();});
+  app.querySelector('[data-cash-pick-clear]')?.addEventListener('click',()=>{cashReceiptSelection.clear();render();});
+  app.querySelector('[data-cash-bulk]')?.addEventListener('click',openCashReceiptBulkIssue);
+}
+// 발급 기록 후 전체 재로딩 대신 현금영수증 목록만 다시 불러온다(2026-11-27: 완료 처리 체감 속도 개선).
+async function refreshCashReceipts(){
+  if(!canManageCashReceipts(state.profile))return;
+  try{state.cashReceipts=await loadCashReceipts(state.profile);state.cashReceiptsError='';}
+  catch(error){state.cashReceiptsError=error.message||'현금영수증 요청을 불러오지 못했습니다.';}
+  render();
+}
+function openCashReceiptBulkIssue(){
+  if(!canManageCashReceipts(state.profile))return;
+  const rows=(state.cashReceipts?.items||[]).filter(row=>cashReceiptSelection.has(row.reservationId)&&row.outstandingAmount>0);
+  if(!rows.length)return;
+  const userId=state.profile.user_id,epoch=authEpoch;
+  showDialog('현금영수증 일괄 발급 완료',renderCashReceiptBulkIssue(rows));
+  const form=modal.querySelector('#cash-receipt-bulk-form');
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();if(form.dataset.saving||!form.reportValidity()||!canManageCashReceipts(state.profile)||state.profile.user_id!==userId||epoch!==authEpoch)return;
+    const note=String(new FormData(form).get('note')||'');form.dataset.saving='true';
+    const buttons=[...form.querySelectorAll('button')];buttons.forEach(button=>button.disabled=true);
+    const resultNode=form.querySelector('[data-cash-bulk-result]');resultNode.hidden=false;
+    const failed=[];let ok=0;
+    for(const row of rows){
+      if(epoch!==authEpoch||state.profile?.user_id!==userId)return;
+      resultNode.textContent=`처리 중 ${ok+failed.length+1} / ${rows.length}…`;
+      try{await issueCashReceipt(state.profile,row,{requestId:crypto.randomUUID(),note});ok++;cashReceiptSelection.delete(row.reservationId);}
+      catch(error){failed.push(`${row.customerName||row.reservationId} · ${row.date} — ${error.message}`);}
+    }
+    delete form.dataset.saving;
+    if(!failed.length){modalDirty=false;modal.close();toast(`현금영수증 ${ok}건 발급 완료를 기록했습니다.`);}
+    else{resultNode.innerHTML=`<strong>성공 ${ok}건 · 실패 ${failed.length}건</strong><br>${failed.map(esc).join('<br>')}`;buttons.forEach(button=>button.disabled=false);}
+    refreshCashReceipts();
+  });
 }
 function openCashReceiptIssue(id){
   if(!canManageCashReceipts(state.profile))return;
@@ -489,7 +524,7 @@ function openCashReceiptIssue(id){
     try{
       await issueCashReceipt(state.profile,row,{requestId,note});
       if(epoch!==authEpoch||state.profile?.user_id!==userId||!canManageCashReceipts(state.profile))return;
-      modalDirty=false;modal.close();await refreshWorkspace();toast('현금영수증 발급 완료 금액을 기록했습니다.');
+      modalDirty=false;modal.close();toast('현금영수증 발급 완료 금액을 기록했습니다.');refreshCashReceipts();
     }catch(error){if(epoch!==authEpoch||state.profile?.user_id!==userId||!canManageCashReceipts(state.profile))return;errorNode.textContent=error.message;errorNode.hidden=false;}
     finally{delete form.dataset.saving;buttons.forEach(button=>button.disabled=false);}
   });
