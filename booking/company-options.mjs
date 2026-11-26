@@ -17,6 +17,9 @@ const aliases=new Map([
  // 구표기('지산 비발디스키' 계열)로 저장된 과거 값도 새 라벨로 정규화된다.
  ...['비발디스키지산','지산비발디스키','지산비발디','비발디지산','라이즌비발디','비발디라이즌','라이즌스키비발디','비발디라이즌스키'].map(value=>[value,BOOKING_COMPANIES[4]]),
  ...['캐치비발디','비발디캐치','캐치스키비발디','비발디캐치스키'].map(value=>[value,BOOKING_COMPANIES[5]]),
+ // 리조트 공식 명칭 '비발디파크' 표기 변형(2026-11-27 감사 보강). 단독 '비발디파크'는 브랜드 불명이라 미매핑 원칙 유지.
+ ...['비발디파크라이즌','비발디파크라이즌스키','라이즌비발디파크','라이즌스키비발디파크'].map(value=>[value,BOOKING_COMPANIES[4]]),
+ ...['비발디파크캐치','비발디파크캐치스키','캐치비발디파크','캐치스키비발디파크'].map(value=>[value,BOOKING_COMPANIES[5]]),
 ]);
 export function normalizeBookingCompany(value){return aliases.get(key(value))||String(value??'').trim();}
 export function bookingCompanyOptions(legacy=[]){

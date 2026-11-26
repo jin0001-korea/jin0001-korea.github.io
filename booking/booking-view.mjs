@@ -1,6 +1,6 @@
 import {BOOKING_START_TIMES,isBookingStartTime} from './booking-time-options.mjs?v=1';
 import {linkCommonCustomerDraft,syncCommonCustomerDrafts} from './booking-customer-common.mjs?v=40';
-import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=32';
+import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=33';
 import {normalizeParticipants,resizeParticipants,participantValidationError,participantSummary} from './booking-participants.mjs?v=34';
 import {rentalDetails,rentalDefaultAmount,rentalStatusLabel} from './rental-fields.mjs?v=32';
 import {renderRentalBridgePanel} from './rental-bridge-view.mjs?v=31';
@@ -12,7 +12,7 @@ import {createDraftDeck,ensureDraftDeck,preserveActiveDraft,addDraftCard,selectD
 import {searchCustomerCandidates,customerDirectorySelection,customerContactChoices,customerDirectoryTeams} from './customer-directory.mjs?v=37';
 import {automaticBookingSeason,ensureBookingDates,addBookingDates,updateBookingDate,removeBookingDate,applyCommonBookingDateValues,applyCommonBookingDateFinancials,bookingDateRows,buildBookingBatch,copyBookingDatesForTeam,evaluateBookingBatchCandidates} from './booking-dates.mjs?v=71';
 import { RAW_COLUMNS, parseKstDate, parseLessonTime, parseLessonInterval, expertRequirement, evaluateCandidates, sportSkill, bookingLocation, lessonPlanSettings, lessonPlanEndTime, lessonTimeLabel, applyLessonPlan, learnerAgeDetails } from './booking-rules.mjs?v=36';
-import {selectPassBalances} from './pass-view.mjs?v=57';
+import {selectPassBalances} from './pass-view.mjs?v=58';
 
 const fallbackEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const SOURCE_URL = 'https://docs.google.com/spreadsheets/d/1SdQoy71Dp2YUTlOYXMjP57gJ6D_fR7SdfWVDhCSk4N4/edit?gid=1274546051#gid=1274546051';
@@ -280,7 +280,7 @@ export function renderBookingEditor({state={},ui={},escapeHTML=fallbackEscape,no
 export function selectBookingRows(state={},filters={}) {
   return (state.reservations||[]).map(row=>normalizeBookingRow(row,state)).filter(row=>{
     if(filters.date&&parseKstDate(row.raw.A)!==filters.date)return false;
-    if(filters.company&&filters.company!=='all'&&normalizeBookingCompany(row.raw.E)!==filters.company)return false;
+    if(filters.company&&filters.company!=='all'&&normalizeBookingCompany(row.raw.E)!==normalizeBookingCompany(filters.company))return false;
     if(filters.sport&&filters.sport!=='all'&&row.raw.D!==filters.sport)return false;
     if(filters.kind==='reorder'&&!row.isReorder)return false;
     if(filters.kind&&filters.kind!=='all'&&filters.kind!=='reorder'&&row.kind!==filters.kind)return false;
@@ -290,7 +290,7 @@ export function selectBookingRows(state={},filters={}) {
     if(filters.query){
       // 디렉토리에서 바꾼 새 고객·팀 이름으로도 검색된다(표시와 검색 기준 일치, 2026-11-20).
       const directory=directoryDisplayNames(row,state);
-      const haystack=`${Object.values(row.raw).join(' ')} ${row.id} ${directory.customerName||''} ${directory.teamName||''}`;
+      const haystack=`${Object.values(row.raw).join(' ')} ${row.id} ${directory.customerName||''} ${directory.teamName||''} ${normalizeBookingCompany(row.raw.E)}`;
       if(!haystack.normalize('NFKC').toLowerCase().includes(filters.query.normalize('NFKC').toLowerCase()))return false;
     }
     return !isCancelled(row);

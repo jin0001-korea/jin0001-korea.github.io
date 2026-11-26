@@ -1,10 +1,10 @@
 import {reconcilePaymentReviewProgress} from './payment-review-progress.mjs?v=5';
 import {kakaoContactId,kakaoContactValue} from './kakao-contact.mjs?v=1';
 import {buildPaymentInstructorNotes} from './payment-instructor-notes.mjs?v=2';
-import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields,bookingRosterPeople,participantsFromPeople} from './booking-view.mjs?v=125';
+import {syncBookingReviewRentalFields,syncBookingReviewFinancialFields,bookingRosterPeople,participantsFromPeople} from './booking-view.mjs?v=126';
 import {hydratePaymentIntake,syncPaymentIntake,paymentIntakeTeams,paymentIntakeTotals,serializePaymentIntake,validatePaymentIntake,switchPaymentIntakeTeam,addPaymentIntakeTeam,removePaymentIntakeTeam,addPaymentIntakeSessions,removePaymentIntakeSession,copyPaymentIntakeSessionValues} from './payment-intake-state.mjs?v=8';
 import {preparePaymentIntake,renderPaymentIntake,capturePaymentIntakeSessions,scopedPaymentIntakeForm,syncPaymentIntakeTotals} from './payment-intake-view.mjs?v=84';
-import {BOOKING_COMPANIES} from './company-options.mjs?v=32';
+import {BOOKING_COMPANIES,normalizeBookingCompany} from './company-options.mjs?v=33';
 import {renderPaymentConversation} from './payment-conversation.mjs?v=2';
 import {renderPaymentPriceBreakdown} from './payment-price-breakdown.mjs?v=3';
 import {derivePaymentProposalPolicyFacts,normalizePaymentTypedProposalFact,defaultPaymentCashReceipt,defaultPaymentSeasonRegistration} from './payment-proposal-policy.mjs?v=5';
@@ -356,7 +356,8 @@ function normalizedProposalFact(fact,edit,candidate){
   else if(['cashReceiptRequested','juniorPreparation','parallelLongTurn','snowboardNoviceTurn','rentalCustomAmount'].includes(fact.field)){if(typeof value!=='boolean')return null;}
   else{
     if(typeof value!=='string'||!value.trim()||value.length>(['notes','experience'].includes(fact.field)?3000:120))return null;value=value.trim();
-    if(fact.field==='cashReceiptNumberMode'&&!['team_phone','manual'].includes(value)||fact.field==='cashReceiptNumber'&&!/^[0-9 -]{8,30}$/.test(value)||fact.field==='rentalPaymentStatus'&&!['free','paid','onsite_unpaid','unconfirmed'].includes(value)||fact.field==='lessonRatio'&&!/^\d{1,2}:\d{1,2}$/.test(value)||fact.field==='reservationKind'&&!['lesson','pass'].includes(value)||fact.field==='scheduleStatus'&&!['confirmed','undated'].includes(value)||fact.field==='company'&&!BOOKING_COMPANIES.includes(value)||fact.field==='sport'&&!['스키','보드'].includes(value)||fact.field==='date'&&!validBankDate(value)||fact.field==='startTime'&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))return null;
+    if(fact.field==='cashReceiptNumberMode'&&!['team_phone','manual'].includes(value)||fact.field==='cashReceiptNumber'&&!/^[0-9 -]{8,30}$/.test(value)||fact.field==='rentalPaymentStatus'&&!['free','paid','onsite_unpaid','unconfirmed'].includes(value)||fact.field==='lessonRatio'&&!/^\d{1,2}:\d{1,2}$/.test(value)||fact.field==='reservationKind'&&!['lesson','pass'].includes(value)||fact.field==='scheduleStatus'&&!['confirmed','undated'].includes(value)||fact.field==='company'&&!BOOKING_COMPANIES.includes(normalizeBookingCompany(value))||fact.field==='sport'&&!['스키','보드'].includes(value)||fact.field==='date'&&!validBankDate(value)||fact.field==='startTime'&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))return null;
+    if(fact.field==='company')value=normalizeBookingCompany(value); // 별칭·구표기를 표준 라벨로 치환(2026-11-27 감사수정)
   }
   return normalizePaymentTypedProposalFact({...fact,value,occurredAt:source?.occurredAt||null},{sourceText:source?.text});
 }

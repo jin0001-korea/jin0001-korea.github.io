@@ -1,4 +1,5 @@
 import {scheduleRentalSummary,scheduleRentalLabel,renderScheduleRental} from './schedule-rental.mjs?v=1';
+import {normalizeBookingCompany,bookingCompanyOptions} from './company-options.mjs?v=33';
 import {parseKstDate,parseLessonTime,lessonTimeLabel,parseLessonInterval,normalizeInstructorIds,bookingLocation} from './booking-rules.mjs?v=36';
 import {bookingTeamLabel} from './customer-teams.mjs?v=28';
 import {bookingFinancialSummary} from './booking-financial.mjs?v=12';
@@ -70,7 +71,7 @@ export function normalizeTimetableAppointments(state={}){
       lessonMinutes:interval.lessonMinutes??null,breakMinutes:interval.breakMinutes||0,
       lessonSegments:interval.lessonSegments||[{start:interval.start,end:interval.end}],busySegments:interval.busySegments||[{start:interval.start,end:interval.end}],breakSegment:interval.breakSegment||null,
       customer:clean(raw.H||raw.I)?bookingTeamLabel(reservation,state):clean(first(schedule,'customer','customer_name')||first(reservation,'customer','customer_name'))||'강습생 확인 필요',
-      company:clean(raw.E||reservation?.company||schedule?.company),location:clean(reservation?.location||schedule?.location||bookingLocation({raw})),sport:clean(raw.D||reservation?.sport||schedule?.sport),
+      company:normalizeBookingCompany(clean(raw.E||reservation?.company||schedule?.company)),location:clean(reservation?.location||schedule?.location||bookingLocation({raw})),sport:clean(raw.D||reservation?.sport||schedule?.sport),
       notes:[clean(raw.G||reservation?.notes||''),planNeedsReview?'강습 시간 설정 확인 필요':''].filter(Boolean).join(' · '),level:clean(raw.O||schedule?.level||''),people:asNumber(raw.M??reservation?.people),
       paymentCorrection:paymentCorrection(reservation),rental:scheduleRentalSummary(reservation||schedule||{}),kind,reorder,designated,seasonId,sessionNumber:first(reservation,'sessionNumber','session_number'),assignedIds,heldIds,preferredInstructorId:preferred};
   }).filter(Boolean);
@@ -119,7 +120,7 @@ export function buildTimetableModel(state={},filters={},options={}){
   const unknownPeople=appointments.filter(entry=>entry.people===null).length;
   return {...normalized,dayStart,dayEnd,startMinute,endMinute:1440,pixelsPerMinute:PIXELS_PER_MINUTE,height:(1440-startMinute)*PIXELS_PER_MINUTE,
     appointments,allAppointments,timeOffRequests:state.timeOffRequests||[],columns,unassigned:appointments.filter(entry=>!entry.assignedIds.length),
-    companies:unique(normalizeTimetableAppointments(state).map(entry=>entry.company)).sort((a,b)=>a.localeCompare(b,'ko')),
+    companies:bookingCompanyOptions(normalizeTimetableAppointments(state).map(entry=>entry.company)).sort((a,b)=>a.localeCompare(b,'ko')),
     selectedStartMinute:selectedStart,selectedEndMinute:selectedEnd,
     selectedDuration:selectedStart!==null&&selectedEnd!==null&&selectedEnd>selectedStart?selectedEnd-selectedStart:120,
     totalPeople:appointments.reduce((sum,entry)=>sum+(entry.people||0),0),unknownPeople};

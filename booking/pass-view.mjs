@@ -1,4 +1,4 @@
-import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=32';
+import {bookingCompanyOptions,normalizeBookingCompany} from './company-options.mjs?v=33';
 import {canonicalTelephone} from './customer-teams.mjs?v=28';
 
 const escapeFallback=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -158,7 +158,7 @@ export function renderPaymentPassIssue({state={},ui={},escapeHTML=escapeFallback
 export function renderPasses({state={},ui={},escapeHTML=escapeFallback,icon=()=>'',now=new Date()}={}){
   const settings=configuration(ui),escape=escapeHTML,preview=ui.booking?.demo!==false;
   const all=selectPassBalances(state),query=text(settings.query).normalize('NFKC').toLowerCase();
-  const rows=all.filter(pass=>(settings.sport==='all'||pass.sport===settings.sport)&&(!query||`${pass.customerName} ${pass.learnerName} ${pass.phone} ${pass.company} ${pass.notes||''}`.normalize('NFKC').toLowerCase().includes(query)));
+  const rows=all.filter(pass=>(settings.sport==='all'||pass.sport===settings.sport)&&(!query||`${pass.customerName} ${pass.learnerName} ${pass.phone} ${pass.company} ${normalizeBookingCompany(pass.company)} ${pass.notes||''}`.normalize('NFKC').toLowerCase().includes(query)));
   const purchased=rows.reduce((sum,pass)=>sum+(pass.total||0),0),completed=rows.reduce((sum,pass)=>sum+pass.completed,0),pending=rows.reduce((sum,pass)=>sum+pass.pending,0),available=rows.reduce((sum,pass)=>sum+(pass.available||0),0);
   const outstandingTotal=rows.reduce((sum,pass)=>sum+(pass.outstanding||0),0),dueCount=rows.filter(pass=>pass.outstanding>0).length;
   const unverified=!preview&&rows.some(pass=>!pass.completionVerified);
