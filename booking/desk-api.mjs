@@ -207,6 +207,20 @@ export async function reviewCustomerChange(requestId,decision,reviewNote,expecte
   return result;
 }
 
+export async function createInstructorLink(instructorUserId){
+  const profile=await requireBookingOperator();
+  if(profile.role!=='admin')throw issue('강사 확인 링크는 관리자만 발급할 수 있습니다.','ADMIN_REQUIRED');
+  if(typeof instructorUserId!=='string'||!instructorUserId)throw issue('링크를 만들 강사를 확인해 주세요.','INPUT_REQUIRED');
+  const response=await supabase.functions.invoke('slope-customer-portal',{body:{action:'create-instructor-link',instructorId:instructorUserId}});
+  if(response.error){
+    let body;try{body=await response.error.context?.clone().json();}catch{}
+    const message=typeof body?.message==='string'&&/[가-힣]/u.test(body.message)?body.message.slice(0,200):'강사 확인 링크를 만들지 못했습니다. 다시 시도해 주세요.';
+    throw issue(message,body?.error||'REQUEST_FAILED');
+  }
+  if(!response.data?.url)throw issue('강사 확인 링크를 확인하지 못했습니다.');
+  return response.data;
+}
+
 export async function createCustomerLink(kind,subjectIds){
   const profile=await requireBookingOperator();
   if(kind==='survey'&&profile.role!=='admin')throw issue('설문 링크는 관리자만 관리할 수 있습니다.','ADMIN_REQUIRED');

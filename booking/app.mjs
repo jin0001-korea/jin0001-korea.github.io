@@ -20,7 +20,7 @@ import {renderTimetable,bindTimetable} from './timetable-view.mjs?v=29';
 import {renderPasses,renderPaymentPassIssue,renderPassDialogs,bindPasses,selectPassBalances} from './pass-view.mjs?v=57';
 import {renderCustomers,bindCustomers,hasUnsavedCustomerDraft,suspendCustomerEditor} from './customer-view.mjs?v=45';
 import {deleteDemoCustomer,customerDeletionConfirmed} from './customer-delete.mjs?v=2';
-import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=40';
+import {renderCustomerNotices,bindCustomerNotices,customerNoticeMessage,CUSTOMER_PORTAL} from './customer-notice-view.mjs?v=41';
 import {customerDirectorySelection,customerDirectoryPayload,customerTeamPayload} from './customer-directory.mjs?v=37';
 import {canUseBooking,bookingRoleLabel,isUnifiedBookingLocation,bookingStaffLinks,bookingAdminNavigation} from './booking-access.mjs?v=27';
 import {renderReviewsAdmin,bindReviewsAdmin,clearReviewsAdmin,reviewsAdminState} from './reviews-admin-view.mjs?v=1';
@@ -77,7 +77,7 @@ function context(){
   return {...value,paymentReservations:ui.booking.demo?value.reservations:state.paymentReservations||value.reservations};
 }
 function loginError(message){const node=$('#desk-login-error');node.textContent=message;node.hidden=!message;}
-function getApi(){return apiPromise??=(import('./desk-api.mjs?v=107').then(module=>{api=module;module.onSessionChange((event,session)=>{
+function getApi(){return apiPromise??=(import('./desk-api.mjs?v=108').then(module=>{api=module;module.onSessionChange((event,session)=>{
   if(signingIn)return;
   if(event==='SIGNED_OUT'&&(operational||checkingSession)){const wasOperational=operational;checkingSession=false;clearOperations();if(wasOperational)toast('운영 로그인이 종료되었습니다. 다시 로그인해 주세요.');return;}
   if((event==='SIGNED_IN'&&session?.user?.id&&session.user.id!==state.profile?.user_id&&(operational||checkingSession))||(event==='USER_UPDATED'&&operational)){clearOperations();checkingSession=true;void bootDesk();}
@@ -262,7 +262,7 @@ function render(){
     onDeleteCustomerPerson:id=>writeOperation(()=>api.deleteCustomerPerson(id),'개인을 명부에서 삭제했습니다.')});
   if(ui.view==='timetable')bindTimetable(app,{state:ctx,ui,now:new Date(),onChange:()=>{dirty=false;render();},onOpenReservation:openReservation,onCreateReservation:createReservation,onMoveReservation:moveReservation});
   if(ui.view==='reservations'||ui.passes?.issuing||ui.passes?.editRequest||ui.passes?.deleteRequest)bindPasses(app,{state:ctx,ui,onChange:()=>{dirty=false;render();},onCreate:createPass,onIssueInline:issuePassInline,onSchedule:schedulePass,onCustomerLink:id=>showCustomerLink('pass',[id]),onDelete:deletePass,onUpdate:updatePass,onEdit:editPassInline});
-  if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink});
+  if(ui.view==='notices')bindCustomerNotices(app,{state:ctx,demo,onCreateLink:showCustomerLink,onCreateInstructorLink:async id=>{if(demo)return {url:`${CUSTOMER_PORTAL}/instructor.html?demo=1`};mustBeOperator();return api.createInstructorLink(id);}});
   if(ui.view==='changes'){const identity=authVersion;bindCustomerChanges(app,{profile:state.profile,requests:changeRows,notes:changes.notes,bulk:changes.bulk||(changes.bulk={selected:[],note:''}),onFilter:status=>loadCustomerChanges(status),onRefresh:()=>loadCustomerChanges(),onReview:reviewCustomerRequest,onReviewBatch:reviewCustomerRequestBatch,onBulkChange:()=>{dirty=false;render();},isCurrent:()=>identity===authVersion&&hasOperator()&&canReviewCustomerChanges(state.profile)&&!ui.booking.demo});}
   if(ui.view==='friends')bindFriendOperations();
   if(ui.view==='reviews'){const identity=authVersion,viewUi=ui;bindReviewsAdmin(app,{ui,onChange:()=>{dirty=false;render();},onAction:reviewsAdminAction,onError:toast,isCurrent:()=>identity===authVersion&&viewUi===ui&&hasOperator()&&!ui.booking.demo&&ui.view==='reviews'});}
