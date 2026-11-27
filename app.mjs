@@ -1,5 +1,5 @@
-import {loadCashReceipts,issueCashReceipt} from './cash-receipt-client.mjs?v=34';
-import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue,renderCashReceiptBulkIssue} from './cash-receipt-view.mjs?v=35';
+import {loadCashReceipts,issueCashReceipt,exportCashReceiptForms} from './cash-receipt-client.mjs?v=35';
+import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue,renderCashReceiptBulkIssue} from './cash-receipt-view.mjs?v=36';
 import {loadAdminGuide} from './admin-guide-client.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import { getWarnings, reportDeadline, parseScheduleCSV } from './rules.mjs';
@@ -478,6 +478,28 @@ function bindCashReceipts(){
   app.querySelectorAll('[data-cash-pick]').forEach(input=>input.onchange=()=>{const id=input.dataset.cashPick;if(input.checked)cashReceiptSelection.add(id);else cashReceiptSelection.delete(id);render();});
   app.querySelector('[data-cash-pick-clear]')?.addEventListener('click',()=>{cashReceiptSelection.clear();render();});
   app.querySelector('[data-cash-bulk]')?.addEventListener('click',openCashReceiptBulkIssue);
+  app.querySelector('[data-cash-export]')?.addEventListener('click',exportCashReceiptFiles);
+}
+// 국세청 현금영수증 일괄발급 파일(2026-11-28 사장 지시): 선택 건을 캐치/라이즌 파일로 나눠 내려받고,
+// '영수증발급 추가요청'(분할 발급 등) 건은 자동 제외해 수기 처리 목록으로 보여준다.
+async function exportCashReceiptFiles(event){
+  if(!canManageCashReceipts(state.profile))return;
+  const ids=[...cashReceiptSelection];if(!ids.length)return;
+  const button=event?.currentTarget;if(button)button.disabled=true;
+  toast('일괄발급 파일을 만드는 중…');
+  try{
+    const result=await exportCashReceiptForms(state.profile,ids);
+    for(const file of result.files){
+      const bytes=Uint8Array.from(atob(file.base64),char=>char.charCodeAt(0));
+      const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      const link=document.createElement('a');link.href=url;link.download=file.name;link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),2000);
+    }
+    const summary=result.files.map(file=>`📄 ${esc(file.name)} — ${file.rows}건 · ${Number(file.amount).toLocaleString('ko-KR')}원`).join('<br>')||'생성할 수 있는 건이 없습니다.';
+    const skipped=result.excluded?.length?`<p class="field-help" style="margin-top:10px;"><strong>파일에서 제외 ${result.excluded.length}건 — 수기 처리 필요</strong><br>${result.excluded.map(item=>esc(item.label)+' · '+esc(item.reason)).join('<br>')}</p>`:'';
+    showDialog('국세청 일괄발급 파일 생성',`<p>${summary}</p>${skipped}<p class="field-help">파일을 국세청 현금영수증 일괄발급 화면에 업로드한 뒤, 실제 발급이 끝나면 여기서 "일괄 발급완료"로 기록해 주세요.</p><div class="modal-footer"><button type="button" class="btn primary" data-action="close">확인</button></div>`);
+  }catch(error){toast(error.message||'일괄발급 파일을 만들지 못했습니다.');}
+  finally{if(button)button.disabled=false;}
 }
 // 발급 기록 후 전체 재로딩 대신 현금영수증 목록만 다시 불러온다(2026-11-27: 완료 처리 체감 속도 개선).
 async function refreshCashReceipts(){

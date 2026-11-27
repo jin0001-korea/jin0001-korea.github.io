@@ -1,5 +1,5 @@
 import {supabase} from './auth-client.mjs?v=16';
-import {canManageCashReceipts} from './cash-receipt-view.mjs?v=35';
+import {canManageCashReceipts} from './cash-receipt-view.mjs?v=36';
 
 function requireAdmin(profile){if(!canManageCashReceipts(profile))throw new Error('관리자만 현금영수증 발급 내역을 확인할 수 있습니다.');}
 function fail(error,fallback){if(error)throw Object.assign(new Error(error.code==='42501'?'현금영수증을 관리할 권한이 없습니다.':error.code==='40001'?'예약 금액이나 요청번호가 변경되었습니다. 최신 내역을 확인한 뒤 다시 처리해 주세요.':error.message||fallback),{code:error.code});}
@@ -22,6 +22,17 @@ export async function loadCashReceipts(profile,{client=supabase}={}){
   }
   throw new Error('조회할 현금영수증 내역이 많습니다. 조회 범위를 확인해 주세요.');
 }
+// 국세청 일괄발급 파일 생성(2026-11-28): 선택 건을 캐치/라이즌 파일로 분리해 받는다.
+export async function exportCashReceiptForms(profile,ids,{client=supabase}={}){
+  requireAdmin(profile);
+  if(!Array.isArray(ids)||!ids.length||ids.length>1000)throw new Error('파일로 만들 발급 대기 건을 선택해 주세요.');
+  const {data,error}=await client.functions.invoke('slope-cash-export',{body:{ids}});
+  if(error){let body;try{body=await error.context?.clone().json();}catch{}
+    throw new Error((typeof body?.message==='string'&&body.message)||'일괄발급 파일을 만들지 못했습니다. 다시 시도해 주세요.');}
+  if(!Array.isArray(data?.files))throw new Error('파일 생성 결과를 확인하지 못했습니다.');
+  return data;
+}
+
 export async function issueCashReceipt(profile,row,{requestId,note='',client=supabase}={}){
   requireAdmin(profile);
   if(!row?.reservationId||!row.version||!validAmount(row.outstandingAmount)||row.outstandingAmount===0||!requestId)throw new Error('발급할 강습과 금액을 다시 확인해 주세요.');
