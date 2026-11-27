@@ -1,5 +1,5 @@
 import {loadCashReceipts,issueCashReceipt,exportCashReceiptForms} from './cash-receipt-client.mjs?v=35';
-import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue,renderCashReceiptBulkIssue} from './cash-receipt-view.mjs?v=36';
+import {canManageCashReceipts,renderCashReceipts,renderCashReceiptNotice,renderCashReceiptIssue,renderCashReceiptBulkIssue} from './cash-receipt-view.mjs?v=37';
 import {loadAdminGuide} from './admin-guide-client.mjs?v=1';
 import {renderSheetsSync} from './sheets-sync-view.mjs?v=1';
 import { getWarnings, reportDeadline, parseScheduleCSV } from './rules.mjs';
@@ -477,6 +477,7 @@ function bindCashReceipts(){
   app.querySelectorAll('[data-cash-issue]').forEach(button=>button.onclick=()=>openCashReceiptIssue(button.dataset.cashIssue));
   app.querySelectorAll('[data-cash-pick]').forEach(input=>input.onchange=()=>{const id=input.dataset.cashPick;if(input.checked)cashReceiptSelection.add(id);else cashReceiptSelection.delete(id);render();});
   app.querySelector('[data-cash-pick-clear]')?.addEventListener('click',()=>{cashReceiptSelection.clear();render();});
+  app.querySelector('[data-cash-pick-all]')?.addEventListener('change',event=>{const ids=String(event.currentTarget.dataset.ids||'').split(',').filter(Boolean);if(event.currentTarget.checked)ids.forEach(id=>cashReceiptSelection.add(id));else ids.forEach(id=>cashReceiptSelection.delete(id));render();});
   app.querySelector('[data-cash-bulk]')?.addEventListener('click',openCashReceiptBulkIssue);
   app.querySelector('[data-cash-export]')?.addEventListener('click',exportCashReceiptFiles);
 }
