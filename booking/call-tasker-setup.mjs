@@ -161,6 +161,9 @@ export function smsRowsToPlan(rows, options) {
     // hashes, multiple terminators, USSD stars or other non-phone characters.
     var dualNumber = phone.charAt(phone.length - 1) === '#';
     if (dualNumber) phone = phone.slice(0, -1);
+    // Business-line-only sources skip personal-line SMS entirely; the cursor
+    // below still advances past them so the scan completes.
+    if (options.dualNumberOnly && !dualNumber) { diagnostic.personalLine = (diagnostic.personalLine || 0) + 1; candidates.push({record: null, cursor: {at: at, id: fields[0]}}); continue; }
     var canonical = phone.replace(/[().\s-]/g, '');
     if (/^(?:\+82|0082)/.test(canonical) || /^82\d{8,11}$/.test(canonical)) {
       canonical = canonical.replace(/^(?:\+82|0082|82)/, '');
@@ -295,7 +298,7 @@ export function buildCallTaskerProject({source, token, endpoint = CALL_INGEST_EN
   // Keep the JS bindings equal to the explicitly published values as well:
   // Auto Exit must never restore an older injected binding after setLocal.
   const smsPreparation = `${taskerSmsSnapshot.toString()}\nvar ${smsSnapshotVariable} = JSON.stringify(taskerSmsSnapshot(global('${smsStateGlobal}'), ${collectFrom}, Date.now()));\nsetLocal('${smsSnapshotVariable}', ${smsSnapshotVariable});\nvar ${smsSelectionVariable} = JSON.parse(${smsSnapshotVariable}).selection;\nsetLocal('${smsSelectionVariable}', ${smsSelectionVariable});`;
-  const smsPlanning = `${smsRowsToPlan.toString()}\nvar ${smsPlanVariable} = (function () {\n  if (typeof ${smsSnapshotVariable} === 'undefined') throw new Error('SMS_PLAN_INVALID: 문자 조회 기준이 없습니다.');\n  var plan = smsRowsToPlan(typeof ${smsRowsVariable} === 'undefined' ? [] : ${smsRowsVariable}, {snapshot: JSON.parse(${smsSnapshotVariable}), maxBatches: 1});\n  if (plan.batches.length !== 1) throw new Error('SMS_PLAN_INVALID: 문자 전송 계획이 없습니다.');\n  return JSON.stringify(plan);\n})();\nsetLocal('${smsPlanVariable}', ${smsPlanVariable});`;
+  const smsPlanning = `${smsRowsToPlan.toString()}\nvar ${smsPlanVariable} = (function () {\n  if (typeof ${smsSnapshotVariable} === 'undefined') throw new Error('SMS_PLAN_INVALID: 문자 조회 기준이 없습니다.');\n  var plan = smsRowsToPlan(typeof ${smsRowsVariable} === 'undefined' ? [] : ${smsRowsVariable}, {snapshot: JSON.parse(${smsSnapshotVariable}), maxBatches: 1, dualNumberOnly: ${dualNumberOnly}});\n  if (plan.batches.length !== 1) throw new Error('SMS_PLAN_INVALID: 문자 전송 계획이 없습니다.');\n  return JSON.stringify(plan);\n})();\nsetLocal('${smsPlanVariable}', ${smsPlanVariable});`;
   // Clear the old body and HTTP result before publishing a verified new body.
   // Send one batch per run without native loop/index-variable dependencies.
   const smsBody = `${smsBatchRequestBody.toString()}\nvar ${smsBodyVariable} = '';\nvar http_data = '';\nvar http_response_code = '0';\nsetLocal('${smsBodyVariable}', ${smsBodyVariable});\nsetLocal('http_data', http_data);\nsetLocal('http_response_code', http_response_code);\n${smsBodyVariable} = smsBatchRequestBody(typeof ${smsPlanVariable} === 'undefined' ? '' : ${smsPlanVariable}, 0);\nsetLocal('${smsBodyVariable}', ${smsBodyVariable});`;
